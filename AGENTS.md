@@ -4,6 +4,7 @@
 - Stack: Tauri v2 + Rust backend + web UI (vanilla-ts, npm).
 - Yapi: 4 sekme (Panel/Profiller/Ayarlar/Geçmiş). Backend `src-tauri/src/` (`brightness`, `activity`, `theme`, `decide`, `light`, `autostart`, `ps`, `logger`, `prefs`, `battery`, `stats`, `gamma`). Frontend `src/main.ts` orkestrasyon + `catalog.ts`, `store.ts`, `widgets.ts`.
 - Ekran tonu gamma rampasiyla yapilir (`gamma.rs`): `SetDeviceGammaRamp` sessiz reddettigi icin rampa once monotonluk ve identity+-32768 kontrolunden gecer. DDC/CI bu laptopta calismiyor (hata 31); monitore ozel yol SONRA gelecek.
+- Sicak tonu kapatirken monitor kalibrasyonu silinmemeli: ekranin o anki rampasi `smart-screen-gamma.bin`e yazilir, kapatinca geri yuklenir; uygulama coktugere acilista `gamma::recover()` ile kalinti temizlenir.
 - Görsel+işlevsel test: `cd qa && node run.mjs` (once `npm.cmd run build`); kareler `qa/shots/` altına düşer, taşma/sızıntı/ölü düğme assert'leri içerir.
 - Kur: `npm.cmd install` (proje koku). Not: `npm.ps1` policy engelli, `npm.cmd` kullan.
 - Dev: `npm.cmd run tauri dev`. Test: `cargo test` (`src-tauri/` icinde). Build: `npm.cmd run build`.

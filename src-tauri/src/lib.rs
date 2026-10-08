@@ -157,7 +157,7 @@ fn gamma_set_warmth(percent: u8) -> Result<(), String> {
 
 #[tauri::command]
 fn gamma_restore() -> Result<(), String> {
-    gamma::restore_identity()
+    gamma::restore_original()
 }
 
 #[tauri::command]
@@ -181,6 +181,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Onceki oturumdan kalma sicak tonu temizle (crash sonrasi).
+            gamma::recover();
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
             let open = MenuItem::with_id(app, "open", "Ac", true, None::<&str>)?;

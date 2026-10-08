@@ -8,8 +8,15 @@
 //! cozunurluk degisiminde surucu rampayi sifirlayabilir; kapanista
 //! cagiranin read_ramp ile sakladigi orijinali geri koymasi gerekir.
 
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+
 use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
 use windows::Win32::UI::ColorSystem::{GetDeviceGammaRamp, SetDeviceGammaRamp};
+
+/// Sicak ton uygulanmadan once ekranin rampasi buraya saklanir; kapatilirken
+/// geri yuklenir (monitor/Windows renk kalibrasyonu silinmesin).
+static ORIGINAL: Mutex<Option<Ramp>> = Mutex::new(None);
 
 /// Surucunun kabul ettigi identity'den maksimum sapma (Microsoft dokumu).
 const MAX_DEVIATION: i32 = 32768;
@@ -93,16 +100,101 @@ pub fn read_ramp() -> Result<Ramp, String> {
     Ok(from_words(&words))
 }
 
-/// Sicakligi uygular: build + validate + apply.
+/// Sicakligi uygular: build + validate + apply. Ilk uygulamadan once ekranin
+/// mevcut rampasi saklanir. warmth=0 verilirse geri yukler.
 pub fn set_warmth(warmth: u8) -> Result<(), String> {
+    if warmth == 0 {
+        return restore_original();
+    }
+    capture_original()?;
     let ramp = build_ramp(warmth);
     validate(&ramp)?;
     apply_ramp(&ramp)
 }
 
-/// Kimlik (degisiklik yok) rampayi uygular; sicak tonu kapatir.
-pub fn restore_identity() -> Result<(), String> {
-    apply_ramp(&identity_ramp())
+/// Saklanan orijinali geri yukler; hicbir sey saklanmadiysa identity
+/// (yani monitor kalibrasyonu yoksa varsayilana doner).
+pub fn restore_original() -> Result<(), String> {
+    let disk = gamma_file().ok().and_then(|p| load_from_path(&p));
+    let stored = {
+        let mut guard = ORIGINAL
+            .lock()
+            .map_err(|_| "gamma kilidi bozuk".to_string())?;
+        guard.take()
+    };
+    let ramp = stored.or(disk).unwrap_or_else(identity_ramp);
+    let _ = clear_original();
+    apply_ramp(&ramp)
+}
+
+/// Onceki oturumdan kalma sicak tonu temizler (crash sonrasi).
+/// Diskte kayit yoksa hicbir sey yapmaz.
+pub fn recover() {
+    if let Some(ramp) = gamma_file().ok().and_then(|p| load_from_path(&p)) {
+        let _ = apply_ramp(&ramp);
+        let _ = clear_original();
+    }
+}
+
+/// Sicak tonu uygulamadan once ekranin rampasini saklar (bellek + disk).
+pub fn capture_original() -> Result<(), String> {
+    {
+        let guard = ORIGINAL
+            .lock()
+            .map_err(|_| "gamma kilidi bozuk".to_string())?;
+        if guard.is_some() {
+            return Ok(());
+        }
+    }
+    let ramp = read_ramp()?;
+    if let Ok(p) = gamma_file() {
+        let _ = save_to_path(&p, &ramp);
+    }
+    let mut guard = ORIGINAL
+        .lock()
+        .map_err(|_| "gamma kilidi bozuk".to_string())?;
+    *guard = Some(ramp);
+    Ok(())
+}
+
+fn clear_original() -> Result<(), String> {
+    if let Ok(p) = gamma_file() {
+        let _ = std::fs::remove_file(p);
+    }
+    Ok(())
+}
+
+fn gamma_file() -> Result<PathBuf, String> {
+    let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
+    Ok(PathBuf::from(home)
+        .join(".config")
+        .join("opencode")
+        .join("smart-screen-gamma.bin"))
+}
+
+/// Rampayi 768 WORD olarak dosyaya yazar (kucuk endian).
+fn save_to_path(path: &Path, ramp: &Ramp) -> Result<(), String> {
+    let mut bytes = [0u8; 768 * 2];
+    for (i, v) in to_words(ramp).iter().enumerate() {
+        bytes[i * 2..i * 2 + 2].copy_from_slice(&v.to_le_bytes());
+    }
+    if let Some(dir) = path.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| format!("gamma dizini yok: {e}"))?;
+    }
+    std::fs::write(path, bytes).map_err(|e| format!("gamma yazilamadi: {e}"))
+}
+
+/// Dosyadan rampa okur; dosya yoksa/bos ise None.
+fn load_from_path(path: &Path) -> Option<Ramp> {
+    let bytes = std::fs::read(path).ok()?;
+    if bytes.len() < 768 * 2 {
+        return None;
+    }
+    let mut words = [0u16; 768];
+    for (i, w) in words.iter_mut().enumerate() {
+        *w = u16::from_le_bytes([bytes[i * 2], bytes[i * 2 + 1]]);
+    }
+    Some(from_words(&words))
 }
 
 /// Surucunun sessizce reddedecegi rampayi onceden yakalar.
@@ -187,6 +279,29 @@ mod tests {
     #[test]
     fn warmth_zero_is_identity() {
         assert_eq!(build_ramp(0), identity_ramp());
+    }
+
+    #[test]
+    fn ramp_survives_disk_roundtrip() {
+        let dir = std::env::temp_dir().join(format!("ss-gamma-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("g.bin");
+        let ramp = build_ramp(45);
+        save_to_path(&path, &ramp).unwrap();
+        let back = load_from_path(&path).unwrap();
+        assert_eq!(back, ramp);
+        std::fs::remove_file(&path).ok();
+    }
+
+    #[test]
+    fn missing_or_short_disk_file_is_none() {
+        let dir = std::env::temp_dir().join(format!("ss-gamma2-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("yok.bin");
+        assert!(load_from_path(&path).is_none());
+        std::fs::write(&path, [0u8; 10]).unwrap();
+        assert!(load_from_path(&path).is_none());
+        std::fs::remove_file(&path).ok();
     }
 
     #[test]
