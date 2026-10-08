@@ -1,0 +1,11 @@
+{
+  "name": "smart-screen-qa",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "qa": "node run.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.49.0"
+  }
+}

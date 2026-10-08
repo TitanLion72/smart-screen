@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>smart-screen</title>
+    <script type="module" src="/src/main.ts" defer></script>
+  </head>
+
+  <body>
+    <main class="app">
+      <header class="app-header">
+        <h1>smart-screen</h1>
+        <span class="eyebrow">ortam ışığı</span>
+        <span class="header-spacer"></span>
+        <span id="profile-pill" class="badge info">İş</span>
+        <span id="break-pill" class="badge muted">20-20-20</span>
+        <span id="mode-badge" class="badge">Hazırlanıyor</span>
+      </header>
+
+      <nav class="tabs" role="tablist">
+        <button type="button" class="tab active" data-tab="panel">Panel</button>
+        <button type="button" class="tab" data-tab="profiles">Profiller</button>
+        <button type="button" class="tab" data-tab="settings">Ayarlar</button>
+        <button type="button" class="tab" data-tab="history">Geçmiş</button>
+      </nav>
+
+      <section class="page" id="page-panel">
+        <div class="cards">
+          <div class="card">
+            <div class="card-label">Parlaklık</div>
+            <div class="card-value"><span class="dot accent" id="dot-bright"></span><span id="st-bright">-</span></div>
+            <div class="card-sub" id="sub-bright">-</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Işık</div>
+            <div class="card-value"><span class="dot" id="dot-light"></span><span id="st-light">-</span></div>
+            <div class="card-sub" id="sub-light">-</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Tema</div>
+            <div class="card-value"><span class="dot accent" id="dot-theme"></span><span id="st-theme">-</span></div>
+            <div class="card-sub" id="sub-theme">-</div>
+          </div>
+          <div class="card">
+            <div class="card-label">Durum</div>
+            <div class="card-value"><span class="dot ok" id="dot-frozen"></span><span id="st-frozen">-</span></div>
+            <div class="card-sub" id="sub-frozen">-</div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <button id="now-btn" class="btn-primary" type="button">Şimdi Ölç</button>
+          <button id="lock-btn" class="btn-toggle" type="button">Kilit</button>
+          <button id="pause-btn" class="btn-toggle" type="button">Duraklat</button>
+          <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
+          <span class="spacer"></span>
+          <span id="break-countdown" class="hint">-</span>
+          <span class="hint">son ölçüm <span id="last-measure">-</span></span>
+        </div>
+
+        <div class="quick-row" id="profile-switch" role="group" aria-label="Profil seçimi"></div>
+
+        <div id="risk-band" class="band danger" hidden>
+          <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
+          <span class="spacer"></span>
+          <button id="risk-fix-btn" class="btn-toggle" type="button">Güvenli temaya dön</button>
+        </div>
+
+        <div id="break-band" class="band warn" hidden>
+          <span id="break-text">20 dakika doldu — 20 saniye uzaklara bak.</span>
+          <span class="spacer"></span>
+          <button id="break-done" class="btn-primary" type="button">Baktım</button>
+          <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
+        </div>
+
+        <div class="log-wrap">
+          <div id="log" class="log"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-profiles" hidden>
+        <div class="grid-profiles" id="profile-cards"></div>
+
+        <div class="panel-box" id="profile-editor">
+          <div class="box-title">Profili düzenle</div>
+          <label class="field">Ad
+            <input id="pf-name" type="text" spellcheck="false" />
+          </label>
+          <div class="field-row">
+            <div class="field">
+              <span class="field-label">Mod</span>
+              <div class="seg" id="pf-mode" role="group"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">Kaynak</span>
+              <div class="seg" id="pf-source" role="group"></div>
+            </div>
+          </div>
+          <div class="field-row">
+            <label class="field">Tema
+              <select id="pf-theme"></select>
+            </label>
+            <div class="field">
+              <span class="field-label">Parlaklık düzeltme</span>
+              <div class="stepper">
+                <button id="pf-off-minus" class="btn-toggle" type="button">−</button>
+                <span id="pf-off-val">+0</span>
+                <button id="pf-off-plus" class="btn-toggle" type="button">+</button>
+              </div>
+            </div>
+          </div>
+          <div class="switch-row">
+            <div class="switch-line">
+              <span id="pf-autolock-label">Engelli uygulamada otomatik kilit</span>
+              <button id="pf-autolock" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="pf-save" class="btn-primary" type="button">Kaydet</button>
+            <button id="pf-duplicate" class="btn-toggle" type="button">Çoğalt</button>
+            <button id="pf-delete" class="btn-toggle btn-danger" type="button">Sil</button>
+            <span class="spacer"></span>
+            <button id="pf-add" class="btn-toggle" type="button">Yeni profil</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-settings" hidden>
+        <div class="panel-box">
+          <div class="box-title">Tema ve güvenlik</div>
+          <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
+          <div class="hint">Dışarıdan riskli tema seçilirse Panel'de uyarı çıkar.</div>
+        </div>
+
+        <div class="panel-box">
+          <div class="box-title">Otomasyon</div>
+          <div class="field-row">
+            <div class="field">
+              <span class="field-label">Mod</span>
+              <div class="seg" id="mode-seg" role="group"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">Işık kaynağı</span>
+              <div class="seg" id="source-seg" role="group"></div>
+            </div>
+          </div>
+          <div class="switch-line">
+            <span>Otomatik başlatma</span>
+            <button id="auto-switch" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+          </div>
+          <div class="switch-line">
+            <span>20-20-20 hatırlatıcı</span>
+            <button id="break-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <div class="box-title">Uygulamalar</div>
+          <label class="field">Video / oyun / PDF — dondurur
+            <div class="tag-editor" id="block-editor"></div>
+          </label>
+          <label class="field">İş uygulamaları — tam ekranda dokunulmaz
+            <div class="tag-editor" id="allow-editor"></div>
+          </label>
+          <div class="toolbar">
+            <button id="add-current-btn" class="btn-toggle" type="button">Ön plandakini ekle</button>
+          </div>
+        </div>
+
+        <div class="panel-box">
+          <div class="box-title">Zamanlama ve görünüm</div>
+          <div class="switch-line">
+            <span>Sıcak ton (gün batımı koruması)</span>
+            <button id="warm-switch" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <span class="field-label">Ton şiddeti</span>
+              <div class="stepper">
+                <button id="warm-minus" class="btn-toggle" type="button">−</button>
+                <span id="warm-val">35</span>
+                <button id="warm-plus" class="btn-toggle" type="button">+</button>
+              </div>
+            </div>
+            <div class="field">
+              <span class="field-label">Okuma profili</span>
+              <div class="stepper">
+                <button id="read-btn" class="btn-toggle" type="button">Aç / kapat</button>
+              </div>
+            </div>
+          </div>
+          <div class="hint" id="calib-hint">kalibrasyon: henüz gözlem yok</div>
+          <div class="field-row">
+            <label class="field">Gece koruması başlangıç
+              <input id="sleep-start" type="number" min="0" max="23" />
+            </label>
+            <label class="field">Bitiş
+              <input id="sleep-end" type="number" min="0" max="23" />
+            </label>
+            <label class="field">Gece tavanı %
+              <input id="sleep-cap" type="number" min="5" max="60" />
+            </label>
+          </div>
+          <div class="field-row">
+            <div class="field">
+              <span class="field-label">Vurgu rengi</span>
+              <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
+            </div>
+          </div>
+          <div class="toolbar">
+            <button id="night-btn" class="btn-toggle" type="button">Windows gece ışığı</button>
+            <span class="spacer"></span>
+            <span class="hint">v<span id="app-ver">-</span></span>
+          </div>
+        </div>
+      </section>
+
+      <section class="page" id="page-history" hidden>
+        <div class="summary-row">
+          <div class="card summary-card">
+            <div class="card-label">Bugün tema değişimi</div>
+            <div class="card-value"><span id="sum-changes">0</span></div>
+          </div>
+          <div class="card summary-card">
+            <div class="card-label">Ortalama parlaklık</div>
+            <div class="card-value"><span id="sum-avg">-</span></div>
+          </div>
+          <div class="card summary-card">
+            <div class="card-label">Dondurulan tur</div>
+            <div class="card-value"><span id="sum-frozen">0</span></div>
+          </div>
+        </div>
+
+        <div class="panel-box chart-box">
+          <div class="box-title">Son 12 saat</div>
+          <svg id="chart" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-label="Parlaklık grafiği"></svg>
+          <div class="hint">Çubuk: uygulanan ortalama &bull; kesik çizgi: hedef ortalama &bull; soluk çubuk: o saatte kayıt yok</div>
+        </div>
+
+        <div class="panel-box log-history">
+          <div class="box-title">Kayıtlar</div>
+          <div id="hist-panel" class="hist"></div>
+          <div class="toolbar">
+            <button id="hist-refresh" class="btn-toggle" type="button">Yenile</button>
+            <button id="log-clear-btn" class="btn-toggle btn-danger" type="button">Kayıtları temizle</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
