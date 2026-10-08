@@ -2,7 +2,7 @@
 
 - Ozet: laptop ortam isigina gore OpenCode temasini + laptop ekran parlakligini ayarlayan tray uygulamasi; oyun/video/kilitte degisiklik yapma.
 - Stack: Tauri v2 + Rust backend + web UI (vanilla-ts, npm).
-- Yapi: 4 sekme (Panel/Profiller/Ayarlar/Geçmiş). Backend `src-tauri/src/` (`brightness`, `activity`, `theme`, `decide`, `light`, `autostart`, `ps`, `logger`, `prefs`, `battery`, `stats`, `gamma`). Frontend `src/main.ts` orkestrasyon + `catalog.ts`, `store.ts`, `widgets.ts`.
+- Yapi: 4 sekme (Panel/Profiller/Ayarlar/Geçmiş). Backend `src-tauri/src/` (`brightness`, `activity`, `theme`, `decide`, `light`, `autostart`, `ps`, `logger`, `prefs`, `battery`, `stats`, `gamma`, `contrast`, `install`). Frontend `src/main.ts` orkestrasyon + `catalog.ts`, `store.ts`, `widgets.ts`. Tema ureteci `tools/themes.mjs`.
 - Ekran tonu gamma rampasiyla yapilir (`gamma.rs`): `SetDeviceGammaRamp` sessiz reddettigi icin rampa once monotonluk ve identity+-32768 kontrolunden gecer. DDC/CI bu laptopta calismiyor (hata 31); monitore ozel yol SONRA gelecek.
 - Sicak tonu kapatirken monitor kalibrasyonu silinmemeli: ekranin o anki rampasi `smart-screen-gamma.bin`e yazilir, kapatinca geri yuklenir; uygulama coktugere acilista `gamma::recover()` ile kalinti temizlenir.
 - Görsel+işlevsel test: `cd qa && node run.mjs` (once `npm.cmd run build`); kareler `qa/shots/` altına düşer, taşma/sızıntı/ölü düğme assert'leri içerir.
@@ -19,3 +19,6 @@
 - Elle secilen tema `smart-screen-prefs.json` icine saat+isik anahtariyla ogrenilir; ayni kosulda once ogrenilmis tercih uygulanir.
 - 20-20-20 tek seferliktir: uyarı `waiting -> alerting` geçişiyle bir kez çıkar, "Baktım"/"Ertele" onayı gelene kadar tekrar etmez. Dakikalık döngüde saniyelik koruma tuzağı kullanma.
 - `el()` eksik id'de throw eder ve çağıranın `catch`i yutar: yeni id eklerken hem `index.html` hem QA assert'lerini güncelle.
+- Kontrast denetimi (`contrast.rs`): tema dosyasındaki `text.base`/`background.base` oranı WCAG 2.1 ile ölçülür (7 AAA / 4.5 AA / 3 AA-large). Ölçülüp **FAIL** çıkan tema otomatik seçimde uygulanmaz (Ayarlar'daki kapı, varsayılan açık); elle seçim serbest. $hue alias zinciri ve `$token.yol` referansları çözülür, derinlik kelepçesi sonsuz döngüyü keser.
+- Göz konforu temaları (`ss-paper`/`ss-dusk`/`ss-night`) `tools/themes.mjs` ile üretilir — tek kaynak metin orada, elle düzenlersen üreteç ezmez zaten oradan çıkmıyor ama üreteç iki yere yazar: `src-tauri/themes/` (derlemeye gömülü) ve `~/.config/opencode/themes/`. `install.rs` açılışta eksik olanı kopyalar, **var olana dokunmaz** (kullanıcı düzenlemişse geri almaz). Değişiklikten sonra `node tools/themes.mjs` ile hem ürete hem kur.
+- Uygulamaya bağlı profil: profilin `apps` listesindeki exe ön plana gelince o turda mod/kaynak/tema/düzeltme profilden okunur, öğrenilmiş tercih onu ezmez. **Kilit ve dondurma kuralları her durumda önde gelir** (video/oyun/PDF öndeyse bağlı profil bile dokunamaz).

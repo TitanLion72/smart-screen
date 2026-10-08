@@ -211,6 +211,17 @@ body::before {
   color: var(--text-3);
 }
 
+/* Olcum sonucu rozetleri: AA/AAA yesil, AA-large sarı, FAIL kirmizi. */
+.badge.ok {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.badge.bad {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
 .cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -928,4 +939,55 @@ footer {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* WCAG kontrast denetimi listesi */
+.audit-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 132px;
+  overflow-y: auto;
+  background: var(--input);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  padding: 6px 8px;
+}
+
+.audit-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px 58px 62px 86px;
+  align-items: center;
+  gap: 8px;
+  height: 22px;
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+}
+
+.audit-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.audit-mode {
+  color: var(--text-3);
+}
+
+.audit-ratio {
+  text-align: right;
+  color: var(--text-1);
+}
+
+.audit-muted {
+  color: var(--text-3);
+  text-align: right;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.audit-row .badge {
+  justify-self: end;
 }

@@ -28,7 +28,7 @@ const buckets = Array.from({ length: 12 }, (_, i) => ({
   samples: i < 6 ? 4 : 0,
 }));
 
-const stubScript = (themeName, themeMode) => `
+const stubScript = (themeName, themeMode, exe) => `
 window.__invocations = [];
 window.__TAURI_INTERNALS__ = {
   invoke: async (cmd, args) => {
@@ -36,7 +36,7 @@ window.__TAURI_INTERNALS__ = {
     switch (cmd) {
       case "brightness_get": return 42;
       case "is_fullscreen": return false;
-      case "foreground_exe": return "firefox.exe";
+      case "foreground_exe": return ${JSON.stringify(exe ?? "firefox.exe")};
       case "theme_get": return [${JSON.stringify(themeName)}, ${JSON.stringify(themeMode)}];
       case "decide_target": return ["vesper", "dark", 30];
       case "decide_brightness": return (args && typeof args.desired === "number") ? args.desired : 30;
@@ -45,7 +45,12 @@ window.__TAURI_INTERNALS__ = {
       case "autostart_get": return true;
       case "pref_get": return null;
       case "pref_list": return [];
+      case "pref_get_bright": return null;
       case "battery_status": return [85, true];
+      case "contrast_audit": return [
+        { name: "ss-night", mode: "dark", text_on_bg: 8.5, muted_on_bg: 5.9, syntax_min: 4.9, verdict: "AA" },
+        { name: "soluk-tema", mode: "dark", text_on_bg: 2.2, muted_on_bg: 1.1, syntax_min: 1.0, verdict: "FAIL" },
+      ];
       case "log_lines": return ["2026-10-06T20:58:00.000Z | source=auto/auto | level=dark | tone=neutral | desired=30 | applied=30 | theme=vesper/dark | note=izle"];
       case "stats_summary": return {
         buckets: ${JSON.stringify(buckets)},
@@ -89,13 +94,13 @@ async function run() {
   const base = `http://localhost:${server.address().port}/`;
   const browser = await chromium.launch();
 
-  async function scenario(themeName, themeMode, steps) {
+  async function scenario(themeName, themeMode, steps, exe) {
     const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
     page.on("pageerror", (e) => consoleErrors.push(String(e)));
     page.on("console", (m) => {
       if (m.type() === "error") consoleErrors.push(m.text());
     });
-    await page.addInitScript(stubScript(themeName, themeMode));
+    await page.addInitScript(stubScript(themeName, themeMode, exe));
     await page.goto(base, { waitUntil: "networkidle" });
     await page.waitForTimeout(500);
     const invocations = async () => page.evaluate(() => window.__invocations);
@@ -212,6 +217,37 @@ async function run() {
     if (!cmds.includes("animations_set")) fail("ekran", "animations_set cagrilmadi");
     await page.screenshot({ path: join(shotDir, "6-ekran.png") });
   });
+
+  // 7. Contrast audit: measured ratios render and the gate toggles.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab }) => {
+    await openTab("settings");
+    const rows = await page.locator("#audit-list .audit-row").count();
+    if (rows < 2) fail("kontrast", `denetim satiri az: ${rows}`);
+    const badges = await page.locator("#audit-list .badge").allTextContents();
+    if (!badges.includes("FAIL")) fail("kontrast", "FAIL rozeti gorunmedi");
+    if (!badges.includes("AA")) fail("kontrast", "AA rozeti gorunmedi");
+    const colors = await page.locator("#audit-list .audit-muted").allTextContents();
+    if (!colors.some((c) => c.includes("renk"))) fail("kontrast", "renk kodu sutunu gorunmedi");
+    await page.locator("#audit-refresh").click();
+    await page.waitForTimeout(200);
+    await page.locator("#gate-switch").click();
+    await page.waitForTimeout(150);
+    const gate = await page.locator("#gate-switch").getAttribute("aria-checked");
+    if (gate !== "false") fail("kontrast", `kontrast kapisi kapanmadi: ${gate}`);
+    await checkOverflow(page, "kontrast");
+    await page.screenshot({ path: join(shotDir, "7-kontrast.png") });
+  });
+
+  // 8. App-bound profile takes over when its app is in front.
+  await scenario("catppuccin-macchiato", "dark", async ({ page }) => {
+    const logText = (await page.locator("#log").textContent()) ?? "";
+    if (!logText.includes("(code.exe)")) fail("bagim", "bagli profil log'a dusmedi");
+    const pill = (await page.locator("#profile-pill").textContent()) ?? "";
+    if (!pill.includes("\u2192")) fail("bagim", `rozet devri gostermedi: ${pill}`);
+    if (logText.includes("hata:")) fail("bagim", `tick hatasi: ${logText.slice(0, 120)}`);
+    await checkOverflow(page, "bagim");
+    await page.screenshot({ path: join(shotDir, "8-uygulama.png") });
+  }, "code.exe");
 
   await browser.close();
   server.close();

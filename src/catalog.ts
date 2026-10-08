@@ -35,6 +35,10 @@ export interface ThemeEntry {
 }
 
 export const THEMES: ThemeEntry[] = [
+  // Kendi goz konforu temalarimiz: kontrastlari olculmus (tools/themes.mjs).
+  { name: "ss-paper", mode: "light", note: "gündüz • sıcak" },
+  { name: "ss-dusk", mode: "dark", note: "loş oda • sıcak" },
+  { name: "ss-night", mode: "dark", note: "gece • en loş" },
   { name: "github", mode: "light", note: "açık" },
   { name: "flexoki", mode: "light", note: "açık" },
   { name: "solarized", mode: "light", note: "açık" },

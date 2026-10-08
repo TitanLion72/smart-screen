@@ -111,6 +111,15 @@
               </div>
             </div>
           </div>
+          <label class="field">Bağlı uygulamalar — ön plana gelince bu profil devralır
+            <div class="tag-editor" id="pf-apps-editor"></div>
+          </label>
+          <div class="hint">Video / oyun / PDF öndeyse yine dokunulmaz; kural dondurmadır.</div>
+          <div class="toolbar">
+            <button id="pf-bind-current" class="btn-toggle" type="button">Ön plandakini bağla</button>
+            <span class="spacer"></span>
+            <span class="hint" id="pf-apps-count">0 uygulama</span>
+          </div>
           <div class="switch-row">
             <div class="switch-line">
               <span id="pf-autolock-label">Engelli uygulamada otomatik kilit</span>
@@ -132,6 +141,20 @@
           <div class="box-title">Tema ve güvenlik</div>
           <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
           <div class="hint">Dışarıdan riskli tema seçilirse Panel'de uyarı çıkar.</div>
+        </div>
+
+        <div class="panel-box">
+          <div class="box-title">Kontrast denetimi (WCAG)</div>
+          <div class="hint">Metin, ikincil metin ve renk kodu oranları ölçülür: 7+ AAA, 4.5+ AA, 3+ AA-large, altı FAIL.</div>
+          <div id="audit-list" class="audit-list"></div>
+          <div class="toolbar">
+            <button id="audit-refresh" class="btn-toggle" type="button">Yeniden ölç</button>
+            <span class="spacer"></span>
+            <div class="switch-line">
+              <span>FAIL olanı otomatik seçimde engelle</span>
+              <button id="gate-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+            </div>
+          </div>
         </div>
 
         <div class="panel-box">

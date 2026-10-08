@@ -26,6 +26,17 @@ interface StatsSummary {
   ticksToday: number;
 }
 
+/** WCAG denetim raporu (backend `contrast::Report`). */
+interface AuditReport {
+  name: string;
+  mode: string;
+  text_on_bg: number;
+  muted_on_bg: number;
+  /** Sözdizimi + geri bildirim renklerinin en kötü oranı. */
+  syntax_min: number;
+  verdict: string;
+}
+
 const WATCH_MS = 60 * 1000;
 const CAM_MS = 5 * 60 * 1000;
 const CAM_MS_LOW = 15 * 60 * 1000;
@@ -74,6 +85,12 @@ let breakState: "waiting" | "alerting" = "waiting";
 let notifyReady = false;
 let tagBlock: TagHandle | null = null;
 let tagAllow: TagHandle | null = null;
+let tagApps: TagHandle | null = null;
+let audits: AuditReport[] = [];
+let auditGate = getSetting("auditGate", "1") === "1";
+let lastGateWarn = "";
+let boundName: string | null = null;
+let lastBoundExe: string | null = null;
 
 function splitList(s: string): string[] {
   return s
@@ -144,7 +161,14 @@ function syncBadge(): void {
   badge.textContent = parts.join(" • ");
   badge.className = "badge " + (locked || paused ? "warn" : "");
   const prof = activeProfile();
-  el("profile-pill").textContent = prof ? prof.name : "Profil yok";
+  el("profile-pill").textContent = boundName
+    ? `${prof ? prof.name : "-"} → ${boundName}`
+    : prof
+      ? prof.name
+      : "Profil yok";
+  el("profile-pill").title = boundName
+    ? `${boundName} bağlı uygulama yüzünden yönetiyor`
+    : "aktif profil";
 }
 
 function updateUndoBtn(): void {
@@ -225,13 +249,82 @@ async function undo(): Promise<void> {
   }
 }
 
-async function updateRisk(name: string): Promise<void> {
-  const risky = RISKY.includes(name.toLowerCase());
+/** Temanin olculmus kontrast raporu; olcusulmemisse null. */
+function findAudit(name: string, themeMode: string | null): AuditReport | null {
+  const norm = name.toLowerCase();
+  const mine = audits.filter((r) => r.name.toLowerCase() === norm);
+  if (mine.length === 0) return null;
+  const want = themeMode === "light" ? "light" : "dark";
+  return mine.find((r) => r.mode === want) ?? mine[0];
+}
+
+/** FAIL cikan tema otomatik secimde uygulanmaz (anahtar acikken). */
+function gateReason(name: string, themeMode: string): string | null {
+  if (!auditGate) return null;
+  const rep = findAudit(name, themeMode);
+  return rep && rep.verdict === "FAIL" ? `kontrast ${rep.text_on_bg}:1 (WCAG FAIL)` : null;
+}
+
+function badgeClass(verdict: string): string {
+  return verdict === "FAIL" ? "bad" : verdict === "AAA" || verdict === "AA" ? "ok" : "warn";
+}
+
+function renderAudit(): void {
+  const host = el("audit-list");
+  host.replaceChildren();
+  if (audits.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "Ölçülecek tema dosyası yok (~/.config/opencode/themes).";
+    host.append(empty);
+    return;
+  }
+  for (const r of audits) {
+    const row = document.createElement("div");
+    row.className = "audit-row";
+    const name = document.createElement("span");
+    name.className = "audit-name";
+    name.textContent = r.name;
+    const modeEl = document.createElement("span");
+    modeEl.className = "audit-mode";
+    modeEl.textContent = r.mode;
+    const ratio = document.createElement("span");
+    ratio.className = "audit-ratio";
+    ratio.textContent = `${r.text_on_bg}:1`;
+    ratio.title = `metin/zemin ${r.text_on_bg}:1 • ikincil metin ${r.muted_on_bg}:1 • renk kodu ${r.syntax_min}:1`;
+    const verdict = document.createElement("span");
+    verdict.className = "badge " + badgeClass(r.verdict);
+    verdict.textContent = r.verdict;
+    const colors = document.createElement("span");
+    colors.className = "audit-muted";
+    colors.textContent = `renk ${r.syntax_min ?? 0}`;
+    row.append(name, modeEl, ratio, verdict, colors);
+    host.append(row);
+  }
+}
+
+async function loadAudit(): Promise<void> {
+  try {
+    const rows = await invoke<AuditReport[]>("contrast_audit");
+    audits = Array.isArray(rows) ? rows : [];
+  } catch (e) {
+    audits = [];
+    log("kontrast denetimi okunamadı: " + String(e), "bad");
+    return;
+  }
+  renderAudit();
+}
+
+async function updateRisk(name: string, themeMode: string | null): Promise<void> {
+  const rep = findAudit(name, themeMode);
+  const risky = rep ? rep.verdict === "FAIL" : RISKY.includes(name.toLowerCase());
   el("risk-band").hidden = !risky;
   if (!risky) return;
-  el("risk-text").textContent = `${name} yüksek kontrastlı — gece göz yorar.`;
+  el("risk-text").textContent = rep
+    ? `${name}: ${rep.text_on_bg}:1 — WCAG ${rep.verdict} (${rep.mode}), gözü yorar.`
+    : `${name} yüksek kontrastlı — gece göz yorar.`;
   try {
-    const [target] = await invoke<[string, string]>("decide_target", {
+    const [target] = await invoke<[string, string, number]>("decide_target", {
       hour: new Date().getHours(),
       source,
     });
@@ -265,8 +358,8 @@ async function toggleReading(): Promise<void> {
       warmEnabled = true;
       setSetting("warmEnabled", "1");
       await applyWarmth();
-      await pickTheme("zenburn", "dark");
-      log("okuma profili: sakin tema, düşük tavan, animasyon kapalı", "ok");
+      await pickTheme("ss-dusk", "dark");
+      log("okuma profili: sıcak sakin tema, düşük tavan, animasyon kapalı", "ok");
     } else {
       await invoke("animations_set", { enabled: true });
       await applyWarmth();
@@ -314,7 +407,7 @@ async function refresh(frozen?: string | null): Promise<void> {
     el("st-theme").title = `${name} (${themeMode ?? "-"})`;
     el("sub-theme").textContent = themeMode ? `mod: ${themeMode}` : "mod: -";
     appliedKey = `${name}|${themeMode ?? ""}`;
-    void updateRisk(name);
+    void updateRisk(name, themeMode);
     syncChips();
     el("st-frozen").textContent = frozen ?? (locked ? "Kilit" : paused ? "Duraklatıldı" : "İzliyor");
     el("sub-frozen").textContent = frozen ?? (locked ? "manuel kilit" : paused ? "duraklatıldı" : "serbest");
@@ -351,7 +444,17 @@ async function tick(reason: string): Promise<void> {
     await refresh(null);
     return;
   }
-  if (locked || mode === "fixed") {
+  // Uygulamaya bağlı profil: dondurma kuralları dışında bu turu yönetir.
+  const exe = await invoke<string | null>("foreground_exe").catch(() => null);
+  const bound = exe ? profiles.find((p) => (p.apps ?? []).includes(exe)) ?? null : null;
+  boundName = bound ? bound.name : null;
+  if (bound && lastBoundExe !== exe) {
+    log(`uygulamaya bağlı profil: ${bound.name} (${exe})`, "ok");
+    lastBoundExe = exe;
+  } else if (!bound) {
+    lastBoundExe = null;
+  }
+  if (locked || (mode === "fixed" && !bound)) {
     await diskLog(`kilitli/sabit ${reason}`, 0, lastAppliedBright, appliedKey ?? "-");
     log(`kilitli/sabit (${reason}), atlandı`, "warn");
     await refresh(null);
@@ -359,7 +462,6 @@ async function tick(reason: string): Promise<void> {
   }
   try {
     const prof = activeProfile();
-    const exe = await invoke<string | null>("foreground_exe");
     if (exe && blockItems.includes(exe)) {
       if (prof?.autoLock) {
         locked = true;
@@ -392,6 +494,13 @@ async function tick(reason: string): Promise<void> {
     const lowPower = pct < 20 && !charging;
     const camLimit = lowPower ? CAM_MS_LOW : CAM_MS;
 
+    // Bağlı profil gelirse onun ayarları bu turu yönetir; kilit ve dondurma
+    // kuralları her durumda önde gelir.
+    const effMode: Mode = bound ? bound.mode : mode;
+    const effSource: Source = bound ? bound.source : source;
+    const effOffset = bound ? bound.offset : offset;
+    const effFixed = effMode === "fixed";
+
     let name: string;
     let themeMode: string;
     let desired: number;
@@ -405,7 +514,7 @@ async function tick(reason: string): Promise<void> {
       tone = cam.tone;
     }
 
-    if (mode === "light") {
+    if (effMode === "light") {
       if (!cam) {
         log("kamera yok, atlandı", "warn");
         await refresh(null);
@@ -420,7 +529,7 @@ async function tick(reason: string): Promise<void> {
         themeMode = "dark";
         desired = 30;
       } else if (cam.level === "dim") {
-        const warm = cam.tone === "warm" || (cam.tone === "neutral" && source !== "cool");
+        const warm = cam.tone === "warm" || (cam.tone === "neutral" && effSource !== "cool");
         name = warm ? "catppuccin-macchiato" : "tokyonight";
         themeMode = "dark";
         desired = 50;
@@ -430,11 +539,11 @@ async function tick(reason: string): Promise<void> {
         desired = cam.level === "bright" ? 85 : 70;
       }
     } else {
-      const [n, m, base] = await invoke<[string, string, number]>("decide_target", { hour, source });
+      const [n, m, base] = await invoke<[string, string, number]>("decide_target", { hour, source: effSource });
       name = n;
       themeMode = m;
       desired = base;
-      if (source === "auto" && cam) {
+      if (effSource === "auto" && cam) {
         el("st-light").textContent = `zaman + ${cam.level}/${cam.tone}`;
         el("st-light").title = `zaman + ışık: ${cam.level}/${cam.tone} (parlaklık ${cam.lum.toFixed(0)})`;
         if (cam.level === "dark") {
@@ -449,20 +558,27 @@ async function tick(reason: string): Promise<void> {
           name = "tokyonight";
         }
       } else {
-        el("st-light").textContent = source === "auto" ? "zaman" : SOURCE_LABEL[source];
-        el("st-light").title = `${SOURCE_LABEL[source]} • ${hour}:${String(minute).padStart(2, "0")}`;
+        el("st-light").textContent = effSource === "auto" ? "zaman" : SOURCE_LABEL[effSource];
+        el("st-light").title = `${SOURCE_LABEL[effSource]} • ${hour}:${String(minute).padStart(2, "0")}`;
       }
-      el("sub-light").textContent = `${hour}:${String(minute).padStart(2, "0")} • kaynak: ${SOURCE_LABEL[source]}`;
+      el("sub-light").textContent = `${hour}:${String(minute).padStart(2, "0")} • kaynak: ${SOURCE_LABEL[effSource]}`;
       setDot("dot-light", "accent");
     }
 
-    const remembered = await invoke<[string, string] | null>("pref_get", {
-      hour,
-      light: `${level}/${tone}`,
-    });
+    // Bağlı profil açık niyettir: öğrenilmiş tercih onu ezmez.
+    const remembered = bound
+      ? null
+      : await invoke<[string, string] | null>("pref_get", {
+          hour,
+          light: `${level}/${tone}`,
+        });
     if (remembered) {
       name = remembered[0];
       themeMode = remembered[1];
+    }
+    if (bound) {
+      name = bound.theme;
+      themeMode = bound.themeMode;
     }
 
     desired = applySleepCap(desired, hour);
@@ -472,13 +588,15 @@ async function tick(reason: string): Promise<void> {
 
     // Ogrenilmis parlaklik tercihi: en az 2 gozlem varsa hedefi devralir.
     let learned: [number, number] | null = null;
-    try {
-      learned = await invoke<[number, number] | null>("pref_get_bright", {
-        hour,
-        light: `${level}/${tone}`,
-      });
-    } catch {
-      learned = null;
+    if (!bound) {
+      try {
+        learned = await invoke<[number, number] | null>("pref_get_bright", {
+          hour,
+          light: `${level}/${tone}`,
+        });
+      } catch {
+        learned = null;
+      }
     }
     const learnedApplied = learned !== null && learned[1] >= 2;
     if (learnedApplied && learned) {
@@ -487,7 +605,17 @@ async function tick(reason: string): Promise<void> {
     if (lowPower) log("pil modu: ölçüm ve adım kısıldı", "warn");
 
     const key = `${name}|${themeMode}`;
-    if (key === appliedKey) {
+    // Kapı yalnız otomatik seçim içindir: bağlı profil açık niyettir, onu
+    // ölçüm veto etmez (elle tema seçimi de serbest).
+    const gated = bound ? null : gateReason(name, themeMode);
+    if (key !== appliedKey && gated) {
+      if (lastGateWarn !== name) {
+        log(`otomatik seçimde reddedildi: ${name} — ${gated}`, "warn");
+        lastGateWarn = name;
+      }
+      pendingKey = null;
+      pendingCount = 0;
+    } else if (key === appliedKey) {
       pendingKey = null;
       pendingCount = 0;
     } else if (key === pendingKey) {
@@ -499,31 +627,32 @@ async function tick(reason: string): Promise<void> {
 
     let snapped = false;
     let appliedNow = lastAppliedBright;
-    if (pendingCount >= 2 && key !== appliedKey) {
+    if (pendingCount >= 2 && key !== appliedKey && !gated) {
       const floor = await invoke<number>("brightness_floor", { hour, minute });
-      const target = Math.min(100, Math.max(floor, desired + offset));
+      const target = Math.min(100, Math.max(floor, desired + effOffset));
       const cur0 = await invoke<number>("brightness_get");
       await pushUndo(appliedKey?.split("|")[0] ?? name, cur0);
       await invoke("theme_set", { name, mode: themeMode });
       appliedKey = key;
       pendingKey = null;
       pendingCount = 0;
+      lastGateWarn = "";
       log(`tema: ${name} (${themeMode})`, "ok");
-      if (target !== cur0) {
+      if (!effFixed && target !== cur0) {
         await invoke("brightness_set", { value: target });
         log(`parlaklık atlama: ${cur0} -> ${target}`, "ok");
       }
-      appliedNow = target;
+      appliedNow = effFixed ? cur0 : target;
       snapped = true;
-    } else if (key !== appliedKey) {
+    } else if (key !== appliedKey && !gated) {
       log(`tema bekliyor: ${name} (${pendingCount}/2)`);
     }
 
-    if (!snapped) {
+    if (!snapped && !effFixed) {
       const current = await invoke<number>("brightness_get");
       let next = await invoke<number>("decide_brightness", {
         current,
-        desired: Math.min(100, Math.max(0, desired + offset)),
+        desired: Math.min(100, Math.max(0, desired + effOffset)),
         hour,
         minute,
       });
@@ -535,15 +664,19 @@ async function tick(reason: string): Promise<void> {
       appliedNow = next;
     }
 
-    const note = pendingKey
-      ? `bekliyor ${pendingCount}/2`
-      : lowPower
-        ? "pil modu"
-        : learnedApplied
-          ? "ogrenilmis parlaklik"
-          : remembered
-            ? "ogrenilmis tercih"
-            : reason;
+    const note = bound
+      ? `uygulama ${exe} -> ${bound.name}`
+      : key !== appliedKey && gated
+        ? `reddedildi: ${gated}`
+        : pendingKey
+          ? `bekliyor ${pendingCount}/2`
+          : lowPower
+            ? "pil modu"
+            : learnedApplied
+              ? "ogrenilmis parlaklik"
+              : remembered
+                ? "ogrenilmis tercih"
+                : reason;
     await diskLog(note, desired, appliedNow, `${name}/${themeMode}`, level, tone);
 
     el("sub-bright").textContent = `hedef: %${desired}${lowPower ? " • pil" : ""}${readingMode ? " • okuma" : ""}`;
@@ -707,7 +840,10 @@ function renderProfileCards(): void {
     meta.textContent = `${MODE_LABEL[p.mode]} • ${SOURCE_LABEL[p.source]} • ${p.theme}`;
     const meta2 = document.createElement("div");
     meta2.className = "pc-meta";
-    meta2.textContent = `düzeltme ${p.offset >= 0 ? "+" : ""}${p.offset}${p.autoLock ? " • otomatik kilit" : ""}`;
+    const appCount = (p.apps ?? []).length;
+    meta2.textContent = `düzeltme ${p.offset >= 0 ? "+" : ""}${p.offset}${p.autoLock ? " • otomatik kilit" : ""}${
+      appCount ? ` • ${appCount} uygulama` : ""
+    }`;
     b.append(name, meta, meta2);
     b.addEventListener("click", () => {
       selectForEdit(p.id);
@@ -750,6 +886,12 @@ function paintEditor(): void {
     draft.autoLock = v;
     editorDirty = true;
   });
+  tagApps = buildTagEditor(el("pf-apps-editor"), draft.apps ?? [], (items) => {
+    draft.apps = items;
+    editorDirty = true;
+    el("pf-apps-count").textContent = `${items.length} uygulama`;
+  });
+  el("pf-apps-count").textContent = `${(draft.apps ?? []).length} uygulama`;
   (el("pf-delete") as HTMLButtonElement).disabled = profiles.length <= 1;
   (el("pf-add") as HTMLButtonElement).disabled = profiles.length >= MAX_PROFILES;
 }
@@ -760,6 +902,7 @@ function saveDraft(): void {
   const [theme, themeMode] = (el("pf-theme") as HTMLSelectElement).value.split("|");
   draft.theme = theme;
   draft.themeMode = themeMode;
+  draft.apps = tagApps?.get() ?? draft.apps;
   profiles = upsertProfile(profiles, { ...draft });
   saveProfiles(profiles);
   editorDirty = false;
@@ -992,6 +1135,28 @@ window.addEventListener("DOMContentLoaded", () => {
     log(`eklendi: ${exe}`, "ok");
   });
 
+  el("pf-bind-current").addEventListener("click", async () => {
+    const exe = await invoke<string | null>("foreground_exe").catch(() => null);
+    if (!exe) {
+      log("ön plandaki uygulama okunamadı", "warn");
+      return;
+    }
+    const items = tagApps?.get() ?? draft.apps ?? [];
+    if (!items.includes(exe)) tagApps?.set([...items, exe]);
+    draft.apps = tagApps?.get() ?? items;
+    editorDirty = true;
+    el("pf-apps-count").textContent = `${draft.apps.length} uygulama`;
+    log(`bağlandı: ${exe} → ${draft.name} (Kaydet ile kalıcı olur)`, "ok");
+  });
+
+  el("audit-refresh").addEventListener("click", () => void loadAudit());
+  bindSwitch(el("gate-switch") as HTMLButtonElement, auditGate, (v) => {
+    auditGate = v;
+    setSetting("auditGate", v ? "1" : "0");
+    lastGateWarn = "";
+    log(v ? "kontrast kapısı açık: FAIL olan temalar uygulanmaz" : "kontrast kapısı kapalı", "ok");
+  });
+
   el("pf-save").addEventListener("click", saveDraft);
   el("pf-add").addEventListener("click", () => {
     if (profiles.length >= MAX_PROFILES) return;
@@ -1052,6 +1217,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   tickBreak();
+  void loadAudit();
   void showCalibration();
   void applyWarmth();
   void tick("açılış");

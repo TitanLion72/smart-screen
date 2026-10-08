@@ -11,6 +11,8 @@ export interface Profile {
   themeMode: string;
   offset: number;
   autoLock: boolean;
+  /** Ön plandaki bu exe'ler gelince bu profil devralır (örn. "vlc.exe"). */
+  apps: string[];
 }
 
 export const MAX_PROFILES = 6;
@@ -65,6 +67,8 @@ export function seedProfiles(): Profile[] {
       themeMode: "dark",
       offset: 0,
       autoLock: false,
+      // Engelli listede olmayan iş uygulamaları: ön plana gelince bu profil devralır.
+      apps: ["code.exe", "windowsterminal.exe", "wezterm-gui.exe"],
     },
     {
       id: newId(),
@@ -75,12 +79,18 @@ export function seedProfiles(): Profile[] {
       themeMode: "dark",
       offset: -10,
       autoLock: true,
+      apps: [],
     },
   ];
 }
 
+/** Eski kayitlarda `apps` alanı olmayabilir; normalize eder. */
+function normalize(p: Profile): Profile {
+  return { ...p, apps: Array.isArray(p.apps) ? p.apps : [] };
+}
+
 export function loadProfiles(): Profile[] {
-  const list = readJson<Profile[]>(KEY_PROFILES, []);
+  const list = readJson<Profile[]>(KEY_PROFILES, []).map(normalize);
   return list.length > 0 ? list : seedProfiles();
 }
 
@@ -120,5 +130,6 @@ export function createProfile(name: string): Profile {
     themeMode: "dark",
     offset: 0,
     autoLock: false,
+    apps: [],
   };
 }

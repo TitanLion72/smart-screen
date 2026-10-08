@@ -4,8 +4,10 @@ mod activity;
 mod autostart;
 mod battery;
 mod brightness;
+mod contrast;
 mod decide;
 mod gamma;
+mod install;
 mod light;
 mod logger;
 mod prefs;
@@ -175,13 +177,21 @@ fn animations_set(enabled: bool) -> Result<(), String> {
     theme::set_animations(enabled)
 }
 
+/// Kurulu tema dosyalarinin WCAG kontrast denetimi.
+#[tauri::command]
+fn contrast_audit() -> Result<Vec<contrast::Report>, String> {
+    contrast::audit_all(&contrast::themes_dir()?)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            // Onceki oturumdan kalma sicak tonu temizle (crash sonrasi).
+            // Kendi goz konforu temalarimizi kur (eksikse), sonra onceki
+            // oturumdan kalma sicak tonu temizle (crash sonrasi).
+            let _ = install::install_builtin_themes();
             gamma::recover();
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
@@ -237,7 +247,8 @@ pub fn run() {
             gamma_restore,
             pref_learn_bright,
             pref_get_bright,
-            animations_set
+            animations_set,
+            contrast_audit
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
