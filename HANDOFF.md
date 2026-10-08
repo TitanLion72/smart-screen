@@ -1,6 +1,55 @@
-# HANDOFF — 2026-10-08 (smart-screen)
+# HANDOFF — 2026-10-09 (smart-screen) — 0.7.0 cizgisi yarim
 
-> Faz 5 ve Faz 6 tamamlandı, 0.6.0 paketleniyor. Bu dosya durum kaydı.
+> Kullanicinin verdigi 4 geri bildirimin durumu. Token bittigi icin dosyaya
+> yazildi; bu kisimdan devam et. Eski kayitlar altta duruyor.
+
+## 1. Hazir profilleri kazayla sildim — HENUZ YAPILMADI
+
+- `store.ts`'e `restoreSeedProfiles(): Profile[]` ekle (eksik olanlari eklesin,
+  var olani ezmesin) + Profiller sekmesine "Hazir profilleri geri getir" dugmesi.
+- `Sil` iki asamali onay olsun: etiket 3 saniye "Emin misin?" olup ayni sure
+  icinde tekrar basilinca gercekten silinsin (`lib.rs`/dialoga gerek yok).
+
+## 2. Sicak ton otomatik degil — BACKEND BITTI, BAGLANTI YOK
+
+- Bitti: `src-tauri/src/decide.rs::warmth_auto(hour, minute, light_level) -> 0..=45`
+  11 capa noktasi arasinda dakika-bazli dogrusal egri (00:00=40, 06:00=25,
+  08:00=0, 15:00=0, 17:00=10, 19:00=25, 21:00=35, 23:00=40) + isik kaydirmasi
+  (dark +10, dim +5, bright -5, tavan 45, gece yarisi cevrimi surekli).
+  6 test; `cargo test` gecti.
+- Kalan: `lib.rs`'i `warmth_auto` komutu olarak disari ac; ana dongude (dakikada
+  bir, parlaklikla birlikte uygula); `main.ts`'te `warmEnabled` bool'unu
+  `warmMode: "auto" | "fixed" | "off"` yap (segmented), `warmPercent` "sabit/
+  azami siddet" olsun. Ayarlar'daki mevcut acma-kapama anahtarinin yerine gecer.
+
+## 3. Otomasyon tam degil — YARIM
+
+- Bitti: `decide.rs::scene_target` artik OLULMUS temalara donuyor
+  (Day/Cool -> ss-paper, Warm/18-21 -> ss-dusk, Night -> ss-night).
+- Kalan: `src/main.ts`'teki `light` modu dallanmasi HALA elle yazilmis eski
+  adlari kullaniyor (`vesper`, `github`, `catppuccin-macchiato`, `tokyonight`) —
+  ss-* adlarina cekilsin. `catalog.ts` notlari guncellensin.
+
+## 4. Onizleme + UI/UX — VERI HAZIR, ARAYUZ YOK
+
+- Yeni: `tools/extract-theme-colors.mjs` -> tema aracinin paketinden 9 yerlesik
+  temanin GERCEK renklerini cikarip `src/theme-colors.json`'a yazdi (tahmin yok):
+  mod basina `background`, `text`, `textMuted`, `syntaxKeyword`, `syntaxFunction`.
+  Ornek: github dark bg #0d1117 / text #c9d1d9; vesper dark bg #101010.
+- `ss-*` renkleri `src-tauri/themes/*.json` icinde (onizleme icin ucunu de ekle).
+- Kalan: `catalog.ts`'te `ThemeEntry`'ye renk bilgisi + secicide her cipin
+  altinda 3 renkli serit (zemin/metin/vurgu); profil kartlarinda tema seridi;
+  genel bosluk ve hiyerarsi cilasi; kayip durumlar (bos tema dizini vb.).
+
+## Dogrulama (bu turda gercekten kosulan)
+
+- `cargo test` -> 99 gecti, 4 ignored. Tek uyari: `warmth_auto is never used`
+  (baglanti bekledigi icin normal).
+- `node tools/extract-theme-colors.mjs` -> 9 tema yazildi.
+- `node tools/themes.mjs` -> PASS (degismedi).
+- `npm.cmd run build` ve QA bu degisikliklerden SONRA kosulmadi — once onlari coş.
+
+## ONCEKI DURUMLAR (0.6.0, arsiv)
 
 ## Tamamlanan
 

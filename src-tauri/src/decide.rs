@@ -29,17 +29,60 @@ impl Source {
 /// Kaynak + saate gore (tema adi, tema modu, hedef parlaklik).
 pub fn scene_target(source: Source, hour: u8) -> (&'static str, &'static str, u8) {
     match source {
-        Source::Day => ("github", "light", 80),
-        Source::Warm => ("catppuccin-macchiato", "dark", 55),
-        Source::Cool => ("tokyonight", "dark", 60),
-        Source::Night => ("vesper", "dark", 30),
+        Source::Day => ("ss-paper", "light", 80),
+        Source::Warm => ("ss-dusk", "dark", 55),
+        Source::Cool => ("ss-paper", "light", 70),
+        Source::Night => ("ss-night", "dark", 30),
         Source::Auto => match hour {
-            6..=15 => ("github", "light", 80),
-            16..=17 => ("everforest", "system", 60),
-            18..=21 => ("catppuccin-macchiato", "dark", 55),
-            _ => ("vesper", "dark", 30),
+            6..=15 => ("ss-paper", "light", 80),
+            16..=17 => ("ss-dusk", "dark", 60),
+            18..=21 => ("ss-dusk", "dark", 55),
+            _ => ("ss-night", "dark", 30),
         },
     }
+}
+
+/// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=45).
+/// Gunduz sifir, aksam yavasca artar, gece tepe yapar; kamera isik
+/// seviyesi bunu kaydirir ama siniri asmaz.
+pub fn warmth_auto(hour: u8, minute: u8, light_level: &str) -> u8 {
+    // Capa noktalari (dakika, siddet): aralarinda dogrusal ara deger.
+    // 24:00 capa degeri 00:00 ile ayni (40) oldugu icin gece yarisi
+    // cevrimsinde egride kesinti olmaz.
+    const ANCHORS: [(u16, f64); 11] = [
+        (0, 40.0),    // 00:00
+        (300, 40.0),  // 05:00
+        (360, 25.0),  // 06:00
+        (420, 10.0),  // 07:00
+        (480, 0.0),   // 08:00
+        (900, 0.0),   // 15:00
+        (1020, 10.0), // 17:00
+        (1140, 25.0), // 19:00
+        (1260, 35.0), // 21:00
+        (1380, 40.0), // 23:00
+        (1440, 40.0), // 24:00
+    ];
+    // Saat + dakika tek egriye dokunur; bozuk girdi 24:00'e kelepcelenir.
+    let t = ((hour as u16) * 60 + (minute as u16 % 60)).min(1440);
+    let base = ANCHORS
+        .windows(2)
+        .find_map(|w| {
+            let (m0, v0) = w[0];
+            let (m1, v1) = w[1];
+            (m0..=m1).contains(&t).then(|| {
+                let ratio = (t - m0) as f64 / (m1 - m0) as f64;
+                v0 + ratio * (v1 - v0)
+            })
+        })
+        .unwrap_or(0.0);
+    // Isik kaydirmasi: los ortam sicakligi artirir, aydinlik kesarir.
+    let shift: i16 = match light_level {
+        "dark" => 10,
+        "dim" => 5,
+        "bright" => -5,
+        _ => 0,
+    };
+    (base.round() as i16 + shift).clamp(0, 45) as u8
 }
 
 /// Izin verilen alt parlaklik siniri.
@@ -74,42 +117,135 @@ mod tests {
     use super::*;
 
     #[test]
-    fn morning_is_github_light() {
-        assert_eq!(scene_target(Source::Auto, 6), ("github", "light", 80));
-        assert_eq!(scene_target(Source::Auto, 15), ("github", "light", 80));
+    fn morning_is_paper_light() {
+        assert_eq!(scene_target(Source::Auto, 6), ("ss-paper", "light", 80));
+        assert_eq!(scene_target(Source::Auto, 15), ("ss-paper", "light", 80));
     }
 
     #[test]
-    fn transition_is_everforest() {
-        assert_eq!(scene_target(Source::Auto, 16), ("everforest", "system", 60));
-        assert_eq!(scene_target(Source::Auto, 17), ("everforest", "system", 60));
+    fn transition_is_dusk_medium() {
+        assert_eq!(scene_target(Source::Auto, 16), ("ss-dusk", "dark", 60));
+        assert_eq!(scene_target(Source::Auto, 17), ("ss-dusk", "dark", 60));
     }
 
     #[test]
-    fn evening_defaults_to_warm_scene() {
-        assert_eq!(
-            scene_target(Source::Auto, 19),
-            ("catppuccin-macchiato", "dark", 55)
-        );
+    fn evening_is_dusk_dark() {
+        assert_eq!(scene_target(Source::Auto, 18), ("ss-dusk", "dark", 55));
+        assert_eq!(scene_target(Source::Auto, 21), ("ss-dusk", "dark", 55));
     }
 
     #[test]
-    fn night_is_vesper() {
-        assert_eq!(scene_target(Source::Auto, 23), ("vesper", "dark", 30));
-        assert_eq!(scene_target(Source::Auto, 3), ("vesper", "dark", 30));
+    fn night_is_ss_night() {
+        assert_eq!(scene_target(Source::Auto, 22), ("ss-night", "dark", 30));
+        assert_eq!(scene_target(Source::Auto, 23), ("ss-night", "dark", 30));
+        assert_eq!(scene_target(Source::Auto, 3), ("ss-night", "dark", 30));
     }
 
     #[test]
     fn source_overrides_hour() {
-        assert_eq!(scene_target(Source::Day, 23), ("github", "light", 80));
-        assert_eq!(scene_target(Source::Night, 12), ("vesper", "dark", 30));
-        assert_eq!(scene_target(Source::Cool, 19), ("tokyonight", "dark", 60));
+        assert_eq!(scene_target(Source::Day, 23), ("ss-paper", "light", 80));
+        assert_eq!(scene_target(Source::Night, 12), ("ss-night", "dark", 30));
+        assert_eq!(scene_target(Source::Cool, 19), ("ss-paper", "light", 70));
+        assert_eq!(scene_target(Source::Warm, 12), ("ss-dusk", "dark", 55));
     }
 
     #[test]
     fn unknown_source_falls_back_to_auto() {
         assert_eq!(Source::from_str("gunes"), Source::Auto);
         assert_eq!(Source::from_str("cool"), Source::Cool);
+    }
+
+    #[test]
+    fn warmth_anchor_points_exact() {
+        assert_eq!(warmth_auto(0, 0, "unknown"), 40);
+        assert_eq!(warmth_auto(5, 0, "unknown"), 40);
+        assert_eq!(warmth_auto(6, 0, "unknown"), 25);
+        assert_eq!(warmth_auto(7, 0, "unknown"), 10);
+        assert_eq!(warmth_auto(8, 0, "unknown"), 0);
+        assert_eq!(warmth_auto(12, 0, "unknown"), 0);
+        assert_eq!(warmth_auto(15, 0, "unknown"), 0);
+        assert_eq!(warmth_auto(17, 0, "unknown"), 10);
+        assert_eq!(warmth_auto(19, 0, "unknown"), 25);
+        assert_eq!(warmth_auto(21, 0, "unknown"), 35);
+        assert_eq!(warmth_auto(23, 0, "unknown"), 40);
+    }
+
+    #[test]
+    fn warmth_linear_between_anchors() {
+        // 19:00=25 ile 21:00=35 arasi tam orta nokta: 30.
+        assert_eq!(warmth_auto(20, 0, "unknown"), 30);
+        // 17:00=10 ile 19:00=25 yarim yol: 17.5 -> en yakin 18.
+        assert_eq!(warmth_auto(18, 0, "unknown"), 18);
+        // 15:00=0 ile 17:00=10 yarim yol: 5.
+        assert_eq!(warmth_auto(16, 0, "unknown"), 5);
+        // 21:00=35 ile 23:00=40 yarim yol: 37.5 -> en yakin 38.
+        assert_eq!(warmth_auto(22, 0, "unknown"), 38);
+    }
+
+    #[test]
+    fn warmth_midnight_wrap_is_continuous() {
+        let late = warmth_auto(23, 55, "unknown");
+        let early = warmth_auto(0, 5, "unknown");
+        assert!(
+            late.abs_diff(early) < 3,
+            "gece yarisi cevrimsinde kesinti olmamali: {} vs {}",
+            late,
+            early
+        );
+    }
+
+    #[test]
+    fn warmth_light_level_shifts() {
+        // 21:00 taban 35: dark +10, dim +5, bright -5, taninmayan 0.
+        assert_eq!(warmth_auto(21, 0, "dark"), 45);
+        assert_eq!(warmth_auto(21, 0, "dim"), 40);
+        assert_eq!(warmth_auto(21, 0, "bright"), 30);
+        assert_eq!(warmth_auto(21, 0, "unknown"), 35);
+        assert_eq!(warmth_auto(21, 0, "flas"), 35);
+    }
+
+    #[test]
+    fn warmth_respects_bounds() {
+        // Gece tepe 40 + dark 10 = 50 -> 45'te kesilir.
+        assert_eq!(warmth_auto(0, 0, "dark"), 45);
+        assert_eq!(warmth_auto(23, 30, "dark"), 45);
+        // Gunduz taban 0 + bright -5 = -5 -> 0'da kesilir.
+        assert_eq!(warmth_auto(8, 0, "bright"), 0);
+        assert_eq!(warmth_auto(12, 0, "bright"), 0);
+        // Tum egriden tarama: cikti hep 0..=45.
+        for hour in 0..=23u8 {
+            for minute in [0u8, 15, 30, 45] {
+                for level in ["dark", "dim", "bright", "unknown"] {
+                    let v = warmth_auto(hour, minute, level);
+                    assert!(
+                        v <= 45,
+                        "{}:{} {} -> {} 45'i asmamali",
+                        hour,
+                        minute,
+                        level,
+                        v
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn warmth_daytime_flat_zero() {
+        // 08:00-15:00 arasi egrinin duz sifir bolgesi; 15:00'ten
+        // hemen sonra yukselis basladigi icin 15:xx dahil degil.
+        for hour in 8..=14u8 {
+            for minute in [0u8, 20, 40, 59] {
+                assert_eq!(
+                    warmth_auto(hour, minute, "unknown"),
+                    0,
+                    "{}:{} sifir olmali",
+                    hour,
+                    minute
+                );
+            }
+        }
+        assert_eq!(warmth_auto(15, 0, "unknown"), 0);
     }
 
     #[test]

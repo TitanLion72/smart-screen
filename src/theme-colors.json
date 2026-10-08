@@ -1,0 +1,150 @@
+{
+  "_note": "URETILMIS VERI — node tools/extract-theme-colors.mjs ile olusturulur. Kaynak: OpenCode tema aracinin paketindeki yerlesik V1 tema tanimlari. Yalniz tema secim onizlemesi icin kullanilir.",
+  "_source": "https://opencode.ai/theme/",
+  "themes": {
+    "catppuccin-macchiato": {
+      "dark": {
+        "bg": "#24273a",
+        "text": "#cad3f5",
+        "muted": "#939ab7",
+        "accent": "#c6a0f6",
+        "accent2": "#8aadf4"
+      },
+      "light": {
+        "bg": "#24273a",
+        "text": "#cad3f5",
+        "muted": "#939ab7",
+        "accent": "#c6a0f6",
+        "accent2": "#8aadf4"
+      }
+    },
+    "everforest": {
+      "dark": {
+        "bg": "#2d353b",
+        "text": "#d3c6aa",
+        "muted": "#7a8478",
+        "accent": "#d699b6",
+        "accent2": "#a7c080"
+      },
+      "light": {
+        "bg": "#fdf6e3",
+        "text": "#5c6a72",
+        "muted": "#a6b0a0",
+        "accent": "#df69ba",
+        "accent2": "#8da101"
+      }
+    },
+    "flexoki": {
+      "dark": {
+        "bg": "#100F0F",
+        "text": "#CECDC3",
+        "muted": "#6F6E69",
+        "accent": "#879A39",
+        "accent2": "#DA702C"
+      },
+      "light": {
+        "bg": "#FFFCF0",
+        "text": "#100F0F",
+        "muted": "#6F6E69",
+        "accent": "#66800B",
+        "accent2": "#BC5215"
+      }
+    },
+    "github": {
+      "dark": {
+        "bg": "#0d1117",
+        "text": "#c9d1d9",
+        "muted": "#8b949e",
+        "accent": "#ff7b72",
+        "accent2": "#bc8cff"
+      },
+      "light": {
+        "bg": "#ffffff",
+        "text": "#24292f",
+        "muted": "#57606a",
+        "accent": "#cf222e",
+        "accent2": "#8250df"
+      }
+    },
+    "nord": {
+      "dark": {
+        "bg": "#2E3440",
+        "text": "#ECEFF4",
+        "muted": "#8B95A7",
+        "accent": "#81A1C1",
+        "accent2": "#88C0D0"
+      },
+      "light": {
+        "bg": "#ECEFF4",
+        "text": "#2E3440",
+        "muted": "#3B4252",
+        "accent": "#81A1C1",
+        "accent2": "#88C0D0"
+      }
+    },
+    "solarized": {
+      "dark": {
+        "bg": "#002b36",
+        "text": "#839496",
+        "muted": "#586e75",
+        "accent": "#859900",
+        "accent2": "#268bd2"
+      },
+      "light": {
+        "bg": "#fdf6e3",
+        "text": "#657b83",
+        "muted": "#93a1a1",
+        "accent": "#859900",
+        "accent2": "#268bd2"
+      }
+    },
+    "tokyonight": {
+      "dark": {
+        "bg": "#1a1b26",
+        "text": "#c8d3f5",
+        "muted": "#828bb8",
+        "accent": "#c099ff",
+        "accent2": "#82aaff"
+      },
+      "light": {
+        "bg": "#e1e2e7",
+        "text": "#3760bf",
+        "muted": "#8990a3",
+        "accent": "#9854f1",
+        "accent2": "#2e7de9"
+      }
+    },
+    "vesper": {
+      "dark": {
+        "bg": "#101010",
+        "text": "#FFF",
+        "muted": "#A0A0A0",
+        "accent": "#A0A0A0",
+        "accent2": "#FFC799"
+      },
+      "light": {
+        "bg": "#FFF",
+        "text": "#101010",
+        "muted": "#A0A0A0",
+        "accent": "#A0A0A0",
+        "accent2": "#FFC799"
+      }
+    },
+    "zenburn": {
+      "dark": {
+        "bg": "#3f3f3f",
+        "text": "#dcdccc",
+        "muted": "#9f9f9f",
+        "accent": "#f0dfaf",
+        "accent2": "#8cd0d3"
+      },
+      "light": {
+        "bg": "#ffffef",
+        "text": "#3f3f3f",
+        "muted": "#6f6f6f",
+        "accent": "#8f8f5f",
+        "accent2": "#5f7f8f"
+      }
+    }
+  }
+}
