@@ -1,0 +1,41 @@
+{
+  "_note": "URETILMIS VERI — tools/themes.mjs yazar. tema secim onizlemesi icin.",
+  "themes": {
+    "ss-paper": {
+      "light": {
+        "bg": "#EDE5D6",
+        "text": "#33302A",
+        "accent": "#4f385c"
+      },
+      "dark": {
+        "bg": "#33302A",
+        "text": "#EDE5D6",
+        "accent": "#c2a3d4"
+      }
+    },
+    "ss-dusk": {
+      "light": {
+        "bg": "#E8E2D6",
+        "text": "#2E2B25",
+        "accent": "#4f385c"
+      },
+      "dark": {
+        "bg": "#2E2B25",
+        "text": "#D6CFC4",
+        "accent": "#c2a3d4"
+      }
+    },
+    "ss-night": {
+      "light": {
+        "bg": "#E0D9CB",
+        "text": "#2A2620",
+        "accent": "#4f385c"
+      },
+      "dark": {
+        "bg": "#2A2620",
+        "text": "#C9C2B6",
+        "accent": "#c2a3d4"
+      }
+    }
+  }
+}

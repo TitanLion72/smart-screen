@@ -334,9 +334,13 @@ const homeDir = join(configHome, "opencode", "themes");
 const targets = [bundledDir, homeDir];
 if (!printOnly) for (const t of targets) mkdirSync(t, { recursive: true });
 
+/** Tema secim onizlemesi icin mod basina zemin/metin/vurgu renkleri. */
+const preview = {};
+
 let failed = false;
 for (const theme of THEMES) {
   const doc = build(theme);
+  preview[theme.file] = {};
   for (const mode of ["light", "dark"]) {
     const m = measure(doc, mode);
     if (!m) {
@@ -353,6 +357,20 @@ for (const theme of THEMES) {
         `  renk ${m.synMin.toFixed(2)}` +
         `  -> karar ${v}`,
     );
+    // Onizleme renkleri: measure() ile ayni kokten (base + mod) cozulur;
+    // cozulemeyen deger UYDURULMAZ, null yazilir (kaynak hata verir).
+    const root = mergeDeep(doc.base, doc[mode]);
+    const pick = (p) => color(root, `$${p}`) ?? null;
+    const swatch = {
+      bg: pick("background.base"),
+      text: pick("text.base"),
+      accent: pick("syntax.keyword"),
+    };
+    if (Object.values(swatch).some((c) => c === null)) {
+      failed = true;
+      console.log(`${theme.file} ${mode}: ONIZleme RENGI COZULEMEDI`);
+    }
+    preview[theme.file][mode] = swatch;
   }
   if (!printOnly) {
     const body = `${JSON.stringify(doc, null, 2)}\n`;
@@ -362,6 +380,20 @@ for (const theme of THEMES) {
       console.log(`yazildi: ${path}`);
     }
   }
+}
+
+if (!printOnly) {
+  const previewBody = `${JSON.stringify(
+    {
+      _note: "URETILMIS VERI — tools/themes.mjs yazar. tema secim onizlemesi icin.",
+      themes: preview,
+    },
+    null,
+    2,
+  )}\n`;
+  const previewPath = join(here, "..", "src", "ss-colors.json");
+  writeFileSync(previewPath, previewBody, "utf8");
+  console.log(`yazildi: ${previewPath}`);
 }
 
 const written = printOnly || targets.every((t) => existsSync(join(t, "ss-night.json")));

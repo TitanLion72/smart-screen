@@ -3,8 +3,8 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { getVersion } from "@tauri-apps/api/app";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { ACCENTS, MODE_OPTIONS, MODE_LABEL, RISKY, SOURCE_LABEL, SOURCE_OPTIONS, THEMES } from "./catalog";
-import type { Mode, Source } from "./catalog";
-import { MAX_PROFILES, createProfile, duplicateProfile, getSetting, loadActiveId, loadProfiles, saveActiveId, saveProfiles, setSetting, upsertProfile } from "./store";
+import type { Mode, Source, ThemeEntry } from "./catalog";
+import { MAX_PROFILES, createProfile, duplicateProfile, getSetting, loadActiveId, loadProfiles, restoreSeedProfiles, saveActiveId, saveProfiles, setSetting, upsertProfile } from "./store";
 import type { Profile } from "./store";
 import { bindSwitch, buildSeg, buildTagEditor } from "./widgets";
 import type { TagHandle } from "./widgets";
@@ -55,13 +55,42 @@ let locked = getSetting("locked", "0") === "1";
 let paused = false;
 let offset = Number(getSetting("brightOffset", "0")) || 0;
 let breakEnabled = getSetting("breakEnabled", "1") === "1";
-let sleepStart = Number(getSetting("sleepStart", "1")) || 1;
-let sleepEnd = Number(getSetting("sleepEnd", "7")) || 7;
-let sleepCap = Number(getSetting("sleepCap", "15")) || 15;
+let sleepStart = loadNumber("sleepStart", 1);
+let sleepEnd = loadNumber("sleepEnd", 7);
+let sleepCap = loadNumber("sleepCap", 15);
 let blockItems = splitList(getSetting("blocklist", DEFAULT_BLOCKLIST));
 let allowItems = splitList(getSetting("allowlist", DEFAULT_ALLOWLIST));
-let warmEnabled = getSetting("warmEnabled", "0") === "1";
-let warmPercent = Number(getSetting("warmPercent", "35")) || 35;
+/** Sıcak ton kipi: auto = saate/ışığa göre, fixed = sabit şiddet, off = kapalı. */
+type WarmMode = "auto" | "fixed" | "off";
+
+const WARM_MODE_LABEL: Record<WarmMode, string> = {
+  auto: "Otomatik",
+  fixed: "Sabit",
+  off: "Kapalı",
+};
+
+const WARM_OPTIONS = (Object.keys(WARM_MODE_LABEL) as WarmMode[]).map((value) => ({
+  value,
+  label: WARM_MODE_LABEL[value],
+}));
+
+function loadWarmMode(): WarmMode {
+  const saved = getSetting("warmMode", "");
+  if (saved === "auto" || saved === "fixed" || saved === "off") return saved;
+  // Eski kayıt: sıcak ton anahtarlıydı. Açık mıydı diye bak, yoksa otomatik.
+  return getSetting("warmEnabled", "0") === "1" ? "fixed" : "auto";
+}
+
+let warmMode: WarmMode = loadWarmMode();
+/** Ayarlanan sayı: 0 geçerli değerdir, `|| fallback` ile yutulmamalı. */
+function loadNumber(key: string, fallback: number): number {
+  const raw = getSetting(key, "").trim();
+  if (raw === "") return fallback;
+  const n = Number(raw);
+  return Number.isNaN(n) ? fallback : n;
+}
+
+let warmPercent = loadNumber("warmPercent", 35);
 let readingMode = getSetting("readingMode", "0") === "1";
 
 let profiles: Profile[] = loadProfiles();
@@ -177,21 +206,39 @@ function updateUndoBtn(): void {
 
 // ---------- theme + risk ----------
 
+/** Tema çipi: isim + zemin/metin/vurgu renkli önizleme şeridi. */
+function makeThemeChip(t: ThemeEntry, active: boolean, onClick: () => void): HTMLButtonElement {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip swatched" + (active ? " active" : "");
+  b.title = `${t.name} — ${t.note}`;
+  b.dataset.name = t.name;
+  b.dataset.mode = t.mode;
+  const label = document.createElement("span");
+  label.className = "chip-label";
+  label.textContent = t.name;
+  b.append(label);
+  if (t.swatch) {
+    const strip = document.createElement("span");
+    strip.className = "swatch-strip";
+    strip.style.setProperty("--a", t.swatch.bg);
+    strip.style.setProperty("--b", t.swatch.text);
+    strip.style.setProperty("--c", t.swatch.accent);
+    b.append(strip);
+  }
+  b.addEventListener("click", onClick);
+  return b;
+}
+
 function renderThemePicker(): void {
   const host = el("theme-picker");
   host.replaceChildren();
   for (const t of THEMES) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip";
-    b.title = `${t.name} — ${t.note}`;
-    b.textContent = t.name;
-    b.dataset.name = t.name;
-    b.dataset.mode = t.mode;
-    b.addEventListener("click", () => {
-      void pickTheme(t.name, t.mode);
-    });
-    host.append(b);
+    host.append(
+      makeThemeChip(t, false, () => {
+        void pickTheme(t.name, t.mode);
+      }),
+    );
   }
   syncChips();
 }
@@ -336,31 +383,55 @@ async function updateRisk(name: string, themeMode: string | null): Promise<void>
 
 // ---------- refresh + tick ----------
 
+/** Sıcak ton: kipe göre hesaplayıp gamma'ya yazar. auto = saat + ışık. */
 async function applyWarmth(): Promise<void> {
   try {
-    if (warmEnabled) {
-      await invoke("gamma_set_warmth", { percent: warmPercent });
-    } else {
+    if (warmMode === "off") {
       await invoke("gamma_restore");
+      return;
     }
+    const percent = warmMode === "fixed" ? warmPercent : await autoWarmth();
+    await invoke("gamma_set_warmth", { percent });
   } catch (e) {
     log("sıcak ton uygulanamadı: " + String(e), "bad");
   }
 }
 
-/** Okuma profili: sakin tema + düşük tavan + animasyon kapalı + sıcak ton. */
+/** Saat + ışık seviyesine göre otomatik şiddet; `warmPercent` tavan. */
+async function autoWarmth(): Promise<number> {
+  const now = new Date();
+  try {
+    const raw = await invoke<number>("warmth_auto", {
+      hour: now.getHours(),
+      minute: now.getMinutes(),
+      lightLevel: lastCam ? lastCam.level : "unknown",
+    });
+    return Math.min(Number(raw) || 0, warmPercent);
+  } catch {
+    return 0;
+  }
+}
+
+/** Okuma profili: sakin tema + düşük tavan + animasyon kapalı + sıcak ton.
+ *  Kapanınca sıcak ton kipi eski haline döner (okuma için kalıcı değiştirmez). */
+let readingPrevWarm: WarmMode | null = null;
+
 async function toggleReading(): Promise<void> {
   readingMode = !readingMode;
   setSetting("readingMode", readingMode ? "1" : "0");
   try {
     await invoke("animations_set", { enabled: !readingMode });
     if (readingMode) {
-      warmEnabled = true;
-      setSetting("warmEnabled", "1");
+      readingPrevWarm = warmMode;
+      warmMode = "fixed";
+      setSetting("warmMode", "fixed");
       await applyWarmth();
       await pickTheme("ss-dusk", "dark");
       log("okuma profili: sıcak sakin tema, düşük tavan, animasyon kapalı", "ok");
     } else {
+      warmMode = readingPrevWarm ?? "auto";
+      readingPrevWarm = null;
+      setSetting("warmMode", warmMode);
       await invoke("animations_set", { enabled: true });
       await applyWarmth();
       log("okuma profili kapandı", "ok");
@@ -525,16 +596,15 @@ async function tick(reason: string): Promise<void> {
       el("sub-light").textContent = `parlaklık: ${cam.lum.toFixed(0)}`;
       setDot("dot-light", cam.level === "dark" ? "" : cam.level === "dim" ? "warn" : "ok");
       if (cam.level === "dark") {
-        name = "vesper";
+        name = "ss-night";
         themeMode = "dark";
         desired = 30;
       } else if (cam.level === "dim") {
-        const warm = cam.tone === "warm" || (cam.tone === "neutral" && effSource !== "cool");
-        name = warm ? "catppuccin-macchiato" : "tokyonight";
+        name = "ss-dusk";
         themeMode = "dark";
         desired = 50;
       } else {
-        name = "github";
+        name = "ss-paper";
         themeMode = "light";
         desired = cam.level === "bright" ? 85 : 70;
       }
@@ -547,15 +617,15 @@ async function tick(reason: string): Promise<void> {
         el("st-light").textContent = `zaman + ${cam.level}/${cam.tone}`;
         el("st-light").title = `zaman + ışık: ${cam.level}/${cam.tone} (parlaklık ${cam.lum.toFixed(0)})`;
         if (cam.level === "dark") {
-          name = "vesper";
+          name = "ss-night";
           themeMode = "dark";
           desired = 30;
         } else if (cam.level === "bright") {
-          name = "github";
+          name = "ss-paper";
           themeMode = "light";
           desired = 80;
         } else if (hour >= 18 && hour <= 21 && cam.tone === "cool") {
-          name = "tokyonight";
+          name = "ss-dusk";
         }
       } else {
         el("st-light").textContent = effSource === "auto" ? "zaman" : SOURCE_LABEL[effSource];
@@ -678,6 +748,13 @@ async function tick(reason: string): Promise<void> {
                 ? "ogrenilmis tercih"
                 : reason;
     await diskLog(note, desired, appliedNow, `${name}/${themeMode}`, level, tone);
+
+    // Otomatik kipte sıcak ton her turda saate göre yeniden hesaplanır.
+    // Diğer kiplerde tıklanınca/yanıkken değişir; kimlik rampaya sürekli
+    // yazmamak için ("off") burada dokunulmaz.
+    if (warmMode === "auto") {
+      await applyWarmth();
+    }
 
     el("sub-bright").textContent = `hedef: %${desired}${lowPower ? " • pil" : ""}${readingMode ? " • okuma" : ""}`;
     el("last-measure").textContent = new Date().toLocaleTimeString("tr-TR", {
@@ -844,6 +921,16 @@ function renderProfileCards(): void {
     meta2.textContent = `düzeltme ${p.offset >= 0 ? "+" : ""}${p.offset}${p.autoLock ? " • otomatik kilit" : ""}${
       appCount ? ` • ${appCount} uygulama` : ""
     }`;
+    const t = THEMES.find((x) => x.name === p.theme && x.mode === p.themeMode);
+    if (t?.swatch) {
+      const strip = document.createElement("span");
+      strip.className = "pc-strip";
+      strip.style.setProperty("--a", t.swatch.bg);
+      strip.style.setProperty("--b", t.swatch.text);
+      strip.style.setProperty("--c", t.swatch.accent);
+      strip.title = `${p.theme} — ${p.themeMode}`;
+      b.append(strip);
+    }
     b.append(name, meta, meta2);
     b.addEventListener("click", () => {
       selectForEdit(p.id);
@@ -865,15 +952,7 @@ function selectForEdit(id: string): void {
 function paintEditor(): void {
   (el("pf-name") as HTMLInputElement).value = draft.name;
   (el("pf-off-val") as HTMLButtonElement).textContent = (draft.offset >= 0 ? "+" : "") + draft.offset;
-  const sel = el("pf-theme") as HTMLSelectElement;
-  sel.replaceChildren();
-  for (const t of THEMES) {
-    const opt = document.createElement("option");
-    opt.value = `${t.name}|${t.mode}`;
-    opt.textContent = `${t.name} (${t.note})`;
-    opt.selected = t.name === draft.theme && t.mode === draft.themeMode;
-    sel.append(opt);
-  }
+  buildPfThemePicker();
   buildSeg(el("pf-mode"), MODE_OPTIONS, draft.mode, (v) => {
     draft.mode = v as Mode;
     editorDirty = true;
@@ -896,12 +975,26 @@ function paintEditor(): void {
   (el("pf-add") as HTMLButtonElement).disabled = profiles.length >= MAX_PROFILES;
 }
 
+/** Profil editörü tema çipleri: seçili tema vurgulanır, tıklamak draft'a yazar. */
+function buildPfThemePicker(): void {
+  const host = el("pf-theme-picker");
+  host.replaceChildren();
+  for (const t of THEMES) {
+    const active = t.name === draft.theme && t.mode === draft.themeMode;
+    host.append(
+      makeThemeChip(t, active, () => {
+        draft.theme = t.name;
+        draft.themeMode = t.mode;
+        editorDirty = true;
+        buildPfThemePicker();
+      }),
+    );
+  }
+}
+
 function saveDraft(): void {
   const name = (el("pf-name") as HTMLInputElement).value.trim();
   if (name) draft.name = name;
-  const [theme, themeMode] = (el("pf-theme") as HTMLSelectElement).value.split("|");
-  draft.theme = theme;
-  draft.themeMode = themeMode;
   draft.apps = tagApps?.get() ?? draft.apps;
   profiles = upsertProfile(profiles, { ...draft });
   saveProfiles(profiles);
@@ -1062,9 +1155,10 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     tickBreak();
   });
-  bindSwitch(el("warm-switch") as HTMLButtonElement, warmEnabled, (v) => {
-    warmEnabled = v;
-    setSetting("warmEnabled", v ? "1" : "0");
+  buildSeg(el("warm-seg"), WARM_OPTIONS, warmMode, (v) => {
+    warmMode = v as WarmMode;
+    setSetting("warmMode", warmMode);
+    log("sıcak ton: " + WARM_MODE_LABEL[warmMode]);
     void applyWarmth();
   });
   el("warm-minus").addEventListener("click", () => {
@@ -1176,8 +1270,24 @@ window.addEventListener("DOMContentLoaded", () => {
     buildProfileSwitch();
     selectForEdit(p.id);
   });
+  // Silme iki aşamalı: yanlışlıkla tek tık silmesin, 3 sn içinde tekrar basılınca sil.
+  let deleteArmed = false;
+  let deleteTimer = 0;
   el("pf-delete").addEventListener("click", () => {
+    const btn = el("pf-delete") as HTMLButtonElement;
     if (profiles.length <= 1) return;
+    if (!deleteArmed) {
+      deleteArmed = true;
+      btn.textContent = "Emin misin?";
+      deleteTimer = window.setTimeout(() => {
+        deleteArmed = false;
+        btn.textContent = "Sil";
+      }, 3000);
+      return;
+    }
+    if (deleteTimer) window.clearTimeout(deleteTimer);
+    deleteArmed = false;
+    btn.textContent = "Sil";
     profiles = profiles.filter((p) => p.id !== draft.id);
     saveProfiles(profiles);
     if (activeId === draft.id) activeId = profiles[0].id;
@@ -1187,10 +1297,21 @@ window.addEventListener("DOMContentLoaded", () => {
     selectForEdit(activeId);
     log("profil silindi", "warn");
   });
-  (el("pf-name") as HTMLInputElement).addEventListener("input", () => {
-    editorDirty = true;
+  el("pf-restore").addEventListener("click", () => {
+    const result = restoreSeedProfiles(profiles);
+    profiles = result.profiles;
+    saveProfiles(profiles);
+    renderProfileCards();
+    buildProfileSwitch();
+    selectForEdit(draft.id);
+    log(
+      result.added > 0
+        ? `hazır profiller geri getirildi (+${result.added})`
+        : "hazır profiller zaten yerinde",
+      result.added > 0 ? "ok" : "warn",
+    );
   });
-  (el("pf-theme") as HTMLSelectElement).addEventListener("change", () => {
+  (el("pf-name") as HTMLInputElement).addEventListener("input", () => {
     editorDirty = true;
   });
   el("pf-off-minus").addEventListener("click", () => {

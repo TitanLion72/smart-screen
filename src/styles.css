@@ -434,10 +434,67 @@ button:active {
   color: var(--text-3);
 }
 
+/* Onizlemeli tema cipi: isim ustte, altinda 3 renkli serit. */
+.chip.swatched {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 3px;
+  height: auto;
+  min-height: 34px;
+  min-width: 78px;
+  padding: 4px 8px;
+  border-radius: var(--r-md);
+}
+
+.chip .chip-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.02em;
+}
+
+/* Serit: --a zemin, --b metin, --c vurgu — uc esit yatay parca. */
+.swatch-strip,
+.pc-strip {
+  display: block;
+  flex: none;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(to right,
+      var(--a) 0 33.333%,
+      var(--b) 33.333% 66.667%,
+      var(--c) 66.667% 100%);
+  transition: box-shadow var(--dur-1) var(--ease-out);
+}
+
+.chip.swatched.active .swatch-strip {
+  box-shadow: 0 0 0 2px var(--accent-ring), 0 0 10px var(--accent-ring);
+}
+
+/* Profil kartindaki tema seridi: kartin ust kenarinda. */
+.profile-card .pc-strip {
+  width: 100%;
+  height: 5px;
+  margin-bottom: 4px;
+  border-radius: var(--r-sm);
+}
+
+/* Dugme metni kirilmasin (orn. "Ac / kapat" tek satir kalmali). */
+.btn-toggle,
+.stepper button {
+  white-space: nowrap;
+}
+
 .toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
   flex: none;
 }
 
@@ -575,10 +632,23 @@ button:active {
 
 .box-title {
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-3);
+  letter-spacing: 0.07em;
+  color: var(--text-2);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.box-title::before {
+  content: "";
+  width: 3px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--accent);
+  opacity: 0.85;
+  flex: none;
 }
 
 .field {
@@ -654,6 +724,14 @@ button:active {
   font-size: 12.5px;
   color: var(--text-2);
   padding: 2px 0;
+}
+
+.switch-line .seg {
+  flex: none;
+}
+
+.switch-line .seg .seg-item {
+  min-width: 48px;
 }
 
 .switch {
@@ -771,9 +849,10 @@ button:active {
   font-size: 13px;
   font-weight: 600;
   color: var(--text-1);
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pc-meta {
@@ -792,7 +871,7 @@ button:active {
 }
 
 .quick-row .chip {
-  height: 28px;
+  height: 30px;
 }
 
 .summary-row {

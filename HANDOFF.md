@@ -1,7 +1,63 @@
-# HANDOFF — 2026-10-09 (smart-screen) — 0.7.0 cizgisi yarim
+# HANDOFF — 2026-10-09 (smart-screen) — 0.7.0 tamam
 
-> Kullanicinin verdigi 4 geri bildirimin durumu. Token bittigi icin dosyaya
-> yazildi; bu kisimdan devam et. Eski kayitlar altta duruyor.
+> 4 geri bildirimin 4'ü de islendi. Detaylar asagida; "0.7.0 cizgisi yarim"
+> bolumunun tum maddeleri kapandi.
+
+## 0.7.0 turunda yapilanlar
+
+1. **Hazir profiller geri geliyor** — `store.ts::restoreSeedProfiles()` (isim
+   bazli, var olani EZMEZ, `MAX_PROFILES` saygili) + Profiller'da
+   "Hazır profilleri geri getir" dugmesi (`#pf-restore`).
+   `Sil` iki asamali: ilk tik "Emin misin?" (3 sn), ikinci tik gercekten siler.
+2. **Sicak ton otomatik** — `warmEnabled` -> `warmMode: "auto" | "fixed" | "off"`
+   (Ayarlar'da 3 kademeli segment `#warm-seg`). auto: her turda
+   `warmth_auto(hour, minute, light_level)` cagirilir, `warmPercent` TAVAN olur.
+   Diger kiplerde tur icinde dokunulmaz (kimlik rampaya her dakika yazmamak icin).
+   Okuma profili `fixed`'a gecip kapaninca onceki kipe DONER.
+3. **Otomasyon tamamlandi** — `scene_target` ve `main.ts`'teki isik modu
+   dallanmasi artik `ss-paper`/`ss-dusk`/`ss-night` kullaniyor; elle tiklama
+   beklemiyor. Kalan tek elle is: kendi istedigin temayi secmek.
+4. **Tema onizlemesi + cilalar** — ciplerin altinda 3 renkli serit (zemin/metin/
+   vurgu), profil kartlarinda `.pc-strip`, profil editorunde `<select>` yerine
+   ayni renkli cipler (`#pf-theme-picker`). Renkler UYDURULMADI:
+   - yerlesik 9 tema -> `src/theme-colors.json` (tema aracinin paketinden
+     cikarildi, `tools/extract-theme-colors.mjs`)
+   - kendi 3 temamiz -> `src/ss-colors.json` (`tools/themes.mjs` uretiyor)
+
+## Inceleme turu (reviewer / deepseek-v4.1-flash) — VERDICT: PASS, 2 MINOR
+
+- `.pc-strip` olu CSS'ti, kartlara serit konmamisti -> eklendi.
+- `warmPercent` 0 yapilirsa sonraki acilista 35'e donuyordu
+  (`Number(...) || 35` falsy tuzagi) -> `loadNumber()` yardimcisi; ayni tuzak
+  `sleepStart`/`sleepEnd`/`sleepCap` icin de vardi (orn. baslangic 0 yapilabiliyor).
+- Not: eski `warmEnabled` kaydi "0" olan kullanicilar acilista "auto"ya geciyor —
+  bu bilerek boyle (kullanicinin istegi: otomatik olsun).
+- Not: okuma profili sicak ton kipini kalici degistiriyordu -> artik geri donuyor.
+
+Benim kendi gozumle buldugum (inceleme degil): "Ac / kapat" dugmesi iki satira
+kiriliyordu (`white-space: nowrap`), tema cipleri cok yer kapliyordu
+(min 44px -> 34px). Ikisi de duzeltildi.
+
+## Dogrulama (bu turda GERCEKTEN kosuldu)
+
+- `npm.cmd run build` -> temiz (tsc + vite).
+- `cd qa && node run.mjs` -> SONUC: PASS (8 senaryo; yeni assert'ler: tema
+  onizleme seridi, `#warm-seg` kipi, hazir profil geri getirme, iki asamali silme).
+- `cargo test` -> 99 gecti, 4 ignored.
+- Kareler `qa/shots/2-ayarlar.png` ve `4-profiller.png` gozle incelendi.
+
+## Dagitim haritası (0.7.0 turu — orkestrasyon)
+
+- `general`/`evren/glm-5.3` #1: `src-tauri/src/lib.rs`, `src/store.ts`,
+  `src/catalog.ts`, `tools/themes.mjs` (+ `src/ss-colors.json` verisi).
+  Iddiasi PASS; ben dosyayi acip dogruladim (sozlesme id'leri birebir,
+  `ss-colors.json` null'suz, `warmth_auto is never used` uyarisi gercekten gitmis).
+- `general`/`evren/glm-5.3` #2: `index.html`, `src/styles.css`. Iddiasi PASS;
+  dogrulandi (eski `#warm-switch`/`#pf-theme` tamamen kalkmis).
+- Ben: `src/main.ts` + `qa/run.mjs` (kesisim noktasi + davranis + testler).
+- `reviewer`/`evren/deepseek-v4.1-flash`: 2 MINOR buldu (yukarida).
+
+## ONCEKI DURUMLAR (arsiv)
 
 ## 1. Hazir profilleri kazayla sildim — HENUZ YAPILMADI
 

@@ -99,9 +99,10 @@
             </div>
           </div>
           <div class="field-row">
-            <label class="field">Tema
-              <select id="pf-theme"></select>
-            </label>
+            <div class="field">
+              <span class="field-label">Tema</span>
+              <div class="chips pf-theme-picker" id="pf-theme-picker" role="group" aria-label="Tema"></div>
+            </div>
             <div class="field">
               <span class="field-label">Parlaklık düzeltme</span>
               <div class="stepper">
@@ -131,6 +132,7 @@
             <button id="pf-duplicate" class="btn-toggle" type="button">Çoğalt</button>
             <button id="pf-delete" class="btn-toggle btn-danger" type="button">Sil</button>
             <span class="spacer"></span>
+            <button id="pf-restore" class="btn-toggle" type="button">Hazır profilleri geri getir</button>
             <button id="pf-add" class="btn-toggle" type="button">Yeni profil</button>
           </div>
         </div>
@@ -195,12 +197,12 @@
         <div class="panel-box">
           <div class="box-title">Zamanlama ve görünüm</div>
           <div class="switch-line">
-            <span>Sıcak ton (gün batımı koruması)</span>
-            <button id="warm-switch" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+            <span>Sıcak ton</span>
+            <div class="seg" id="warm-seg" role="group" aria-label="Sıcak ton modu"></div>
           </div>
           <div class="field-row">
             <div class="field">
-              <span class="field-label">Ton şiddeti</span>
+              <span class="field-label">Şiddet (otomatikte tavan)</span>
               <div class="stepper">
                 <button id="warm-minus" class="btn-toggle" type="button">−</button>
                 <span id="warm-val">35</span>

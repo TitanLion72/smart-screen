@@ -94,6 +94,20 @@ export function loadProfiles(): Profile[] {
   return list.length > 0 ? list : seedProfiles();
 }
 
+/** Eksik tohum profilleri geri yukler; var olani EZMEZ. Kac tane eklendi doner. */
+export function restoreSeedProfiles(profiles: Profile[]): { profiles: Profile[]; added: number } {
+  const next = profiles.slice();
+  let added = 0;
+  for (const seed of seedProfiles()) {
+    // Ayni isimde profil varsa dokunma; yeni eklenenler sona eklenir.
+    if (profiles.some((p) => p.name === seed.name)) continue;
+    if (next.length >= MAX_PROFILES) break;
+    next.push(seed);
+    added += 1;
+  }
+  return { profiles: next, added };
+}
+
 export function saveProfiles(profiles: Profile[]): void {
   writeJson(KEY_PROFILES, profiles);
 }

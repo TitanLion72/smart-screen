@@ -47,6 +47,7 @@ window.__TAURI_INTERNALS__ = {
       case "pref_list": return [];
       case "pref_get_bright": return null;
       case "battery_status": return [85, true];
+      case "warmth_auto": return 35;
       case "contrast_audit": return [
         { name: "ss-night", mode: "dark", text_on_bg: 8.5, muted_on_bg: 5.9, syntax_min: 4.9, verdict: "AA" },
         { name: "soluk-tema", mode: "dark", text_on_bg: 2.2, muted_on_bg: 1.1, syntax_min: 1.0, verdict: "FAIL" },
@@ -150,6 +151,8 @@ async function run() {
     if (!cmds.includes("pref_learn")) fail("ayarlar", "tema cipi pref_learn cagrilmadi");
     const pills = await page.locator("#block-editor .tag-pill").count();
     if (pills === 0) fail("ayarlar", "engelli listesi bos gorunuyor");
+    const strips = await page.locator("#theme-picker .swatch-strip").count();
+    if (strips < 3) fail("onizleme", `tema onizleme seridi yok (${strips})`);
     await page.locator("#add-current-btn").click();
     await page.waitForTimeout(200);
     await page.screenshot({ path: join(shotDir, "2-ayarlar.png") });
@@ -178,6 +181,20 @@ async function run() {
     await page.waitForTimeout(250);
     const names = await page.locator("#profile-cards .pc-name").allTextContents();
     if (!names.includes("Gece")) fail("profil", `kaydedilen isim yok: ${names.join(",")}`);
+    await page.locator("#pf-restore").click();
+    await page.waitForTimeout(200);
+    const restored = await page.locator("#profile-cards .profile-card").count();
+    if (restored < 2) fail("profil", `hazir profiller eksik (${restored})`);
+    await page.locator("#pf-delete").click();
+    await page.waitForTimeout(150);
+    const armLabel = (await page.locator("#pf-delete").textContent()) ?? "";
+    if (!armLabel.includes("Emin")) fail("profil", `silme onayi cikmadi: ${armLabel}`);
+    const armedCount = await page.locator("#profile-cards .profile-card").count();
+    if (armedCount !== restored) fail("profil", "tek tikta silindi, onay beklenirdi");
+    await page.locator("#pf-delete").click();
+    await page.waitForTimeout(250);
+    const afterDelete = await page.locator("#profile-cards .profile-card").count();
+    if (afterDelete !== restored - 1) fail("profil", `ikinci tikta silinmedi (${restored} -> ${afterDelete})`);
     await checkOverflow(page, "profiller");
     await page.screenshot({ path: join(shotDir, "4-profiller.png") });
   });
@@ -197,10 +214,10 @@ async function run() {
   // 6. Display extras: warmth, reading mode, calibration hint.
   await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab }) => {
     await openTab("settings");
-    await page.locator("#warm-switch").click();
+    await page.locator("#warm-seg .seg-item").first().click();
     await page.waitForTimeout(250);
-    const warmState = await page.locator("#warm-switch").getAttribute("aria-checked");
-    if (warmState !== "true") fail("ekran", "sicak ton anahtari acilmadi");
+    const warmState = await page.locator("#warm-seg .seg-item.active").textContent();
+    if (!warmState) fail("ekran", "sicak ton kipi secilmedi");
     await page.locator("#warm-plus").click();
     await page.waitForTimeout(250);
     const warmVal = Number(await page.locator("#warm-val").textContent());

@@ -162,6 +162,12 @@ fn gamma_restore() -> Result<(), String> {
     gamma::restore_original()
 }
 
+/// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=45).
+#[tauri::command]
+fn warmth_auto(hour: u8, minute: u8, light_level: String) -> Result<u8, String> {
+    Ok(decide::warmth_auto(hour % 24, minute % 60, &light_level))
+}
+
 #[tauri::command]
 fn pref_learn_bright(hour: u8, light: String, value: u8) {
     prefs::learn_bright(hour, &light, value);
@@ -245,6 +251,7 @@ pub fn run() {
             stats_summary,
             gamma_set_warmth,
             gamma_restore,
+            warmth_auto,
             pref_learn_bright,
             pref_get_bright,
             animations_set,
