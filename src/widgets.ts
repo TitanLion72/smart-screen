@@ -18,10 +18,15 @@ export function buildSeg(
     b.className = "seg-item";
     b.textContent = o.label;
     b.dataset.value = o.value;
+    b.setAttribute("aria-pressed", o.value === value ? "true" : "false");
     b.classList.toggle("active", o.value === value);
     b.addEventListener("click", () => {
-      host.querySelectorAll(".seg-item").forEach((n) => n.classList.remove("active"));
+      host.querySelectorAll(".seg-item").forEach((n) => {
+        n.classList.remove("active");
+        n.setAttribute("aria-pressed", "false");
+      });
       b.classList.add("active");
+      b.setAttribute("aria-pressed", "true");
       onPick(o.value);
     });
     host.append(b);

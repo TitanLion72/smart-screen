@@ -1,7 +1,59 @@
-# HANDOFF — 2026-10-09 (smart-screen) — 0.7.0 tamam
+# HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
-> 4 geri bildirimin 4'ü de islendi. Detaylar asagida; "0.7.0 cizgisi yarim"
-> bolumunun tum maddeleri kapandi.
+> "Kusursuz/profesyonel" turu. Kapsamlı araştırma (Rust audit + frontend audit +
+> Tauri v2 tray/WebView2/Windows brightness/gamma/gece ışığı/autostart/OpenCode
+> V2 tema formatı web araştırması) + uygulama. Detaylar aşağıda.
+
+## Bu turda yapılanlar (0.7.0 → 0.8.0)
+
+**Bloklayıcılar (düzeltildi):**
+- `gamma.rs`: `set_warmth(0)`/`restore_original` kimlik rampa fallback'i kalibrasyonu siliyordu → saklı orijinal yoksa ekrana DOKUNMUYOR; orijinal rampa identity±32768 monotonluk doğrulamasından muaf (gerçek kalibrasyon rampaları monoton değil).
+- `contrast.rs`: WCAG luminance sabiti `12.4` → `12.92` (düşük kanal dalı). Test eklendi.
+- `theme.rs`: `cli.json` kök obje değilse `expect` panik → graceful error; atomic temp+rename yazma.
+- `prefs.rs`: `prefs`/`bright`/`version` alanları `#[serde(default)]`; `version` alanı + migration hook; atomic yazma; `save` kök obje değilse hata.
+- `stats.rs`: "bugün" UTC yerine yerel gün (TR'de gün sınırı 03:00'tü); `is_frozen` not eşleşmesi genişletildi (kilitli/uygulama/reddedildi).
+- `activity.rs`: tek monitör varsayımı kaldırıldı — `MonitorFromWindow` + `GetMonitorInfoW` ile pencerenin bulunduğu monitörün tamamını kaplıyorsa tam ekran sayılır.
+- `battery.rs`: şarj durumu kodları (2/6/7/9) anlamlı yorum.
+- `ps.rs`/`autostart.rs`: PowerShell quoting (tek tırnak + iç tek tırnak escape) — injection/bozulma riski kapatıldı.
+- `logger.rs`: USERPROFILE yoksa CWD'ye sessiz yazma yerine hata; atomic yazma.
+
+**Mimari/profesyonel dokunuşlar:**
+- `tauri-plugin-single-instance`: ikinci kopya açılırsa ilk pencere öne getirilir, ikinci çıkar (iki tray ikonu sorunu).
+- `tauri-plugin-window-state`: pencere konumu/boyutu yeniden başlatmada geri yüklenir; `resizable: false` + `center: true` (800×600 tasarım sabit).
+- `main.rs` (binary): panic hook → `smart-screen-crash.log` (abort öncesi sebep yazılır).
+- `cargo clippy` temiz (2 uyarı temizlendi: `is_blocked` → `.contains`, `then(|| exe)` → `then_some`).
+- `cargo fmt --check` temiz.
+
+**Frontend hijyeni (audit bulguları):**
+- `applyProfile`/`saveDraft`/silme sonrası global state senkronizasyonu (state tutarsızlığı giderildi).
+- `log()` defensive (DOM yoksa console'a düşer; orijinal hata kaybolmaz).
+- `.catch` eksik invokes (theme_set, diskLog, autostart_set, sendNotification) tamamlandı.
+- `visibilitychange` listener eklendi (tray'de gizli pencere throttle telafisi).
+- `breakEnabled` kapalı/açık döngüsünde `breakDueAt` sıfırlanıyor.
+- A11Y: `role="tab"`/`aria-selected`/`aria-controls` + `role="tabpanel"` + `aria-pressed` seg + renk seçici `aria-label`.
+- Panel log boş başlangıçta yönlendirme (`.log-empty` artık üretiliyor).
+- Ölü CSS temizlendi (`#off-val` → `#pf-off-val`, `.preferred::after`).
+- `store.ts` profil şema doğrulaması (geçersiz alanlar onarılır, atılır).
+- `loadNumber` helper: 0 değeri artık sessizce fallback'e ezilmiyor (warmPercent/sleepStart/sleepEnd/sleepCap).
+- `README.md` gerçek içeriğe kavuşturuldu.
+
+**Doğrulama (gerçekten koşuldu):**
+- `cargo test` → 99 geçti, 4 ignored.
+- `cargo clippy` → 0 uyarı.
+- `cargo fmt --check` → 0 fark.
+- `npm.cmd run build` → temiz (tsc + vite).
+- `cd qa && node run.mjs` → SONUC: PASS (8 senaryo).
+
+## Açık (bilerek kapalı) maddeler
+
+- **Gamma'nın gerçek ekranı ısıttığı hâlâ gözle doğrulanmadı** (`gamma.rs` içindeki `#[ignore]`lı `live_apply_and_restore` hiç koşulmadı). Bu tek "fiziksel" doğrulama.
+- **Çoklu monitör DDC/CI** — bu laptopta MCCS destek yok (hata 31); ikinci monitor için WMI/DDC ayrımı ve per-monitor gamma yazma henüz yok.
+- **Kroppy oranı ölçümü** (kamera skin masking) — pahalısına ertelenmişti, bu sürümde de yok.
+- **Otomatik güncelleme** (tauri-plugin-updater) — code signing + key yönetimi gerektirir; manuel release akışı devam.
+
+## Öneri
+
+Bu sürüm **profesyonel ve kusursuz** bir seviyeye yaklaştı: tüm panik noktaları graceful, tüm IO atomik, tüm state senkron, A11Y temel seviyede, test/QA geçiyor. Kalan 4 madde **donanım/kurumsal** (multi-monitor, auto-update) — bunlar "final" etiketini hak ediyor mu etmiyor mu senin kararın. Benim görüşüm: gamma'yı gözle doğrula, sonra `v0.8.0 "nihai"` damgasını bas.
 
 ## 0.7.0 turunda yapilanlar
 

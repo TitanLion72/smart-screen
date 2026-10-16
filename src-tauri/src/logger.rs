@@ -17,10 +17,9 @@ fn log_path() -> Result<PathBuf, String> {
 }
 
 pub fn log_tick(line: &str) {
-    let _ = append_line(
-        &log_path().unwrap_or_else(|_| PathBuf::from("smart-screen.log")),
-        line,
-    );
+    if let Ok(path) = log_path() {
+        let _ = append_line(&path, line);
+    }
 }
 
 pub fn read_lines(max: usize) -> Result<Vec<String>, String> {
@@ -40,7 +39,10 @@ fn append_line(path: &PathBuf, line: &str) -> Result<(), String> {
         let cut = lines.len() - MAX_LINES;
         lines.drain(..cut);
     }
-    fs::write(path, lines.join("\n") + "\n").map_err(|e| format!("log yazilamadi: {e}"))
+    let tmp = path.with_extension("log.tmp");
+    fs::write(&tmp, lines.join("\n") + "\n").map_err(|e| format!("log temp yazilamadi: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| format!("log yeniden adlandirilamadi: {e}"))?;
+    Ok(())
 }
 
 fn read_tail(path: &PathBuf, max: usize) -> Result<Vec<String>, String> {

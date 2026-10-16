@@ -34,9 +34,9 @@ pub fn get_theme() -> Result<(String, Option<String>), String> {
 pub fn set_theme(name: &str, mode: Option<&str>) -> Result<(), String> {
     let path = cli_path()?;
     let mut doc = read_doc(&path)?;
-    apply_theme(&mut doc, name, mode);
+    apply_theme(&mut doc, name, mode)?;
     let text = serde_json::to_string_pretty(&doc).map_err(|e| format!("json yazilamadi: {e}"))?;
-    fs::write(&path, text + "\n").map_err(|e| format!("cli.json yazilamadi: {e}"))?;
+    atomic_write(&path, &text)?;
     Ok(())
 }
 
@@ -54,33 +54,48 @@ fn read_theme(doc: &Value) -> (Option<String>, Option<String>) {
     (name, mode)
 }
 
-fn apply_theme(doc: &mut Value, name: &str, mode: Option<&str>) {
-    let entry = doc
+fn apply_theme(doc: &mut Value, name: &str, mode: Option<&str>) -> Result<(), String> {
+    let obj = doc
         .as_object_mut()
-        .expect("cli.json kok obje olmali")
+        .ok_or_else(|| "cli.json kok obje degil".to_string())?;
+    let entry = obj
         .entry("theme")
         .or_insert_with(|| Value::Object(Default::default()));
-    if let Some(obj) = entry.as_object_mut() {
-        obj.insert("name".to_string(), Value::String(name.to_string()));
+    if let Some(theme_obj) = entry.as_object_mut() {
+        theme_obj.insert("name".to_string(), Value::String(name.to_string()));
         if let Some(m) = mode {
-            obj.insert("mode".to_string(), Value::String(m.to_string()));
+            theme_obj.insert("mode".to_string(), Value::String(m.to_string()));
         }
+    } else {
+        return Err("theme alani obje degil".to_string());
     }
+    Ok(())
 }
 
-fn apply_flag(doc: &mut Value, key: &str, value: bool) {
-    if let Some(obj) = doc.as_object_mut() {
-        obj.insert(key.to_string(), Value::Bool(value));
-    }
+fn apply_flag(doc: &mut Value, key: &str, value: bool) -> Result<(), String> {
+    let obj = doc
+        .as_object_mut()
+        .ok_or_else(|| "cli.json kok obje degil".to_string())?;
+    obj.insert(key.to_string(), Value::Bool(value));
+    Ok(())
 }
 
 /// `animations` alanini ac/kapatir (okuma profili icin); diger anahtarlari korur.
 pub fn set_animations(enabled: bool) -> Result<(), String> {
     let path = cli_path()?;
     let mut doc = read_doc(&path)?;
-    apply_flag(&mut doc, "animations", enabled);
+    apply_flag(&mut doc, "animations", enabled)?;
     let text = serde_json::to_string_pretty(&doc).map_err(|e| format!("json yazilamadi: {e}"))?;
-    fs::write(&path, text + "\n").map_err(|e| format!("cli.json yazilamadi: {e}"))?;
+    atomic_write(&path, &text)?;
+    Ok(())
+}
+
+/// Atomik yazma: once gecici dosyaya, sonra rename. Crash ortasinda
+/// cli.json yarim kalmaz.
+fn atomic_write(path: &PathBuf, text: &str) -> Result<(), String> {
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, text.to_string() + "\n").map_err(|e| format!("temp yazilamadi: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| format!("cli.json yeniden adlandirilamadi: {e}"))?;
     Ok(())
 }
 
@@ -106,7 +121,7 @@ mod tests {
     #[test]
     fn set_preserves_other_keys() {
         let mut doc: Value = serde_json::from_str(SAMPLE).unwrap();
-        apply_theme(&mut doc, "zenburn", Some("dark"));
+        apply_theme(&mut doc, "zenburn", Some("dark")).unwrap();
         assert_eq!(doc["theme"]["name"], "zenburn");
         assert_eq!(doc["theme"]["mode"], "dark");
         assert_eq!(doc["session"]["sidebar"], "auto");
@@ -117,7 +132,7 @@ mod tests {
     fn set_without_mode_keeps_existing() {
         let mut doc: Value =
             serde_json::from_str(r#"{"theme": {"name": "x", "mode": "light"}}"#).unwrap();
-        apply_theme(&mut doc, "github", None);
+        apply_theme(&mut doc, "github", None).unwrap();
         assert_eq!(doc["theme"]["name"], "github");
         assert_eq!(doc["theme"]["mode"], "light");
     }
@@ -125,7 +140,7 @@ mod tests {
     #[test]
     fn flag_preserves_other_keys() {
         let mut doc: Value = serde_json::from_str(SAMPLE).unwrap();
-        apply_flag(&mut doc, "animations", false);
+        apply_flag(&mut doc, "animations", false).unwrap();
         assert_eq!(doc["animations"], false);
         assert_eq!(doc["theme"]["name"], "catppuccin-macchiato");
         assert_eq!(doc["session"]["sidebar"], "auto");
@@ -136,7 +151,7 @@ mod tests {
         let path = std::env::temp_dir().join("smart-screen-theme-test.json");
         fs::write(&path, SAMPLE).unwrap();
         let mut doc = read_doc(&path).unwrap();
-        apply_theme(&mut doc, "vesper", Some("dark"));
+        apply_theme(&mut doc, "vesper", Some("dark")).unwrap();
         fs::write(&path, serde_json::to_string_pretty(&doc).unwrap()).unwrap();
         let back = read_doc(&path).unwrap();
         assert_eq!(back["theme"]["name"], "vesper");

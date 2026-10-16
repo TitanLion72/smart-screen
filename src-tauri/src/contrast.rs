@@ -82,7 +82,7 @@ pub fn relative_luminance(hex: &str) -> Option<f32> {
     let channel = |c: u8| -> f32 {
         let v = c as f32 / 255.0;
         if v <= 0.03928 {
-            v / 12.4
+            v / 12.92
         } else {
             ((v + 0.055) / 1.055).powf(2.4)
         }
@@ -335,10 +335,16 @@ mod tests {
     }
 
     #[test]
-    fn luminance_known_red() {
-        // Saf kirmizi icin relative luminance ~= 0.2126
-        let l = relative_luminance("#ff0000").unwrap();
-        assert!((l - 0.2126).abs() < 0.002, "got {l}");
+    fn luminance_low_channel_uses_linear_branch() {
+        // #080808: 8/255 = 0.0314 <= 0.03928 -> v/12.92 (pow dalinda degil).
+        let l = relative_luminance("#080808").unwrap();
+        // 0.0314/12.92 = 0.00243 her kanal, L = ayni (0.2126+0.7152+0.0722=1).
+        assert!((l - 0.00243).abs() < 0.0002, "got {l}");
+        // Eski sabit 12.4 ile ~0.00253 olurdu; 12.92 dogru WCAG degeri.
+        assert!(
+            l < 0.0025,
+            "eski 12.4 sabiti hala kullaniliyor olabilir: {l}"
+        );
     }
 
     #[test]

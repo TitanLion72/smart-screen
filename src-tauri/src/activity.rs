@@ -5,6 +5,9 @@
 
 use windows::core::PWSTR;
 use windows::Win32::Foundation::{CloseHandle, RECT};
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
@@ -34,13 +37,42 @@ fn is_foreground_fullscreen() -> bool {
         if GetWindowRect(hwnd, &mut rect).is_err() {
             return false;
         }
+        let hmon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        let mut mi = MONITORINFO {
+            cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+            rcMonitor: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+            rcWork: RECT {
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
+            },
+            dwFlags: 0,
+        };
+        if GetMonitorInfoW(hmon, &mut mi).as_bool() {
+            let m = mi.rcMonitor;
+            let mw = m.right - m.left;
+            let mh = m.bottom - m.top;
+            return mw > 0
+                && mh > 0
+                && rect.left <= m.left
+                && rect.top <= m.top
+                && rect.right >= m.right
+                && rect.bottom >= m.bottom;
+        }
         let sw = GetSystemMetrics(SM_CXSCREEN);
         let sh = GetSystemMetrics(SM_CYSCREEN);
-        is_fullscreen_rect(rect.left, rect.top, rect.right, rect.bottom, sw, sh)
+        sw > 0 && sh > 0 && rect.left <= 0 && rect.top <= 0 && rect.right >= sw && rect.bottom >= sh
     }
 }
 
 /// Pencere ekrani tamamen kapliyorsa true.
+#[allow(dead_code)]
 fn is_fullscreen_rect(l: i32, t: i32, r: i32, b: i32, sw: i32, sh: i32) -> bool {
     sw > 0 && sh > 0 && l <= 0 && t <= 0 && r >= sw && b >= sh
 }

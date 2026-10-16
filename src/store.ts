@@ -85,12 +85,25 @@ export function seedProfiles(): Profile[] {
 }
 
 /** Eski kayitlarda `apps` alanı olmayabilir; normalize eder. */
-function normalize(p: Profile): Profile {
-  return { ...p, apps: Array.isArray(p.apps) ? p.apps : [] };
+const VALID_MODES = new Set(["auto", "time", "light", "fixed"]);
+const VALID_SOURCES = new Set(["auto", "day", "warm", "cool", "night"]);
+
+function normalize(p: any): Profile | null {
+  if (!p || typeof p !== "object") return null;
+  if (typeof p.id !== "string" || typeof p.name !== "string" || p.name.trim() === "") return null;
+  const mode: Mode = VALID_MODES.has(p.mode) ? p.mode : "auto";
+  const source: Source = VALID_SOURCES.has(p.source) ? p.source : "auto";
+  const theme = typeof p.theme === "string" && p.theme.length > 0 ? p.theme : "catppuccin-macchiato";
+  const themeMode = typeof p.themeMode === "string" && p.themeMode.length > 0 ? p.themeMode : "dark";
+  const offset = typeof p.offset === "number" && Number.isFinite(p.offset) ? Math.max(-20, Math.min(20, Math.round(p.offset))) : 0;
+  const autoLock = p.autoLock === true;
+  const apps = Array.isArray(p.apps) ? p.apps.filter((x: any) => typeof x === "string" && x.length > 0).map((x: any) => x.toLowerCase()) : [];
+  return { id: p.id, name: p.name.trim(), mode, source, theme, themeMode, offset, autoLock, apps };
 }
 
 export function loadProfiles(): Profile[] {
-  const list = readJson<Profile[]>(KEY_PROFILES, []).map(normalize);
+  const raw = readJson<any[]>(KEY_PROFILES, []);
+  const list = raw.map(normalize).filter((p): p is Profile => p !== null);
   return list.length > 0 ? list : seedProfiles();
 }
 

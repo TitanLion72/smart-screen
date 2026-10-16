@@ -122,9 +122,16 @@ pub fn restore_original() -> Result<(), String> {
             .map_err(|_| "gamma kilidi bozuk".to_string())?;
         guard.take()
     };
-    let ramp = stored.or(disk).unwrap_or_else(identity_ramp);
-    let _ = clear_original();
-    apply_ramp(&ramp)
+    // Sakli orijinal yoksa ekrana DOKUNMA: mevcut (fabrika/ICC/f.lux)
+    // kalibrasyonu kimlik rampayla ezmemeliyiz.
+    let Some(ramp) = stored.or(disk) else {
+        return Ok(());
+    };
+    let result = apply_ramp(&ramp);
+    if result.is_ok() {
+        let _ = clear_original();
+    }
+    result
 }
 
 /// Onceki oturumdan kalma sicak tonu temizler (crash sonrasi).
@@ -138,21 +145,16 @@ pub fn recover() {
 
 /// Sicak tonu uygulamadan once ekranin rampasini saklar (bellek + disk).
 pub fn capture_original() -> Result<(), String> {
-    {
-        let guard = ORIGINAL
-            .lock()
-            .map_err(|_| "gamma kilidi bozuk".to_string())?;
-        if guard.is_some() {
-            return Ok(());
-        }
+    let mut guard = ORIGINAL
+        .lock()
+        .map_err(|_| "gamma kilidi bozuk".to_string())?;
+    if guard.is_some() {
+        return Ok(());
     }
     let ramp = read_ramp()?;
     if let Ok(p) = gamma_file() {
         let _ = save_to_path(&p, &ramp);
     }
-    let mut guard = ORIGINAL
-        .lock()
-        .map_err(|_| "gamma kilidi bozuk".to_string())?;
     *guard = Some(ramp);
     Ok(())
 }
@@ -222,7 +224,8 @@ fn identity_channel() -> [u16; 256] {
     ch
 }
 
-/// Kimlik rampasi (uc kanal da identity).
+/// Kimlik (degisiklik yok) rampasi (uc kanal da identity).
+#[allow(dead_code)]
 fn identity_ramp() -> Ramp {
     Ramp {
         red: identity_channel(),

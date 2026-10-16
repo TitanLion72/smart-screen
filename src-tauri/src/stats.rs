@@ -9,7 +9,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Local, Utc};
 use serde::Serialize;
 
 pub const BUCKET_COUNT: u8 = 12;
@@ -80,8 +80,12 @@ fn parse_line(line: &str) -> Option<Entry> {
 }
 
 fn is_frozen(note: &str) -> bool {
-    let n = note.trim();
-    n.starts_with("dondur") || n.starts_with("film")
+    let n = note.trim().to_lowercase();
+    n.starts_with("dondur")
+        || n.starts_with("film")
+        || n.starts_with("kilitli")
+        || n.starts_with("uygulama")
+        || n.starts_with("reddedildi")
 }
 
 pub fn summarize(lines: &[String], now: DateTime<Utc>) -> Summary {
@@ -105,7 +109,7 @@ pub fn summarize(lines: &[String], now: DateTime<Utc>) -> Summary {
                 desired_sum[idx] += u32::from(v);
             }
         }
-        if entry.at.date_naive() == now.date_naive() {
+        if entry.at.with_timezone(&Local).date_naive() == now.with_timezone(&Local).date_naive() {
             today.push(entry);
         }
     }

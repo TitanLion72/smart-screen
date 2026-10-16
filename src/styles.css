@@ -897,11 +897,7 @@ button:active {
   color: var(--danger);
 }
 
-.quick-row .chip.preferred::after {
-  content: "★";
-  font-size: 10px;
-  color: var(--accent);
-}
+/* .quick-row .chip.preferred::after — ölü kural, preferred class hiçbir yerde set edilmiyor. */
 
 .controls .wide input {
   width: 100%;
@@ -928,7 +924,7 @@ button:active {
   padding: 0;
 }
 
-#off-val {
+#pf-off-val {
   min-width: 36px;
   text-align: center;
   font-family: var(--font-mono);

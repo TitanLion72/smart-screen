@@ -19,14 +19,14 @@
         <span id="mode-badge" class="badge">Hazırlanıyor</span>
       </header>
 
-      <nav class="tabs" role="tablist">
-        <button type="button" class="tab active" data-tab="panel">Panel</button>
-        <button type="button" class="tab" data-tab="profiles">Profiller</button>
-        <button type="button" class="tab" data-tab="settings">Ayarlar</button>
-        <button type="button" class="tab" data-tab="history">Geçmiş</button>
+      <nav class="tabs" role="tablist" aria-label="Sekmeler">
+        <button type="button" class="tab active" data-tab="panel" role="tab" id="tab-panel" aria-selected="true" aria-controls="page-panel">Panel</button>
+        <button type="button" class="tab" data-tab="profiles" role="tab" id="tab-profiles" aria-selected="false" aria-controls="page-profiles">Profiller</button>
+        <button type="button" class="tab" data-tab="settings" role="tab" id="tab-settings" aria-selected="false" aria-controls="page-settings">Ayarlar</button>
+        <button type="button" class="tab" data-tab="history" role="tab" id="tab-history" aria-selected="false" aria-controls="page-history">Geçmiş</button>
       </nav>
 
-      <section class="page" id="page-panel">
+      <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel">
         <div class="cards">
           <div class="card">
             <div class="card-label">Parlaklık</div>
@@ -80,7 +80,7 @@
         </div>
       </section>
 
-      <section class="page" id="page-profiles" hidden>
+      <section class="page" id="page-profiles" hidden role="tabpanel" aria-labelledby="tab-profiles">
         <div class="grid-profiles" id="profile-cards"></div>
 
         <div class="panel-box" id="profile-editor">
@@ -138,7 +138,7 @@
         </div>
       </section>
 
-      <section class="page" id="page-settings" hidden>
+      <section class="page" id="page-settings" hidden role="tabpanel" aria-labelledby="tab-settings">
         <div class="panel-box">
           <div class="box-title">Tema ve güvenlik</div>
           <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
@@ -242,7 +242,7 @@
         </div>
       </section>
 
-      <section class="page" id="page-history" hidden>
+      <section class="page" id="page-history" hidden role="tabpanel" aria-labelledby="tab-history">
         <div class="summary-row">
           <div class="card summary-card">
             <div class="card-label">Bugün tema değişimi</div>

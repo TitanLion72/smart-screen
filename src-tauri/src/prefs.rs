@@ -25,10 +25,16 @@ struct BrightPref {
 
 #[derive(Serialize, Deserialize, Default)]
 struct Store {
+    #[serde(default)]
     prefs: Vec<Pref>,
     #[serde(default)]
     bright: Vec<BrightPref>,
+    /// Semanin surumu; ileride migration icin. 0 = eski format.
+    #[serde(default)]
+    version: u32,
 }
+
+const STORE_VERSION: u32 = 1;
 
 fn prefs_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
@@ -81,19 +87,25 @@ pub fn get_bright(hour: u8, light: &str) -> Option<(u8, u32)> {
 
 fn load(path: &PathBuf) -> Store {
     let text = fs::read_to_string(path).unwrap_or_default();
-    match serde_json::from_str(&text) {
-        Ok(store) => store,
+    let mut store: Store = match serde_json::from_str(&text) {
+        Ok(s) => s,
         Err(_) => {
             if !text.trim().is_empty() {
                 let _ = fs::write(path.with_extension("json.bak"), &text);
             }
             Store::default()
         }
+    };
+    // Migration hook: eski format (version 0) -> mevcut sema.
+    if store.version < STORE_VERSION {
+        store.version = STORE_VERSION;
+        // Burada eski alanlar yenilenecek (su an sema degismedi).
+        let _ = save(path, &store);
     }
+    store
 }
 
 fn save(path: &PathBuf, store: &Store) -> Result<(), String> {
-    // Varolan dosyayi okuyup diger alanlari koru (ileride kolay genisletme).
     let mut doc: Value = fs::read_to_string(path)
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
@@ -103,9 +115,15 @@ fn save(path: &PathBuf, store: &Store) -> Result<(), String> {
         obj.insert("prefs".to_string(), list);
         let bright = serde_json::to_value(&store.bright).map_err(|e| e.to_string())?;
         obj.insert("bright".to_string(), bright);
+        obj.insert("version".to_string(), serde_json::json!(store.version));
+    } else {
+        return Err("prefs kok obje degil".to_string());
     }
     let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
-    fs::write(path, text + "\n").map_err(|e| format!("prefs yazilamadi: {e}"))
+    let tmp = path.with_extension("json.tmp");
+    fs::write(&tmp, text + "\n").map_err(|e| format!("prefs temp yazilamadi: {e}"))?;
+    fs::rename(&tmp, path).map_err(|e| format!("prefs yeniden adlandirilamadi: {e}"))?;
+    Ok(())
 }
 
 fn learn_at(path: &PathBuf, hour: u8, light: &str, name: &str, mode: &str) -> Result<(), String> {

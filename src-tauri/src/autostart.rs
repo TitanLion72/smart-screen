@@ -11,7 +11,10 @@ fn run_powershell(script: &str) -> Result<String, String> {
 
 fn current_exe_quoted() -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| format!("exe yolu alinamadi: {e}"))?;
-    Ok(format!("\"{}\"", exe.display()))
+    // PowerShell single-quoted string: tek tirnaklar guvenli (injection yok).
+    // Yolda tek tirnak varsa PowerShell kurali: '' ile kac.
+    let path = exe.display().to_string().replace('\'', "''");
+    Ok(format!("'{}'", path))
 }
 
 /// Acilista baslatma acik mi?

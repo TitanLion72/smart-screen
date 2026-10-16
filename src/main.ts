@@ -143,8 +143,12 @@ function setDot(id: string, cls: string): void {
 }
 
 function log(msg: string, level: Level = "info"): void {
-  const box = el("log");
-  box.querySelector(".log-empty")?.remove();
+  const box = document.getElementById("log");
+  if (!box) {
+    // Panel henüz hazır değilse (boot hatası) en azından konsola düşsün.
+    console.log(`[log/${level}] ${msg}`);
+    return;
+  }
   const row = document.createElement("div");
   row.className = "log-row";
   const dot = document.createElement("span");
@@ -162,7 +166,7 @@ function log(msg: string, level: Level = "info"): void {
 
 async function diskLog(note: string, desired: number, applied: number, theme: string, level = "-", tone = "-"): Promise<void> {
   const line = `${new Date().toISOString()} | source=${mode}/${source} | level=${level} | tone=${tone} | desired=${desired} | applied=${applied} | theme=${theme} | note=${note}`;
-  await invoke("log_tick", { line }).catch(() => undefined);
+  await invoke("log_tick", { line }).catch((e) => console.warn("diskLog:", e));
 }
 
 // ---------- tabs ----------
@@ -170,6 +174,7 @@ async function diskLog(note: string, desired: number, applied: number, theme: st
 function switchTab(name: string): void {
   document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
     t.classList.toggle("active", t.dataset.tab === name);
+    t.setAttribute("aria-selected", t.dataset.tab === name ? "true" : "false");
   });
   for (const page of ["panel", "profiles", "settings", "history"]) {
     el(`page-${page}`).hidden = page !== name;
@@ -485,6 +490,7 @@ async function refresh(frozen?: string | null): Promise<void> {
     setDot("dot-frozen", frozen || locked || paused ? "warn" : "ok");
     syncBadge();
   } catch (e) {
+    console.error("refresh:", e);
     log("durum okunamadı: " + String(e), "bad");
   }
 }
@@ -773,7 +779,7 @@ async function tick(reason: string): Promise<void> {
 async function notify(title: string, body: string): Promise<void> {
   if (notifyReady) {
     try {
-      sendNotification({ title, body });
+      await sendNotification({ title, body });
       return;
     } catch {
       /* fall through to band */
@@ -889,10 +895,17 @@ function applyProfile(p: Profile): void {
   setSetting("mode", mode);
   setSetting("source", source);
   setSetting("brightOffset", String(offset));
-  void invoke("theme_set", { name: p.theme, mode: p.themeMode });
+  void invoke("theme_set", { name: p.theme, mode: p.themeMode }).catch((e) =>
+    log("tema değişmedi: " + String(e), "bad"),
+  );
   appliedKey = `${p.theme}|${p.themeMode}`;
   pendingKey = null;
   pendingCount = 0;
+  if (!editorDirty) {
+    draft = { ...p };
+    paintEditor();
+  }
+  syncBadge();
   log(`profil: ${p.name}`, "ok");
   void diskLog(`profil ${p.name}`, 0, lastAppliedBright, appliedKey);
   renderProfileCards();
@@ -1000,6 +1013,21 @@ function saveDraft(): void {
   saveProfiles(profiles);
   editorDirty = false;
   log(`profil kaydedildi: ${draft.name}`, "ok");
+  // Aktif profil kaydedildiyse global state'i de ona göre senkronla.
+  if (draft.id === activeId) {
+    mode = draft.mode;
+    source = draft.source;
+    offset = draft.offset;
+    setSetting("mode", mode);
+    setSetting("source", source);
+    setSetting("brightOffset", String(offset));
+    void invoke("theme_set", { name: draft.theme, mode: draft.themeMode }).catch((e) =>
+      log("tema değişmedi: " + String(e), "bad"),
+    );
+    appliedKey = `${draft.theme}|${draft.themeMode}`;
+    pendingKey = null;
+    pendingCount = 0;
+  }
   renderProfileCards();
   buildProfileSwitch();
   syncBadge();
@@ -1055,6 +1083,7 @@ function renderAccents(): void {
     b.type = "button";
     b.className = "swatch";
     b.title = a.label;
+    b.setAttribute("aria-label", a.label);
     b.dataset.accent = a.id;
     b.style.setProperty("--sw", a.hex);
     b.addEventListener("click", () => setAccent(a.id));
@@ -1141,9 +1170,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   void syncAutostart().then((on) => {
     bindSwitch(el("auto-switch") as HTMLButtonElement, on, (v) => {
-      void invoke("autostart_set", { enabled: v }).then(() => {
-        log(v ? "otomatik başlatma açıldı" : "otomatik başlatma kapandı", "ok");
-      });
+      void invoke("autostart_set", { enabled: v })
+        .then(() => {
+          log(v ? "otomatik başlatma açıldı" : "otomatik başlatma kapandı", "ok");
+        })
+        .catch((e) => log("otomatik başlatma değiştirilemedi: " + String(e), "bad"));
     });
   });
   bindSwitch(el("break-switch") as HTMLButtonElement, breakEnabled, (v) => {
@@ -1152,6 +1183,8 @@ window.addEventListener("DOMContentLoaded", () => {
     if (!v) {
       breakState = "waiting";
       el("break-band").hidden = true;
+    } else {
+      resetBreak(BREAK_MS);
     }
     tickBreak();
   });
@@ -1290,11 +1323,16 @@ window.addEventListener("DOMContentLoaded", () => {
     btn.textContent = "Sil";
     profiles = profiles.filter((p) => p.id !== draft.id);
     saveProfiles(profiles);
-    if (activeId === draft.id) activeId = profiles[0].id;
-    saveActiveId(activeId);
-    renderProfileCards();
-    buildProfileSwitch();
-    selectForEdit(activeId);
+    if (activeId === draft.id) {
+      activeId = profiles[0].id;
+      saveActiveId(activeId);
+      applyProfile(profiles.find((p) => p.id === activeId)!);
+    } else {
+      saveActiveId(activeId);
+      renderProfileCards();
+      buildProfileSwitch();
+      selectForEdit(activeId);
+    }
     log("profil silindi", "warn");
   });
   el("pf-restore").addEventListener("click", () => {
@@ -1341,6 +1379,11 @@ window.addEventListener("DOMContentLoaded", () => {
   void loadAudit();
   void showCalibration();
   void applyWarmth();
+  // Boş log için yönlendirme (log() ilk çağrıda bu elemanı kaldırır).
+  const logEmpty = document.createElement("div");
+  logEmpty.className = "log-empty";
+  logEmpty.textContent = "İlk ölçüm birkaç dakika içinde düşer.";
+  el("log").append(logEmpty);
   void tick("açılış");
   window.setInterval(() => {
     tickBreak();
@@ -1348,5 +1391,8 @@ window.addEventListener("DOMContentLoaded", () => {
   }, WATCH_MS);
   window.addEventListener("focus", () => {
     if (Date.now() - lastAct > WATCH_MS) void tick("odak");
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && Date.now() - lastAct > WATCH_MS) void tick("odak");
   });
 });
