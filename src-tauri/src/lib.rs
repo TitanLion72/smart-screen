@@ -56,7 +56,7 @@ fn foreground_exe() -> Option<String> {
 fn foreground_blocked(list: Vec<String>) -> Option<String> {
     let exe = query_foreground_exe()?;
     let refs: Vec<&str> = list.iter().map(|s| s.as_str()).collect();
-    is_blocked(&exe, &refs).then(|| exe)
+    is_blocked(&exe, &refs).then_some(exe)
 }
 
 #[tauri::command]

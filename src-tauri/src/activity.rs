@@ -77,7 +77,7 @@ pub fn foreground_exe() -> Option<String> {
 
 /// Exe, engel listesindeyse true (tam eslesme, kucuk harf).
 pub fn is_blocked(exe: &str, blocklist: &[&str]) -> bool {
-    blocklist.iter().any(|b| exe == *b)
+    blocklist.contains(&exe)
 }
 
 #[cfg(test)]
