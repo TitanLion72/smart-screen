@@ -53,7 +53,7 @@ let mode = getSetting("mode", "auto") as Mode;
 let source = getSetting("source", "auto") as Source;
 let locked = getSetting("locked", "0") === "1";
 let paused = false;
-let offset = Number(getSetting("brightOffset", "0")) || 0;
+let offset = Math.round(Number(getSetting("brightOffset", "0")) || 0);
 let breakEnabled = getSetting("breakEnabled", "1") === "1";
 let sleepStart = loadNumber("sleepStart", 1);
 let sleepEnd = loadNumber("sleepEnd", 7);
@@ -90,7 +90,7 @@ function loadNumber(key: string, fallback: number): number {
   return Number.isNaN(n) ? fallback : n;
 }
 
-let warmPercent = loadNumber("warmPercent", 35);
+let warmPercent = Math.round(loadNumber("warmPercent", 35));
 let readingMode = getSetting("readingMode", "0") === "1";
 
 let profiles: Profile[] = loadProfiles();
@@ -290,7 +290,7 @@ async function undo(): Promise<void> {
   }
   try {
     await invoke("theme_set", { name: prev.name, mode: prev.mode || null });
-    await invoke("brightness_set", { value: prev.value });
+    await invoke("brightness_set", { value: Math.round(prev.value) });
     appliedKey = `${prev.name}|${prev.mode}`;
     pendingKey = null;
     pendingCount = 0;
@@ -396,7 +396,7 @@ async function applyWarmth(): Promise<void> {
       return;
     }
     const percent = warmMode === "fixed" ? warmPercent : await autoWarmth();
-    await invoke("gamma_set_warmth", { percent });
+    await invoke("gamma_set_warmth", { percent: Math.round(percent) });
   } catch (e) {
     log("sıcak ton uygulanamadı: " + String(e), "bad");
   }
@@ -705,7 +705,7 @@ async function tick(reason: string): Promise<void> {
     let appliedNow = lastAppliedBright;
     if (pendingCount >= 2 && key !== appliedKey && !gated) {
       const floor = await invoke<number>("brightness_floor", { hour, minute });
-      const target = Math.min(100, Math.max(floor, desired + effOffset));
+      const target = Math.min(100, Math.max(floor, Math.round(desired + effOffset)));
       const cur0 = await invoke<number>("brightness_get");
       await pushUndo(appliedKey?.split("|")[0] ?? name, cur0);
       await invoke("theme_set", { name, mode: themeMode });
@@ -715,7 +715,7 @@ async function tick(reason: string): Promise<void> {
       lastGateWarn = "";
       log(`tema: ${name} (${themeMode})`, "ok");
       if (!effFixed && target !== cur0) {
-        await invoke("brightness_set", { value: target });
+        await invoke("brightness_set", { value: Math.round(target) });
         log(`parlaklık atlama: ${cur0} -> ${target}`, "ok");
       }
       appliedNow = effFixed ? cur0 : target;
@@ -728,13 +728,13 @@ async function tick(reason: string): Promise<void> {
       const current = await invoke<number>("brightness_get");
       let next = await invoke<number>("decide_brightness", {
         current,
-        desired: Math.min(100, Math.max(0, desired + effOffset)),
+        desired: Math.min(100, Math.max(0, Math.round(desired + effOffset))),
         hour,
         minute,
       });
-      if (lowPower) next = current + (next - current) / 2;
+      if (lowPower) next = Math.round(current + (next - current) / 2);
       if (next !== current) {
-        await invoke("brightness_set", { value: next });
+        await invoke("brightness_set", { value: Math.round(next) });
         log(`parlaklık: ${current} -> ${next}`, "ok");
       }
       appliedNow = next;
