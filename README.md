@@ -36,6 +36,23 @@ Otomatik kurallar:
 - Gece 00:00–01:30 dışında parlaklığı %0'a çekmez.
 - Kilitliyse / "Sabit" moddaysa / oyun-video-PDF açıkken hiçbir şeye dokunmaz.
 
+## Monitörler
+
+Panel'deki **Monitörler** kutusu bağlı ekranları listeler ve her birinin
+parlaklığını elle ayarlamanı sağlar.
+
+| Ekran | Yol | Not |
+|---|---|---|
+| Dahili (laptop paneli) | WMI `WmiMonitorBrightness` | Her zaman çalışır |
+| Harici (HDMI/DP/USB-C) | DDC/CI (`SetMonitorBrightness`, VCP 0x10) | Monitörün OSD menüsünde DDC/CI **açık** olmalı |
+
+DDC/CI desteklenmiyorsa veya OSD'den kapatılmışsa satırda net hata görünür
+(hata 31); sessizce başka yola düşülmez. Tek ekranlı kurulumda sınıflandırma
+kaybolursa WMI son şans olarak denenir.
+
+> Bilinen sınır: monitör başına **sıcak ton (gamma)** henüz yok — sıcak ton
+> birincil ekrana uygulanır. Çoklu monitörde sıcak ton sonraki sürüme bırakıldı.
+
 ## Geliştirme
 
 ```bash

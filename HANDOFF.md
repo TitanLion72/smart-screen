@@ -1,5 +1,34 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## ORKESTRASYON GÜNÜĞÜ — v1.0 satışa yönelik "Ekran Katmanı" turu (2026-10-18)
+
+**Plan (onaylı):** Windows derin → freemium+Pro → önce ekran katmanı.
+Faz 1 hedefi: monitör enumerasyonu + monitör-başına DDC/CI/WMI parlaklık yolu.
+
+**Faz 1 dosya sahipliği haritası:**
+- `src-tauri/src/monitor.rs` (YENİ) + `lib.rs` + `brightness.rs` → backend sahibi (1 ajan, tek zincir)
+- `src/main.ts` + `index.html` + `styles.css` → frontend sahibi (backend sözleşmesi bitince)
+- review: `reviewer` (yalnız metin, png yok) → sonra şef doğrulama (cargo test + build + QA)
+
+**Aşamalar:**
+1. [A] paralel keşif: web-API araştırması + mevcut kod temassızlık denetimi  ← ŞİMDİ
+2. [B] backend: monitor.rs sözleşmesi (enumerasyon JSON + per-monitor get/set)
+3. [C] frontend: monitör seçici UI
+4. [D] review + shef doğrulama + release v0.9.0
+
+**Kısıt:** bu laptopta harici monitör yok — DDC/CI canlı doğrulama kullanıcı
+harici monitör bağlayana kadar test+statik incelemeye tabi; enumerasyon ve WMI
+yolu bu makinede birebir doğrulanır. `evren/glm-5.3` yazıcı, `deepseek-v4.1-flash`
+araştırma/inceleyici; opencode provider modelleri kullanılmaz (kota).
+
+**Faz 1 kayıtları:**
+- [A] keşif TAMAM (2026-10-18): DDC feature=`Win32_Devices_Display`; enumerasyon=EnumDisplayMonitors→GetPhysicalMonitorsFromHMONITOR; dahili/harici=QueryDisplayConfig OUTPUT_TECHNOLOGY_INTERNAL; hata 31=dahili panel/OSD kapalı; HDR resmi kaynak yok→ertelendi. Kod haritası: brightness.rs First-1 WMI varsayımı, gamma.rs tek ORIGINAL (monitör-başına gamma ERTELENDİ), activity.rs hmon zaten var, prefs version=1 hazır.
+- [B] backend TAMAM: `src-tauri/src/monitor.rs` (yeni, 379 satır) + `lib.rs` (3 komut: monitor_list/brightness_get_monitor/brightness_set_monitor) + `Cargo.toml` (Win32_Devices_Display). Eski brightness_get/set/gamma komutları DEĞİŞMEDİ. Şef doğrulaması: 111 test + 5 ignored, clippy 0, fmt temiz. Canlı: `\\.\DISPLAY1 | Generic PnP Monitor | internal=true api=wmi`.
+- [C] frontend TAMAM: Panel'e "Monitörler" kutusu (`index.html:65-76`), `src/main.ts:1122-1278` (initMonitors, seçim, okuma/yazma, satır içi DDC hatası), slider `change` + −/+ anında, yazmalar tek zincirde serileştirildi; `styles.css:1071-1180`; `qa/run.mjs` senaryo 9 (DDC hata yolu + yazma argümanı). Eski otomatik tick DEĞİŞMEDİ.
+- [D] inceleme REVISE→düzeltildi: eDP/LVDS/UDI_EMBEDDED panelleri dahili say (satılabilirlik için kritik), QueryDisplayConfig kaybında tek ekran→WMI son şans, tek monitör adı okunamazsa listeyi düşürme, seçimde slider disable (yanlış monitöre yazma yarışı), yazma serileştirme, dahili elle yazımda `lastAppliedBright` tabanı, aria-live, QA `.at(-1)`.
+- Şef doğrulaması: 111 test + 5 ignored, clippy 0, fmt temiz, canlı `\\.\DISPLAY1 | Generic PnP Monitor | internal=true api=wmi`, `npm run build` temiz, QA senaryo 1-9 `PASS`.
+- ERTELENEN (dokümante): monitör-başına gamma rampası, HDR-DDC davranışı, otomatik tick'in harici monitöre uygulanması (şimdilik dahili WMI yolu korunur, regression yok), monitör tak/çıkar hotplug yenilemesi.
+
 > "Kusursuz/profesyonel" turu. Kapsamlı araştırma (Rust audit + frontend audit +
 > Tauri v2 tray/WebView2/Windows brightness/gamma/gece ışığı/autostart/OpenCode
 > V2 tema formatı web araştırması) + uygulama. Detaylar aşağıda.

@@ -62,6 +62,19 @@
 
         <div class="quick-row" id="profile-switch" role="group" aria-label="Profil seçimi"></div>
 
+        <div class="panel-box" id="monitor-box">
+          <div class="box-title">Monitörler</div>
+          <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
+          <div class="monitor-ctrl" id="monitor-ctrl" hidden>
+            <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
+            <span id="monitor-bright-val" class="monitor-val">%-</span>
+            <div class="stepper">
+              <button id="monitor-minus" class="btn-toggle" type="button">−</button>
+              <button id="monitor-plus" class="btn-toggle" type="button">+</button>
+            </div>
+          </div>
+        </div>
+
         <div id="risk-band" class="band danger" hidden>
           <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
           <span class="spacer"></span>

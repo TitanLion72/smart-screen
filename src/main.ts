@@ -37,6 +37,15 @@ interface AuditReport {
   verdict: string;
 }
 
+/** Bağlı monitör kaydı (backend `monitor::MonitorInfo`). */
+interface MonitorInfo {
+  id: string;
+  name: string;
+  is_internal: boolean;
+  /** "wmi" (dahili panel) | "ddc" (harici monitör). */
+  api: string;
+}
+
 const WATCH_MS = 60 * 1000;
 const CAM_MS = 5 * 60 * 1000;
 const CAM_MS_LOW = 15 * 60 * 1000;
@@ -1110,6 +1119,177 @@ function syncControls(): void {
   syncBadge();
 }
 
+// ---------- monitörler ----------
+
+/** Satır referansları: render sonrası yüzde/hata güncellemesi için. */
+interface MonitorRow {
+  info: MonitorInfo;
+  row: HTMLButtonElement;
+  val: HTMLElement;
+  err: HTMLElement;
+}
+
+let monitors: MonitorInfo[] = [];
+let monitorRows: MonitorRow[] = [];
+/** Seçili monitörün kimliği (szDevice yolu); hiçbir şey seçili değilken null. */
+let monitorSel: string | null = null;
+/** Yazmalari siraya koyar: hizli +/− / slider DDC uzerinde yaris yaratmasin. */
+let monWriteChain: Promise<void> = Promise.resolve();
+
+function monitorRowById(id: string): MonitorRow | null {
+  return monitorRows.find((r) => r.info.id === id) ?? null;
+}
+
+function setMonitorCtrlEnabled(on: boolean): void {
+  (el("monitor-bright") as HTMLInputElement).disabled = !on;
+  (el("monitor-minus") as HTMLButtonElement).disabled = !on;
+  (el("monitor-plus") as HTMLButtonElement).disabled = !on;
+}
+
+/** DDC/CI gibi hatalar satır içinde kırmızı gösterilir; sessizce WMI'ya düşülmez. */
+function markMonitorError(id: string, msg: string): void {
+  const r = monitorRowById(id);
+  if (!r) return;
+  r.row.classList.add("bad");
+  r.row.title = msg;
+  r.err.textContent = msg;
+}
+
+function clearMonitorError(id: string): void {
+  const r = monitorRowById(id);
+  if (!r) return;
+  r.row.classList.remove("bad");
+  r.row.title = r.info.id;
+  r.err.textContent = "";
+}
+
+/** Açılışta bağlı monitörleri listeler; hata olursa boş listeyle devam edilir. */
+async function initMonitors(): Promise<void> {
+  try {
+    const list = await invoke<MonitorInfo[]>("monitor_list");
+    monitors = Array.isArray(list) ? list : [];
+  } catch (e) {
+    monitors = [];
+    log("monitörler okunamadı: " + String(e), "warn");
+  }
+  renderMonitors();
+}
+
+function renderMonitors(): void {
+  const host = el("monitor-list");
+  host.replaceChildren();
+  monitorRows = [];
+  if (monitors.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "Bağlı monitör bulunamadı.";
+    host.append(empty);
+    monitorSel = null;
+    el("monitor-ctrl").hidden = true;
+    return;
+  }
+  for (const m of monitors) {
+    const row = document.createElement("button");
+    row.type = "button";
+    row.className = "monitor-row";
+    row.title = m.id;
+    const name = document.createElement("span");
+    name.className = "mon-name";
+    name.textContent = m.name;
+    const kind = document.createElement("span");
+    kind.className = "badge muted";
+    kind.textContent = m.is_internal ? "dahili" : "harici";
+    const api = document.createElement("span");
+    api.className = "badge info";
+    api.textContent = m.api;
+    const val = document.createElement("span");
+    val.className = "mon-val";
+    val.textContent = "%-";
+    const err = document.createElement("span");
+    err.className = "mon-err";
+    row.append(name, kind, api, val, err);
+    row.addEventListener("click", () => void selectMonitor(m.id));
+    host.append(row);
+    monitorRows.push({ info: m, row, val, err });
+  }
+  el("monitor-ctrl").hidden = false;
+  // Seçim korunur; liste değişmişse ilk monitör (genelde dahili panel) seçilir.
+  const initial = monitorSel && monitors.some((m) => m.id === monitorSel) ? monitorSel : monitors[0].id;
+  for (const m of monitors) {
+    // Seçili olanı selectMonitor okur (slider da onunla dolar); gerisi satır değeri.
+    if (m.id === initial) continue;
+    void refreshMonitorValue(m.id);
+  }
+  void selectMonitor(initial);
+}
+
+/** Monitör seçimi: satır vurgulanır, değeri okununca slider dolar. */
+async function selectMonitor(id: string): Promise<void> {
+  const r = monitorRowById(id);
+  if (!r) return;
+  monitorSel = id;
+  for (const x of monitorRows) {
+    x.row.classList.toggle("active", x.info.id === id);
+  }
+  el("monitor-ctrl").hidden = false;
+  // Okuma donene kadar kontrol kapali: eski monitorun yuzdesiyle yeni
+  // monitore yanlis deger yazilmasin.
+  setMonitorCtrlEnabled(false);
+  await refreshMonitorValue(id);
+}
+
+/** Tek monitörün parlaklığını okur: satır yüzdesini, seçiliyse slider'ı da günceller. */
+async function refreshMonitorValue(id: string): Promise<void> {
+  const r = monitorRowById(id);
+  if (!r) return;
+  try {
+    const raw = await invoke<number>("brightness_get_monitor", { id });
+    const pct = Math.max(0, Math.min(100, Math.round(raw)));
+    r.val.textContent = `%${pct}`;
+    clearMonitorError(id);
+    if (id === monitorSel) {
+      (el("monitor-bright") as HTMLInputElement).value = String(pct);
+      el("monitor-bright-val").textContent = `%${pct}`;
+      setMonitorCtrlEnabled(true);
+    }
+  } catch (e) {
+    const msg = String(e);
+    markMonitorError(id, msg);
+    log(`${r.info.name}: parlaklık okunamadı — ${msg}`, "bad");
+    if (id === monitorSel) setMonitorCtrlEnabled(false);
+  }
+}
+
+/** Seçili monitöre yazar; değer daima tam sayı (u8) ve 0-100 aralığında. */
+async function applyMonitorBrightness(value: number): Promise<void> {
+  if (!monitorSel) return;
+  const id = monitorSel;
+  const pct = Math.max(0, Math.min(100, Math.round(value)));
+  (el("monitor-bright") as HTMLInputElement).value = String(pct);
+  el("monitor-bright-val").textContent = `%${pct}`;
+  const r = monitorRowById(id);
+  const internal = monitors.find((m) => m.id === id)?.is_internal === true;
+  monWriteChain = monWriteChain
+    .then(async () => {
+      await invoke("brightness_set_monitor", { id, value: pct });
+      if (r) {
+        r.val.textContent = `%${pct}`;
+        clearMonitorError(id);
+      }
+      if (id === monitorSel) setMonitorCtrlEnabled(true);
+      // Dahili panel ayni donanimi kullaniyor: otomatik turun tabanini
+      // guncelle ki bir sonraki dakika elle secim hemen geri almasin.
+      if (internal) lastAppliedBright = pct;
+      log(`${r ? r.info.name : id}: parlaklık %${pct}`, "ok");
+    })
+    .catch((e) => {
+      const msg = String(e);
+      markMonitorError(id, msg);
+      log(`${r ? r.info.name : id}: parlaklık yazılamadı — ${msg}`, "bad");
+    });
+  await monWriteChain;
+}
+
 // ---------- boot ----------
 
 window.addEventListener("DOMContentLoaded", () => {
@@ -1224,6 +1404,21 @@ window.addEventListener("DOMContentLoaded", () => {
     void refresh(null);
   });
   el("undo-btn").addEventListener("click", () => void undo());
+  // Monitörler: slider etiketi anında güncellenir, yazma change'de gelir
+  // (sürüklerken ardışık çağrı olmasın); −/+ düğmeleri anında yazar.
+  const monSlider = el("monitor-bright") as HTMLInputElement;
+  monSlider.addEventListener("input", () => {
+    el("monitor-bright-val").textContent = `%${monSlider.value}`;
+  });
+  monSlider.addEventListener("change", () => {
+    void applyMonitorBrightness(Number(monSlider.value));
+  });
+  el("monitor-minus").addEventListener("click", () => {
+    void applyMonitorBrightness(Number(monSlider.value) - 10);
+  });
+  el("monitor-plus").addEventListener("click", () => {
+    void applyMonitorBrightness(Number(monSlider.value) + 10);
+  });
   el("risk-fix-btn").addEventListener("click", async () => {
     const [n, m] = await invoke<[string, string]>("decide_target", {
       hour: new Date().getHours(),
@@ -1379,6 +1574,7 @@ window.addEventListener("DOMContentLoaded", () => {
   void loadAudit();
   void showCalibration();
   void applyWarmth();
+  void initMonitors();
   // Boş log için yönlendirme (log() ilk çağrıda bu elemanı kaldırır).
   const logEmpty = document.createElement("div");
   logEmpty.className = "log-empty";

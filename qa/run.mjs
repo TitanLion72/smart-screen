@@ -46,6 +46,18 @@ window.__TAURI_INTERNALS__ = {
       case "pref_get": return null;
       case "pref_list": return [];
       case "pref_get_bright": return null;
+      case "monitor_list": return [
+        // id'ler backend'in dondugu szDevice yoluyla birebir ayni olmali (\\.\DISPLAYn).
+        { id: ${JSON.stringify("\\\\.\\DISPLAY1")}, name: "Generic PnP Monitor", is_internal: true, api: "wmi" },
+        { id: ${JSON.stringify("\\\\.\\DISPLAY2")}, name: "Dell U2415", is_internal: false, api: "ddc" },
+      ];
+      case "brightness_get_monitor":
+        // Harici monitor DDC/CI hatasi dondurur: satir ici uyarı yolu denensin.
+        if (args && args.id && args.id.includes("DISPLAY2")) {
+          throw "DDC/CI bu monitorda calismiyor (OSD'den kapali olabilir)";
+        }
+        return 42;
+      case "brightness_set_monitor": return null;
       case "battery_status": return [85, true];
       case "warmth_auto": return 35;
       case "contrast_audit": return [
@@ -265,6 +277,33 @@ async function run() {
     await checkOverflow(page, "bagim");
     await page.screenshot({ path: join(shotDir, "8-uygulama.png") });
   }, "code.exe");
+
+  // 9. Monitors: rows render, one is selectable, manual brightness writes through.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations }) => {
+    const rows = await page.locator("#monitor-list .monitor-row").count();
+    if (rows < 2) fail("monitor", `monitor satiri az: ${rows}`);
+    const firstVal = await page.locator("#monitor-list .monitor-row .mon-val").first().textContent();
+    if (!firstVal || !firstVal.includes("%42")) fail("monitor", `ilk satir yuzdesi dolmadi: ${firstVal}`);
+    const slider = await page.locator("#monitor-bright").inputValue();
+    if (slider !== "42") fail("monitor", `slider secili degeri alamadi: ${slider}`);
+    await page.locator("#monitor-plus").click();
+    await page.waitForTimeout(250);
+    const after = await page.locator("#monitor-bright").inputValue();
+    if (after !== "52") fail("monitor", `+ dugmesi uygulamadi: ${after}`);
+    const writes = (await invocations()).filter(([c]) => c === "brightness_set_monitor");
+    if (writes.length === 0) fail("monitor", "brightness_set_monitor cagrilmadi");
+    const args = writes.at(-1)[1];
+    if (!args || args.value !== 52 || typeof args.id !== "string" || !args.id.includes("DISPLAY1")) {
+      fail("monitor", `yazma argumanlari bozuk: ${JSON.stringify(args)}`);
+    }
+    // DDC monitör: hatasi satir icinde kirmizi gorunmeli, kontrol kapanmali.
+    await page.locator("#monitor-list .monitor-row").nth(1).click();
+    await page.waitForTimeout(250);
+    const errText = await page.locator("#monitor-list .monitor-row.bad .mon-err").textContent();
+    if (!errText || !errText.includes("DDC")) fail("monitor", `DDC hatasi satirda gorunmedi: ${errText}`);
+    if (!(await page.locator("#monitor-bright").isDisabled())) fail("monitor", "hatali monitörde slider acik kaldi");
+    await page.screenshot({ path: join(shotDir, "9-monitorler.png") });
+  });
 
   await browser.close();
   server.close();

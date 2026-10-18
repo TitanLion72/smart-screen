@@ -1066,3 +1066,123 @@ footer {
 .audit-row .badge {
   justify-self: end;
 }
+
+/* Monitör listesi: her satır ad + dahili/harici + api + yüzde + hata. */
+.monitor-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.monitor-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto 44px minmax(0, 1.2fr);
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-sm);
+  background: var(--input);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-2);
+  text-align: left;
+  cursor: pointer;
+  width: 100%;
+}
+
+.monitor-row:hover {
+  border-color: var(--border-strong);
+}
+
+.monitor-row.active {
+  border-color: var(--accent-ring);
+  background: var(--accent-soft);
+}
+
+.monitor-row .badge {
+  height: 18px;
+  line-height: 18px;
+  padding: 0 7px;
+  font-size: 10px;
+}
+
+.mon-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.mon-val {
+  text-align: right;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+.mon-err {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.monitor-row.bad {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+/* Seçili monitörün elle kontrolü: slider + yüzde + −/+. */
+.monitor-ctrl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.monitor-ctrl input[type="range"] {
+  flex: 1;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--surface-3);
+  border-radius: var(--r-pill);
+  outline: none;
+  cursor: pointer;
+}
+
+.monitor-ctrl input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  cursor: pointer;
+}
+
+.monitor-ctrl input[type="range"]:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.monitor-ctrl .stepper button {
+  height: 28px;
+  width: 34px;
+}
+
+.monitor-val {
+  min-width: 38px;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}

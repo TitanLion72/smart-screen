@@ -10,6 +10,7 @@ mod gamma;
 mod install;
 mod light;
 mod logger;
+mod monitor;
 mod prefs;
 mod ps;
 mod stats;
@@ -189,6 +190,24 @@ fn contrast_audit() -> Result<Vec<contrast::Report>, String> {
     contrast::audit_all(&contrast::themes_dir()?)
 }
 
+/// Bagli monitorlerin listesi (kimlik, ad, dahili/harici, parlaklik API'si).
+#[tauri::command]
+fn monitor_list() -> Result<Vec<monitor::MonitorInfo>, String> {
+    monitor::list()
+}
+
+/// Tek monitorun parlakligini okur (yuzde 0-100).
+#[tauri::command]
+fn brightness_get_monitor(id: String) -> Result<u8, String> {
+    monitor::get_brightness(&id)
+}
+
+/// Tek monitorun parlakligini yazar (yuzde 0-100).
+#[tauri::command]
+fn brightness_set_monitor(id: String, value: u8) -> Result<(), String> {
+    monitor::set_brightness(&id, value)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -263,7 +282,10 @@ pub fn run() {
             pref_learn_bright,
             pref_get_bright,
             animations_set,
-            contrast_audit
+            contrast_audit,
+            monitor_list,
+            brightness_get_monitor,
+            brightness_set_monitor
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
