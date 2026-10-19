@@ -727,6 +727,9 @@ async function tick(reason: string): Promise<void> {
         await invoke("brightness_set", { value: Math.round(target) });
         log(`parlaklık atlama: ${cur0} -> ${target}`, "ok");
       }
+      // Karar uygulanınca harici monitörlere de aynı hedef yazılır; kilit /
+      // duraklat / sabit kipte (effFixed) dahili gibi onlara da dokunulmaz.
+      if (!effFixed) await applyAutoMonitors(target);
       appliedNow = effFixed ? cur0 : target;
       snapped = true;
     } else if (key !== appliedKey && !gated) {
@@ -1135,6 +1138,10 @@ let monitorRows: MonitorRow[] = [];
 let monitorSel: string | null = null;
 /** Yazmalari siraya koyar: hizli +/− / slider DDC uzerinde yaris yaratmasin. */
 let monWriteChain: Promise<void> = Promise.resolve();
+/** Monitöre otomatik turun yazdığı son değer: aynı değer tekrar tekrar yazılmaz. */
+const lastAppliedByMonitor: Record<string, number | undefined> = {};
+/** Yazma hatası alan monitörler: her turda log spam etmemek için bir kez loglanır. */
+const monitorFailed = new Set<string>();
 
 function monitorRowById(id: string): MonitorRow | null {
   return monitorRows.find((r) => r.info.id === id) ?? null;
@@ -1172,6 +1179,32 @@ async function initMonitors(): Promise<void> {
     monitors = [];
     log("monitörler okunamadı: " + String(e), "warn");
   }
+  renderMonitors();
+}
+
+/**
+ * Hotplug: monitor_list tazeler. Yalnız id kümesi değiştiyse yeniden çizilir
+ * (seçim korunur, yoksa ilk monitör); değişmediyse dokunulmaz — flicker yok.
+ * Listeye ulaşılamazsa sessiz geçilir (dakikalık turda log şişmesin).
+ */
+async function refreshMonitorList(): Promise<void> {
+  let list: MonitorInfo[] = [];
+  try {
+    list = await invoke<MonitorInfo[]>("monitor_list");
+  } catch {
+    return;
+  }
+  const next = Array.isArray(list) ? list : [];
+  const ids = new Set(next.map((m) => m.id));
+  const same = ids.size === monitors.length && monitors.every((m) => ids.has(m.id));
+  if (same) return;
+  monitors = next;
+  // Tak/çıkar sonrası hata ve yazma geçmişi çıkarılan monitörlere ait olabilir.
+  monitorFailed.clear();
+  for (const key of Object.keys(lastAppliedByMonitor)) {
+    if (!ids.has(key)) delete lastAppliedByMonitor[key];
+  }
+  log(`monitörler değişti: ${next.map((m) => m.name).join(", ") || "yok"}`, "ok");
   renderMonitors();
 }
 
@@ -1269,9 +1302,12 @@ async function applyMonitorBrightness(value: number): Promise<void> {
   el("monitor-bright-val").textContent = `%${pct}`;
   const r = monitorRowById(id);
   const internal = monitors.find((m) => m.id === id)?.is_internal === true;
+  // Elle yazma hata durumunu sıfırlar: sonraki otomatik tur yine denesin.
+  monitorFailed.delete(id);
   monWriteChain = monWriteChain
     .then(async () => {
       await invoke("brightness_set_monitor", { id, value: pct });
+      lastAppliedByMonitor[id] = pct;
       if (r) {
         r.val.textContent = `%${pct}`;
         clearMonitorError(id);
@@ -1287,6 +1323,44 @@ async function applyMonitorBrightness(value: number): Promise<void> {
       markMonitorError(id, msg);
       log(`${r ? r.info.name : id}: parlaklık yazılamadı — ${msg}`, "bad");
     });
+  await monWriteChain;
+}
+
+/**
+ * Otomatik karar uygulanınca harici monitörlere (is_internal === false) aynı
+ * hedef değeri yazar. Yazmalar monWriteChain üzerinden sıraya girer; aynı değer
+ * (fark < 3) tekrar yazılmaz, hata satırda görünür ve monitör başına bir kez
+ * loglanır. Dahili paneli `brightness_set` (WMI) yönetir, burada dokunulmaz.
+ */
+async function applyAutoMonitors(target: number): Promise<void> {
+  const value = Math.max(0, Math.min(100, Math.round(target)));
+  for (const m of monitors) {
+    if (m.is_internal) continue;
+    // 0 geçerli değerdir: undefined kontrolü falsy ile yapılmamalı.
+    const prev = lastAppliedByMonitor[m.id];
+    if (prev !== undefined && Math.abs(prev - value) < 3) continue;
+    const id = m.id;
+    const name = m.name;
+    monWriteChain = monWriteChain
+      .then(async () => {
+        await invoke("brightness_set_monitor", { id, value });
+        lastAppliedByMonitor[id] = value;
+        monitorFailed.delete(id);
+        const r = monitorRowById(id);
+        if (r) {
+          r.val.textContent = `%${value}`;
+          clearMonitorError(id);
+        }
+      })
+      .catch((e) => {
+        const msg = String(e);
+        markMonitorError(id, msg);
+        if (!monitorFailed.has(id)) {
+          monitorFailed.add(id);
+          log(`${name}: otomatik parlaklık yazılamadı — ${msg}`, "bad");
+        }
+      });
+  }
   await monWriteChain;
 }
 
@@ -1583,9 +1657,11 @@ window.addEventListener("DOMContentLoaded", () => {
   void tick("açılış");
   window.setInterval(() => {
     tickBreak();
+    void refreshMonitorList();
     void tick("izle");
   }, WATCH_MS);
   window.addEventListener("focus", () => {
+    void refreshMonitorList();
     if (Date.now() - lastAct > WATCH_MS) void tick("odak");
   });
   document.addEventListener("visibilitychange", () => {

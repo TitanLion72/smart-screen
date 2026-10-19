@@ -60,6 +60,14 @@ pub fn list() -> Result<Vec<MonitorInfo>, String> {
         .collect())
 }
 
+/// Bagli monitorlerin GDI cihaz adlari (szDevice, or. "\\.\DISPLAY1").
+/// Enumerasyon basarisizsa bos doner; sirasi EnumDisplayMonitors'in sirasidir.
+pub fn device_ids() -> Vec<String> {
+    enumerate()
+        .map(|ms| ms.into_iter().map(|m| m.device).collect())
+        .unwrap_or_default()
+}
+
 /// Tek monitorun parlakligini okur (yuzde 0-100).
 pub fn get_brightness(id: &str) -> Result<u8, String> {
     let m = find_monitor(id)?;

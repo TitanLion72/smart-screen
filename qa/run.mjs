@@ -50,14 +50,21 @@ window.__TAURI_INTERNALS__ = {
         // id'ler backend'in dondugu szDevice yoluyla birebir ayni olmali (\\.\DISPLAYn).
         { id: ${JSON.stringify("\\\\.\\DISPLAY1")}, name: "Generic PnP Monitor", is_internal: true, api: "wmi" },
         { id: ${JSON.stringify("\\\\.\\DISPLAY2")}, name: "Dell U2415", is_internal: false, api: "ddc" },
+        { id: ${JSON.stringify("\\\\.\\DISPLAY3")}, name: "Ancak Ekran", is_internal: false, api: "ddc" },
       ];
       case "brightness_get_monitor":
-        // Harici monitor DDC/CI hatasi dondurur: satir ici uyarı yolu denensin.
-        if (args && args.id && args.id.includes("DISPLAY2")) {
+        // DISPLAY3 DDC/CI hatasi dondurur: satir ici uyari yolu denensin.
+        if (args && args.id && args.id.includes("DISPLAY3")) {
           throw "DDC/CI bu monitorda calismiyor (OSD'den kapali olabilir)";
         }
         return 42;
-      case "brightness_set_monitor": return null;
+      case "brightness_set_monitor":
+        // DDC-hatali monitore yazma da duser: otomatik turun hatayi yutma
+        // yolu denensin, uygulama ayakta kalmali.
+        if (args && args.id && args.id.includes("DISPLAY3")) {
+          throw "DDC/CI bu monitorda calismiyor (OSD'den kapali olabilir)";
+        }
+        return null;
       case "battery_status": return [85, true];
       case "warmth_auto": return 35;
       case "contrast_audit": return [
@@ -281,7 +288,7 @@ async function run() {
   // 9. Monitors: rows render, one is selectable, manual brightness writes through.
   await scenario("catppuccin-macchiato", "dark", async ({ page, invocations }) => {
     const rows = await page.locator("#monitor-list .monitor-row").count();
-    if (rows < 2) fail("monitor", `monitor satiri az: ${rows}`);
+    if (rows < 3) fail("monitor", `monitor satiri az: ${rows}`);
     const firstVal = await page.locator("#monitor-list .monitor-row .mon-val").first().textContent();
     if (!firstVal || !firstVal.includes("%42")) fail("monitor", `ilk satir yuzdesi dolmadi: ${firstVal}`);
     const slider = await page.locator("#monitor-bright").inputValue();
@@ -297,12 +304,58 @@ async function run() {
       fail("monitor", `yazma argumanlari bozuk: ${JSON.stringify(args)}`);
     }
     // DDC monitör: hatasi satir icinde kirmizi gorunmeli, kontrol kapanmali.
-    await page.locator("#monitor-list .monitor-row").nth(1).click();
+    await page.locator("#monitor-list .monitor-row").nth(2).click();
     await page.waitForTimeout(250);
     const errText = await page.locator("#monitor-list .monitor-row.bad .mon-err").textContent();
     if (!errText || !errText.includes("DDC")) fail("monitor", `DDC hatasi satirda gorunmedi: ${errText}`);
     if (!(await page.locator("#monitor-bright").isDisabled())) fail("monitor", "hatali monitörde slider acik kaldi");
     await page.screenshot({ path: join(shotDir, "9-monitorler.png") });
+  });
+
+  // 10. Automatic decision also writes external monitors; a failing DDC write is
+  //     shown on the row and never takes the app down.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations }) => {
+    await page.locator("#now-btn").click();
+    await page.waitForTimeout(800);
+    const calls = await invocations();
+    const writes = calls.filter(([c]) => c === "brightness_set_monitor");
+    const d2 = writes.filter(([, a]) => a && String(a.id).includes("DISPLAY2"));
+    if (d2.length === 0) {
+      fail("otomatik", "harici monitore (DISPLAY2) otomatik yazma olmadi");
+    } else {
+      const v = d2.at(-1)[1].value;
+      if (typeof v !== "number" || !Number.isInteger(v) || v < 0 || v > 100) {
+        fail("otomatik", `harici yazma degeri tam sayi 0-100 degil: ${JSON.stringify(v)}`);
+      }
+      const internal = calls.filter(([c]) => c === "brightness_set").at(-1);
+      if (internal && v !== internal[1].value) {
+        fail("otomatik", `harici yazma dahili hedefle ayni degil: ${v} != ${internal[1].value}`);
+      }
+    }
+    // DDC-hatalı monitöre yazma denenir ama uygulamayı düşürmez.
+    const d3 = writes.filter(([, a]) => a && String(a.id).includes("DISPLAY3"));
+    if (d3.length === 0) fail("otomatik", "hatali monitore (DISPLAY3) yazma denemesi olmadi");
+    const logText = (await page.locator("#log").textContent()) ?? "";
+    if (!logText.includes("tema:")) fail("otomatik", "karar uygulanmadi (tema log'u yok)");
+    if (logText.includes("hata:")) fail("otomatik", `tick hatasi: ${logText.slice(0, 120)}`);
+    const errText = (await page.locator("#monitor-list .monitor-row.bad .mon-err").textContent()) ?? "";
+    if (!errText.includes("DDC")) fail("otomatik", `DDC hatasi satirda gorunmedi: ${errText}`);
+    // Karar değişmediyse aynı değer tekrar yazılmaz.
+    const before = writes.length;
+    await page.locator("#now-btn").click();
+    await page.waitForTimeout(600);
+    const after = (await invocations()).filter(([c]) => c === "brightness_set_monitor").length;
+    if (after !== before) fail("otomatik", `karar degismezken tekrar yazildi (${before} -> ${after})`);
+    // Uygulama ayakta: elle yazma hala calisiyor.
+    await page.locator("#monitor-list .monitor-row").first().click();
+    await page.waitForTimeout(250);
+    await page.locator("#monitor-plus").click();
+    await page.waitForTimeout(250);
+    const manual = (await invocations())
+      .filter(([c, a]) => c === "brightness_set_monitor" && a && String(a.id).includes("DISPLAY1"))
+      .at(-1);
+    if (!manual || manual[1].value !== 52) fail("otomatik", `DDC hatasindan sonra elle yazma calismiyor: ${JSON.stringify(manual)}`);
+    await page.screenshot({ path: join(shotDir, "10-otomatik.png") });
   });
 
   await browser.close();

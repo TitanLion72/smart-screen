@@ -1,22 +1,33 @@
 //! Ekranin renk sicakligini gamma rampasi ile kaydirir (gun batimi sicak tonu).
 //!
+//! Her ekran kendi GDI cihaz adiyla ("\\.\DISPLAY1" gibi) ele alinir: DC
+//! `CreateDCW("DISPLAY", cihaz)` ile acilir, rampa yalnizca o ekrana yazilir.
 //! SetDeviceGammaRamp surucu sezgileri yuzunden sessizce basarisiz olur:
 //! "any entry in the ramp must be within 32768 of the identity value".
 //! Bu yuzden rampa iyimser ama sinirli kayar (warmth=100'de bile),
 //! her kanal monoton artar, girisler identity-32768..identity+32768
-//! araliginda kalir ve 0-65535'e kelepcelenir. Ekrana cikis ya da
-//! cozunurluk degisiminde surucu rampayi sifirlayabilir; kapanista
-//! cagiranin read_ramp ile sakladigi orijinali geri koymasi gerekir.
+//! araliginda kalir ve 0-65535'e kelepcelenir.
+//!
+//! Sicak ton acilmadan once HER EKRANIN rampasi bellek + diskte
+//! (`smart-screen-gamma-<cihaz>.bin`) saklanir; kapatilirken her ekran kendi
+//! kalibrasyonuna doner. Sakli orijinal (kalibrasyon) rampaya dogrulama
+//! UYGULANMAZ: surucunun verdigi deger geri yazilir, sinirlari asiyorsa bile.
+//! Ekrana cikis ya da cozunurluk degisiminde surucu rampayi sifirlayabilir;
+//! bu yuzden kayitlar diskte de durur (crash sonrasi `recover()` okur).
 
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
-use windows::Win32::Graphics::Gdi::{GetDC, ReleaseDC};
+use windows::core::{w, PCWSTR};
+use windows::Win32::Graphics::Gdi::{CreateDCW, DeleteDC, HDC};
 use windows::Win32::UI::ColorSystem::{GetDeviceGammaRamp, SetDeviceGammaRamp};
 
-/// Sicak ton uygulanmadan once ekranin rampasi buraya saklanir; kapatilirken
-/// geri yuklenir (monitor/Windows renk kalibrasyonu silinmesin).
-static ORIGINAL: Mutex<Option<Ramp>> = Mutex::new(None);
+/// Sicak ton uygulanmadan once her ekranin rampasi buraya saklanir;
+/// kapatilirken geri yuklenir (monitor/Windows renk kalibrasyonu silinmesin).
+/// Anahtar GDI cihaz adidir: "\\.\DISPLAY1" gibi.
+static ORIGINAL: LazyLock<Mutex<HashMap<String, Ramp>>> =
+    LazyLock::new(|| Mutex::new(HashMap::new()));
 
 /// Surucunun kabul ettigi identity'den maksimum sapma (Microsoft dokumu).
 const MAX_DEVIATION: i32 = 32768;
@@ -26,12 +37,30 @@ const FULL_RED: f32 = 1.0;
 const FULL_GREEN: f32 = 0.88;
 const FULL_BLUE: f32 = 0.72;
 
+/// Per-cihaz disk kayitlarinin deseni: `smart-screen-gamma-<cihaz>.bin`.
+const GAMMA_PREFIX: &str = "smart-screen-gamma-";
+const GAMMA_SUFFIX: &str = ".bin";
+
+/// Coklu monitor oncesi tek dosyaydi; acilista per-cihaz semasina tasinir.
+const LEGACY_GAMMA_NAME: &str = "smart-screen-gamma.bin";
+
+/// Birincil ekranin GDI cihaz adi (enumerasyon bos kalirsa yedek deger).
+const PRIMARY_DEVICE: &str = "\\\\.\\DISPLAY1";
+
 /// 3x256 gamma rampasi; her giris 0-65535 (WORD).
 #[derive(Clone, Debug, PartialEq)]
 pub struct Ramp {
     pub red: [u16; 256],
     pub green: [u16; 256],
     pub blue: [u16; 256],
+}
+
+/// Diskte bulunan per-cihaz orijinal kaydi.
+struct DiskOriginal {
+    device: String,
+    key: String,
+    path: PathBuf,
+    ramp: Ramp,
 }
 
 /// warmth (0-100) icin rampa uretir: 0 = identity (degisiklik yok),
@@ -66,112 +95,306 @@ pub fn within_driver_limits(r: &Ramp) -> bool {
     bounded(&r.red) && bounded(&r.green) && bounded(&r.blue)
 }
 
-/// Rampayi birincil ekrana uygular. Once dogrular (sinir ihlalinde
-/// surucu sessizce basarisiz olur), sonra GetDC(NULL) ile uygular
-/// ve DC'yi geri birakir.
-pub fn apply_ramp(r: &Ramp) -> Result<(), String> {
-    validate(r)?;
-    let words = to_words(r);
-    let hdc = unsafe { GetDC(None) };
+/// Cihaz adindan DC acar, isletimi calistirir ve DC'yi kapatir.
+/// Panik yok; DC acilamazsa Turkce hata doner.
+fn with_dc<T>(device: &str, op: impl FnOnce(HDC) -> T) -> Result<T, String> {
+    let mut wide: Vec<u16> = device.encode_utf16().collect();
+    wide.push(0);
+    // Guvenli: wide yerel tampon NUL ile sonlaniyor ve cagri boyunca yasiyor;
+    // DC islemden hemen sonra DeleteDC ile kapatiliyor.
+    let hdc = unsafe { CreateDCW(w!("DISPLAY"), PCWSTR(wide.as_ptr()), PCWSTR::null(), None) };
     if hdc.0.is_null() {
-        return Err("GetDC(NULL) HDC dondurmedi".into());
+        return Err(format!("{device}: DC açılamadı (CreateDCW)"));
     }
-    let ok = unsafe { SetDeviceGammaRamp(hdc, words.as_ptr() as *const core::ffi::c_void) };
-    let _ = unsafe { ReleaseDC(None, hdc) };
-    if ok.as_bool() {
+    let out = op(hdc);
+    let _ = unsafe { DeleteDC(hdc) };
+    Ok(out)
+}
+
+/// Uygulanacak sicak ton rampasini verilen cihaza yazar. Once dogrular
+/// (sinir ihlalinde surucu sessizce basarisiz olur), sonra uygular.
+pub fn apply_ramp(device: &str, r: &Ramp) -> Result<(), String> {
+    validate(r)?;
+    apply_raw(device, r)
+}
+
+/// Rampayi dogrulamadan cihaza yazar: yalnizca saklanan ORIJINAL rampa icin.
+/// Kalibrasyon surucu sinirlari disinda olabilir; geri yazarken kaybetmeyiz.
+fn apply_raw(device: &str, r: &Ramp) -> Result<(), String> {
+    let words = to_words(r);
+    let ok = with_dc(device, |hdc| unsafe {
+        SetDeviceGammaRamp(hdc, words.as_ptr() as *const core::ffi::c_void).as_bool()
+    })?;
+    if ok {
         Ok(())
     } else {
-        Err("SetDeviceGammaRamp basarisiz oldu".into())
+        Err(format!("{device}: SetDeviceGammaRamp basarisiz oldu"))
     }
 }
 
-/// Ekrandan gecerli rampayi okur (baslangicta orijinali saklamak icin).
-pub fn read_ramp() -> Result<Ramp, String> {
+/// Cihazdan gecerli rampayi okur (orijinali saklamak icin).
+/// Okunan degere dogrulama UYGULANMAZ.
+pub fn read_ramp(device: &str) -> Result<Ramp, String> {
     let mut words = [0u16; 768];
-    let hdc = unsafe { GetDC(None) };
-    if hdc.0.is_null() {
-        return Err("GetDC(NULL) HDC dondurmedi".into());
-    }
-    let ok = unsafe { GetDeviceGammaRamp(hdc, words.as_mut_ptr() as *mut core::ffi::c_void) };
-    let _ = unsafe { ReleaseDC(None, hdc) };
-    if !ok.as_bool() {
-        return Err("GetDeviceGammaRamp basarisiz oldu".into());
+    let ok = with_dc(device, |hdc| unsafe {
+        GetDeviceGammaRamp(hdc, words.as_mut_ptr() as *mut core::ffi::c_void).as_bool()
+    })?;
+    if !ok {
+        return Err(format!("{device}: GetDeviceGammaRamp basarisiz oldu"));
     }
     Ok(from_words(&words))
 }
 
-/// Sicakligi uygular: build + validate + apply. Ilk uygulamadan once ekranin
-/// mevcut rampasi saklanir. warmth=0 verilirse geri yukler.
+/// Sicakligi TUM ekranlara uygular: build + validate + apply. Her cihazin
+/// mevcut rampasi ilk yazimdan once saklanir. warmth=0 verilirse geri yukler.
+///
+/// Kisimli basarisizlikta diger ekranlar sicak kalir (kozmetik ozellik,
+/// tek ekran hata diye hepsi geri alinmaz); hicbiri basarisiz olamazsa hata
+/// doner.
 pub fn set_warmth(warmth: u8) -> Result<(), String> {
     if warmth == 0 {
         return restore_original();
     }
-    capture_original()?;
     let ramp = build_ramp(warmth);
     validate(&ramp)?;
-    apply_ramp(&ramp)
+    let devices = target_devices();
+    let mut errors = Vec::new();
+    for device in &devices {
+        if let Err(e) = warm_device(device, &ramp) {
+            errors.push(format!("{device}: {e}"));
+        }
+    }
+    if errors.len() == devices.len() {
+        Err(format!(
+            "sicak ton hicbir ekrana uygulanamadi — {}",
+            errors.join("; ")
+        ))
+    } else {
+        Ok(())
+    }
 }
 
-/// Saklanan orijinali geri yukler; hicbir sey saklanmadiysa identity
-/// (yani monitor kalibrasyonu yoksa varsayilana doner).
+/// Tek cihaza sicak ton: once orijinali yakala, sonra uygula.
+fn warm_device(device: &str, ramp: &Ramp) -> Result<(), String> {
+    capture_original_for(device)?;
+    apply_ramp(device, ramp)
+}
+
+/// Saklanan orijinalleri geri yukler: once bellekteki kayitlar, sonra
+/// diskteki tum `smart-screen-gamma-*.bin` dosyalari. Basarili olana ait
+/// dosya silinir. Sakli orijinali olmayan cihaza DOKUNULMAZ: mevcut
+/// (fabrika/ICC/f.lux) kalibrasyonu kimlik rampayla ezmemeliyiz.
 pub fn restore_original() -> Result<(), String> {
-    let disk = gamma_file().ok().and_then(|p| load_from_path(&p));
-    let stored = {
-        let mut guard = ORIGINAL
-            .lock()
-            .map_err(|_| "gamma kilidi bozuk".to_string())?;
-        guard.take()
+    let stored: HashMap<String, Ramp> = {
+        let mut guard = lock()?;
+        std::mem::take(&mut *guard)
     };
-    // Sakli orijinal yoksa ekrana DOKUNMA: mevcut (fabrika/ICC/f.lux)
-    // kalibrasyonu kimlik rampayla ezmemeliyiz.
-    let Some(ramp) = stored.or(disk) else {
-        return Ok(());
-    };
-    let result = apply_ramp(&ramp);
-    if result.is_ok() {
-        let _ = clear_original();
+    let mut restored_keys: HashSet<String> = HashSet::new();
+    let mut failed_keys: HashSet<String> = HashSet::new();
+    let mut errors: Vec<String> = Vec::new();
+
+    for (device, ramp) in stored {
+        match apply_raw(&device, &ramp) {
+            Ok(()) => {
+                restored_keys.insert(sanitize_device(&device));
+            }
+            Err(e) => {
+                errors.push(format!("{device}: {e}"));
+                // Cihaz su an erisilemiyorsa (takili degil) kayit kaybolmasin;
+                // geri koy ki sonraki cagrilar tekrar deneyebilsin.
+                if let Ok(mut guard) = lock() {
+                    failed_keys.insert(sanitize_device(&device));
+                    guard.insert(device, ramp);
+                }
+            }
+        }
     }
-    result
+
+    for orig in disk_originals() {
+        if restored_keys.contains(&orig.key) {
+            // Bellekten geri yuklendi; diskteki kayit da artik gereksiz.
+            let _ = std::fs::remove_file(&orig.path);
+            continue;
+        }
+        if failed_keys.contains(&orig.key) {
+            // Az once denenip basarisiz oldu; dosya kalsin, cihaz gelince
+            // geri yuklenir.
+            continue;
+        }
+        match apply_raw(&orig.device, &orig.ramp) {
+            Ok(()) => {
+                let _ = std::fs::remove_file(&orig.path);
+            }
+            Err(e) => errors.push(format!("{}: {e}", orig.device)),
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }
 
-/// Onceki oturumdan kalma sicak tonu temizler (crash sonrasi).
-/// Diskte kayit yoksa hicbir sey yapmaz.
+/// Onceki oturumdan kalma sicak tonu temizler (crash sonrasi). Eski tek dosya
+/// once per-cihaz semasina tasinir/absorbe edilir, sonra diskteki tum
+/// kayitlar geri yuklenir. Hata olsa bile uygulamayi DUSURMEZ.
 pub fn recover() {
-    if let Some(ramp) = gamma_file().ok().and_then(|p| load_from_path(&p)) {
-        let _ = apply_ramp(&ramp);
-        let _ = clear_original();
+    if let Ok(dir) = gamma_dir() {
+        let _ = migrate_legacy_in(&dir, &primary_device());
     }
+    let _ = restore_original();
 }
 
-/// Sicak tonu uygulamadan once ekranin rampasini saklar (bellek + disk).
-pub fn capture_original() -> Result<(), String> {
-    let mut guard = ORIGINAL
-        .lock()
-        .map_err(|_| "gamma kilidi bozuk".to_string())?;
-    if guard.is_some() {
+/// Cihazin rampasini ilk kez saklar (bellek + disk). Zaten sakliysa dokunmaz
+/// — en eski orijinal (sicak ton oncesi kalibrasyon) korunur.
+fn capture_original_for(device: &str) -> Result<(), String> {
+    {
+        let guard = lock()?;
+        if guard.contains_key(device) {
+            return Ok(());
+        }
+    }
+    // Kilidi okuma (IO) boyunca tutmuyoruz.
+    let ramp = read_ramp(device)?;
+    let mut guard = lock()?;
+    if guard.contains_key(device) {
         return Ok(());
     }
-    let ramp = read_ramp()?;
-    if let Ok(p) = gamma_file() {
+    if let Ok(p) = gamma_file_for(device) {
         let _ = save_to_path(&p, &ramp);
     }
-    *guard = Some(ramp);
+    guard.insert(device.to_string(), ramp);
     Ok(())
 }
 
-fn clear_original() -> Result<(), String> {
-    if let Ok(p) = gamma_file() {
-        let _ = std::fs::remove_file(p);
+fn lock() -> Result<MutexGuard<'static, HashMap<String, Ramp>>, String> {
+    ORIGINAL
+        .lock()
+        .map_err(|_| "gamma kilidi bozuk".to_string())
+}
+
+/// Sicak ton uygulanacak ekranlar: bagli tum cihazlar; liste bos kalirsa
+/// birincil ekran.
+fn target_devices() -> Vec<String> {
+    let ids = crate::monitor::device_ids();
+    if ids.is_empty() {
+        vec![PRIMARY_DEVICE.to_string()]
+    } else {
+        ids
     }
-    Ok(())
 }
 
-fn gamma_file() -> Result<PathBuf, String> {
+/// Birincil ekranin GDI cihaz adi. Eski tek dosyanin migrasyon hedefi:
+/// `\\.\DISPLAY1` (device_ids()[0]) varsa o, yoksa yedek ad.
+fn primary_device() -> String {
+    let ids = crate::monitor::device_ids();
+    ids.iter()
+        .find(|d| d.as_str() == PRIMARY_DEVICE)
+        .cloned()
+        .or_else(|| ids.into_iter().next())
+        .unwrap_or_else(|| PRIMARY_DEVICE.to_string())
+}
+
+/// Cihaz adindan dosya adi parcasi uretir: `\\.\DISPLAY1` -> `DISPLAY1` (SAF).
+fn sanitize_device(device: &str) -> String {
+    let tail = device.rsplit('\\').next().unwrap_or(device);
+    let cleaned: String = tail
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '-' || c == '_' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+    if cleaned.is_empty() {
+        "DISPLAY".to_string()
+    } else {
+        cleaned
+    }
+}
+
+/// Cihazin disk kayit dosyasinin adi (SAF): `smart-screen-gamma-DISPLAY1.bin`.
+fn gamma_file_name(device: &str) -> String {
+    format!("{GAMMA_PREFIX}{}{GAMMA_SUFFIX}", sanitize_device(device))
+}
+
+/// Dosya adindaki parcadan GDI cihaz adi (SAF): `DISPLAY1` -> `\\.\DISPLAY1`.
+fn device_from_key(key: &str) -> String {
+    format!("\\\\.\\{key}")
+}
+
+/// Dosya adindan cihaz anahtarini okur; kaliptaysa None (SAF). Eski tek
+/// dosya (`smart-screen-gamma.bin`) bu kalipta degildir — migrasyonla
+/// ele alinir.
+fn key_from_file_name(name: &str) -> Option<&str> {
+    name.strip_prefix(GAMMA_PREFIX)?.strip_suffix(GAMMA_SUFFIX)
+}
+
+/// Eski tek dosyayi (`smart-screen-gamma.bin`) per-cihaz semasina tasir.
+/// Hedef dosya zaten varsa eski kayit guncel degildir: absorbe edilip silinir.
+fn migrate_legacy_in(dir: &Path, primary: &str) -> Result<(), String> {
+    let legacy = dir.join(LEGACY_GAMMA_NAME);
+    if !legacy.exists() {
+        return Ok(());
+    }
+    let target = dir.join(gamma_file_name(primary));
+    if target.exists() {
+        std::fs::remove_file(&legacy).map_err(|e| format!("eski gamma kaydı silinemedi: {e}"))?;
+        return Ok(());
+    }
+    std::fs::rename(&legacy, &target).map_err(|e| format!("eski gamma kaydı taşınamadı: {e}"))
+}
+
+/// Diskteki per-cihaz kayitlarini okur. Dosya adindaki anahtar, bagli
+/// cihazlar arasinda eslesirse o cihazin gercek adi kullanilir; degilse
+/// anahtardan `\\.\` on ekiyle yeniden kurulur (takili degilse uygulama
+/// zaten basarisiz olur ve dosya yerinde kalir).
+fn disk_originals() -> Vec<DiskOriginal> {
+    let Ok(dir) = gamma_dir() else {
+        return Vec::new();
+    };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return Vec::new();
+    };
+    let live = crate::monitor::device_ids();
+    let mut out = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+            continue;
+        };
+        let Some(key) = key_from_file_name(name) else {
+            continue;
+        };
+        let Some(ramp) = load_from_path(&path) else {
+            continue;
+        };
+        let device = live
+            .iter()
+            .find(|d| sanitize_device(d.as_str()) == key)
+            .cloned()
+            .unwrap_or_else(|| device_from_key(key));
+        out.push(DiskOriginal {
+            device,
+            key: key.to_string(),
+            path,
+            ramp,
+        });
+    }
+    out
+}
+
+fn gamma_dir() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
-    Ok(PathBuf::from(home)
-        .join(".config")
-        .join("opencode")
-        .join("smart-screen-gamma.bin"))
+    Ok(PathBuf::from(home).join(".config").join("opencode"))
+}
+
+/// Cihazin orijinal rampasinin disk kaydi.
+fn gamma_file_for(device: &str) -> Result<PathBuf, String> {
+    Ok(gamma_dir()?.join(gamma_file_name(device)))
 }
 
 /// Rampayi 768 WORD olarak dosyaya yazar (kucuk endian).
@@ -186,7 +409,7 @@ fn save_to_path(path: &Path, ramp: &Ramp) -> Result<(), String> {
     std::fs::write(path, bytes).map_err(|e| format!("gamma yazilamadi: {e}"))
 }
 
-/// Dosyadan rampa okur; dosya yoksa/bos ise None.
+/// Dosyadan rampa okur; dosya yoksa/bos ise None. Dogrulama YAPILMAZ.
 fn load_from_path(path: &Path) -> Option<Ramp> {
     let bytes = std::fs::read(path).ok()?;
     if bytes.len() < 768 * 2 {
@@ -268,11 +491,13 @@ fn to_words(r: &Ramp) -> [u16; 768] {
 
 /// GDI'dan okunan duz diziyi Ramp'a cevirir.
 fn from_words(w: &[u16; 768]) -> Ramp {
-    Ramp {
-        red: w[..256].try_into().unwrap(),
-        green: w[256..512].try_into().unwrap(),
-        blue: w[512..].try_into().unwrap(),
-    }
+    let mut red = [0u16; 256];
+    let mut green = [0u16; 256];
+    let mut blue = [0u16; 256];
+    red.copy_from_slice(&w[..256]);
+    green.copy_from_slice(&w[256..512]);
+    blue.copy_from_slice(&w[512..]);
+    Ramp { red, green, blue }
 }
 
 #[cfg(test)]
@@ -408,19 +633,110 @@ mod tests {
         assert_eq!(&w[512..], &r.blue[..]);
     }
 
+    #[test]
+    fn sanitize_strips_win32_device_prefix() {
+        assert_eq!(sanitize_device("\\\\.\\DISPLAY1"), "DISPLAY1");
+        assert_eq!(sanitize_device("\\\\.\\DISPLAY10"), "DISPLAY10");
+        assert_eq!(sanitize_device("DISPLAY2"), "DISPLAY2");
+    }
+
+    #[test]
+    fn sanitize_replaces_odd_characters() {
+        assert_eq!(sanitize_device("\\\\.\\DISPLAY 1"), "DISPLAY_1");
+        assert_eq!(sanitize_device("\\\\.\\DISPLAY/1"), "DISPLAY_1");
+        // Bos kalirsa dosya adi bos parca uretmesin.
+        assert_eq!(sanitize_device("\\\\.\\"), "DISPLAY");
+        assert_eq!(sanitize_device(""), "DISPLAY");
+    }
+
+    #[test]
+    fn gamma_file_name_uses_sanitized_device() {
+        assert_eq!(
+            gamma_file_name("\\\\.\\DISPLAY1"),
+            "smart-screen-gamma-DISPLAY1.bin"
+        );
+        assert_eq!(
+            gamma_file_name("\\\\.\\DISPLAY2"),
+            "smart-screen-gamma-DISPLAY2.bin"
+        );
+    }
+
+    #[test]
+    fn key_from_file_name_matches_only_per_device_files() {
+        assert_eq!(
+            key_from_file_name("smart-screen-gamma-DISPLAY1.bin"),
+            Some("DISPLAY1")
+        );
+        // Eski tek dosya kalipta degil; migrasyonla ele alinir.
+        assert_eq!(key_from_file_name(LEGACY_GAMMA_NAME), None);
+        assert_eq!(key_from_file_name("smart-screen.log"), None);
+    }
+
+    #[test]
+    fn device_from_key_roundtrips_sanitize() {
+        let device = "\\\\.\\DISPLAY3";
+        assert_eq!(device_from_key(&sanitize_device(device)), device);
+    }
+
+    fn temp_gamma_dir(tag: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("ss-gamma-mig-{tag}-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn legacy_file_is_moved_to_per_device_name() {
+        let dir = temp_gamma_dir("move");
+        let legacy = dir.join(LEGACY_GAMMA_NAME);
+        std::fs::write(&legacy, [0u8; 768 * 2]).unwrap();
+        migrate_legacy_in(&dir, "\\\\.\\DISPLAY1").unwrap();
+        assert!(!legacy.exists(), "eski dosya kalmamali");
+        assert!(
+            dir.join("smart-screen-gamma-DISPLAY1.bin").exists(),
+            "per-cihaz adina tasinmali"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn legacy_file_is_absorbed_when_target_exists() {
+        let dir = temp_gamma_dir("absorb");
+        let legacy = dir.join(LEGACY_GAMMA_NAME);
+        let target = dir.join("smart-screen-gamma-DISPLAY1.bin");
+        std::fs::write(&legacy, [1u8; 768 * 2]).unwrap();
+        std::fs::write(&target, [2u8; 768 * 2]).unwrap();
+        migrate_legacy_in(&dir, "\\\\.\\DISPLAY1").unwrap();
+        assert!(!legacy.exists(), "eski kayit absorbe edilip silinmeli");
+        assert_eq!(
+            std::fs::read(&target).unwrap(),
+            vec![2u8; 768 * 2],
+            "hedef kayit ezilmemeli"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn legacy_migration_without_legacy_is_noop() {
+        let dir = temp_gamma_dir("noop");
+        migrate_legacy_in(&dir, "\\\\.\\DISPLAY1").unwrap();
+        assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// Gercek donanim testi: SetDeviceGammaRamp'i gercekten cagirir ve
     /// sonunda ekrani geri duzeltir. Varsayilan olarak atlanir:
     /// `cargo test -- --ignored`
     #[test]
     #[ignore = "gercek surucu cagrisi yapar; elle kosulmali"]
     fn live_apply_and_restore() {
-        let orig = read_ramp().expect("rampa okunamadi");
+        let device = primary_device();
+        let orig = read_ramp(&device).expect("rampa okunamadi");
         let warm = build_ramp(100);
-        apply_ramp(&warm).expect("sicak rampa uygulanamadi");
-        let now = read_ramp().expect("rampa tekrar okunamadi");
+        apply_ramp(&device, &warm).expect("sicak rampa uygulanamadi");
+        let now = read_ramp(&device).expect("rampa tekrar okunamadi");
         // Once orijinali geri koy; o gecemezse identity ile duzelt.
-        if apply_ramp(&orig).is_err() {
-            apply_ramp(&identity_ramp()).expect("identity rampa geri konamadi");
+        if apply_raw(&device, &orig).is_err() {
+            apply_raw(&device, &identity_ramp()).expect("identity rampa geri konamadi");
         }
         assert_eq!(now, warm, "uygulanan rampa geri okunamadi");
     }

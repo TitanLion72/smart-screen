@@ -21,8 +21,17 @@ harici monitör bağlayana kadar test+statik incelemeye tabi; enumerasyon ve WMI
 yolu bu makinede birebir doğrulanır. `evren/glm-5.3` yazıcı, `deepseek-v4.1-flash`
 araştırma/inceleyici; opencode provider modelleri kullanılmaz (kota).
 
-**Faz 1 kayıtları:**
-- [A] keşif TAMAM (2026-10-18): DDC feature=`Win32_Devices_Display`; enumerasyon=EnumDisplayMonitors→GetPhysicalMonitorsFromHMONITOR; dahili/harici=QueryDisplayConfig OUTPUT_TECHNOLOGY_INTERNAL; hata 31=dahili panel/OSD kapalı; HDR resmi kaynak yok→ertelendi. Kod haritası: brightness.rs First-1 WMI varsayımı, gamma.rs tek ORIGINAL (monitör-başına gamma ERTELENDİ), activity.rs hmon zaten var, prefs version=1 hazır.
+**DALGA 2 haritası (2026-10-19):**
+- [A] backend `gamma.rs` + `lib.rs` (+monitor.rs'e küçük `device_ids()` helper): monitör-başına ramp capture/apply/restore, `HashMap<device, Ramp>`, dosya adı `smart-screen-gamma-<DISPLAYn>.bin`, eski tek dosya migrasyonu. Komut imzaları DEĞİŞMEZ (`gamma_set_warmth(percent)`, `gamma_restore`).
+- [B] frontend `main.ts` + `qa/run.mjs`: karar uygulanınca harici monitörlere de yaz (aynı target, deadband 3), tick içi; hotplug: odak + dakikalık turda liste değişimi varsa yeniden render (seçim korunur); QA stub DISPLAY2 başarılı, DISPLAY3 hatalı olacak şekilde güncellenir + otomatik yazma assert'i.
+- A ve B aynı dosyaya dokunmaz. Ortak nokta: komut imzaları sabit kalır.
+
+- [B] frontend TAMAM: `applyAutoMonitors` (main.ts:1335) karar anında harici monitörlere aynı hedefi yazar (deadband 3, `monWriteChain` ile sıralı, monitör başına tek hata logu); `refreshMonitorList` (main.ts:1190) odak + dakikalık turda id kümesi değiştiyse yeniden çizer; QA senaryo 10 (otomatik DISPLAY2 yazımı, DISPLAY3 DDC hatası, karar değişmezken tekrar yok, elle yazma hâlâ çalışıyor).
+- ŞEF DOĞRULAMASI (Dalga 2): 119 test + 5 ignored, clippy 0, fmt temiz, `lib.rs` değişmedi (komut imzaları sabit), build temiz, QA 10 senaryo PASS, **canlı `live_apply_and_restore` GEÇTİ** (CreateDCW + SetDeviceGammaRamp gerçek sürücüde kabul edildi ve geri alındı) — "gamma fiziksel doğrulanmadı" borcu kapandı (gözle teyit kullanıcıda).
+
+**DALGA 3 haritası (sırada):** Pro anahtarı (offline Ed25519 imza, sunucusuz), lisans UI, özellik kapısı (harici DDC, sınırsız profil, uygulama-bağlı profiller Pro), marka/About + ilk açılış, paketleme.
+
+**Faz 1 kayıtları:**- [A] keşif TAMAM (2026-10-18): DDC feature=`Win32_Devices_Display`; enumerasyon=EnumDisplayMonitors→GetPhysicalMonitorsFromHMONITOR; dahili/harici=QueryDisplayConfig OUTPUT_TECHNOLOGY_INTERNAL; hata 31=dahili panel/OSD kapalı; HDR resmi kaynak yok→ertelendi. Kod haritası: brightness.rs First-1 WMI varsayımı, gamma.rs tek ORIGINAL (monitör-başına gamma ERTELENDİ), activity.rs hmon zaten var, prefs version=1 hazır.
 - [B] backend TAMAM: `src-tauri/src/monitor.rs` (yeni, 379 satır) + `lib.rs` (3 komut: monitor_list/brightness_get_monitor/brightness_set_monitor) + `Cargo.toml` (Win32_Devices_Display). Eski brightness_get/set/gamma komutları DEĞİŞMEDİ. Şef doğrulaması: 111 test + 5 ignored, clippy 0, fmt temiz. Canlı: `\\.\DISPLAY1 | Generic PnP Monitor | internal=true api=wmi`.
 - [C] frontend TAMAM: Panel'e "Monitörler" kutusu (`index.html:65-76`), `src/main.ts:1122-1278` (initMonitors, seçim, okuma/yazma, satır içi DDC hatası), slider `change` + −/+ anında, yazmalar tek zincirde serileştirildi; `styles.css:1071-1180`; `qa/run.mjs` senaryo 9 (DDC hata yolu + yazma argümanı). Eski otomatik tick DEĞİŞMEDİ.
 - [D] inceleme REVISE→düzeltildi: eDP/LVDS/UDI_EMBEDDED panelleri dahili say (satılabilirlik için kritik), QueryDisplayConfig kaybında tek ekran→WMI son şans, tek monitör adı okunamazsa listeyi düşürme, seçimde slider disable (yanlış monitöre yazma yarışı), yazma serileştirme, dahili elle yazımda `lastAppliedBright` tabanı, aria-live, QA `.at(-1)`.
