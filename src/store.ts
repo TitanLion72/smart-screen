@@ -16,6 +16,8 @@ export interface Profile {
 }
 
 export const MAX_PROFILES = 6;
+/** Ücretsiz sürümde profil üst sınırı (Pro kapısı): mevcut kayıtlar silinmez. */
+export const FREE_MAX_PROFILES = 3;
 
 const KEY_PROFILES = "ss:profiles";
 

@@ -50,8 +50,32 @@ DDC/CI desteklenmiyorsa veya OSD'den kapatılmışsa satırda net hata görünü
 (hata 31); sessizce başka yola düşülmez. Tek ekranlı kurulumda sınıflandırma
 kaybolursa WMI son şans olarak denenir.
 
-> Bilinen sınır: monitör başına **sıcak ton (gamma)** henüz yok — sıcak ton
-> birincil ekrana uygulanır. Çoklu monitörde sıcak ton sonraki sürüme bırakıldı.
+> Bilinen sınır: harici monitörlerde **sıcak ton** DDC üzerinden değil yalnız
+> gamma rampasıyla uygulanır; DDC sıcaklık (VCP 0x0C) kontrolü sonraki sürüme
+> bırakılmıştır.
+
+## Lisans (freemium + Pro)
+
+| Sürüm | Kapsam |
+|---|---|
+| **Ücretsiz** | Otomatik tema/parlaklık (dahili panel), sıcak ton, 3 profil, 20-20-20 molası, geçmiş/istatistik |
+| **Pro** | Harici monitör DDC kontrolü (elle + otomatik), 6 profil, uygulama bağlı profiller |
+
+- Etkinleştirme: **Ayarlar → Lisans** → anahtarı yapıştır → Etkinleştir.
+- Lisans offline doğrulanır (Ed25519 imzası, sunucu yok, makineye bağlı değil).
+- Kapı backend'de: harici monitöre yazma lisanssızken reddedilir; okuma ve
+  dahili panel her zaman serbesttir.
+
+### Anahtar üretimi (satıcı)
+
+```bash
+node tools/license-gen.mjs --email musteri@ornek.com
+```
+
+Özel anahtar `%USERPROFILE%\.config\opencode\smart-screen-license-private.pem`
+konumunda tutulur ve **asla repoya girmez** (`.gitignore`: `*.pem`). Açık
+anahtar `src-tauri/src/license.rs` içinde gömülüdür. Anahtar biçimi ve
+doğrulama mantığının tanımı `license.rs` başlık yorumundadır.
 
 ## Geliştirme
 

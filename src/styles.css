@@ -1186,3 +1186,47 @@ footer {
   font-variant-numeric: tabular-nums;
   color: var(--text-1);
 }
+
+/* Lisans kartı: durum satırı + anahtar girişi; hata kart içinde kırmızı. */
+.lic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lic-row input {
+  flex: 1;
+  min-width: 0;
+  height: 34px;
+  background: var(--input);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--r-sm);
+  padding: 0 10px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  color: var(--text-1);
+  outline: none;
+}
+
+.lic-row input:focus {
+  border-color: var(--accent-ring);
+}
+
+.lic-row input:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.lic-status {
+  font-size: 12.5px;
+  color: var(--text-2);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lic-err {
+  font-size: 11.5px;
+  color: var(--danger);
+}

@@ -29,7 +29,20 @@ araştırma/inceleyici; opencode provider modelleri kullanılmaz (kota).
 - [B] frontend TAMAM: `applyAutoMonitors` (main.ts:1335) karar anında harici monitörlere aynı hedefi yazar (deadband 3, `monWriteChain` ile sıralı, monitör başına tek hata logu); `refreshMonitorList` (main.ts:1190) odak + dakikalık turda id kümesi değiştiyse yeniden çizer; QA senaryo 10 (otomatik DISPLAY2 yazımı, DISPLAY3 DDC hatası, karar değişmezken tekrar yok, elle yazma hâlâ çalışıyor).
 - ŞEF DOĞRULAMASI (Dalga 2): 119 test + 5 ignored, clippy 0, fmt temiz, `lib.rs` değişmedi (komut imzaları sabit), build temiz, QA 10 senaryo PASS, **canlı `live_apply_and_restore` GEÇTİ** (CreateDCW + SetDeviceGammaRamp gerçek sürücüde kabul edildi ve geri alındı) — "gamma fiziksel doğrulanmadı" borcu kapandı (gözle teyit kullanıcıda).
 
-**DALGA 3 haritası (sırada):** Pro anahtarı (offline Ed25519 imza, sunucusuz), lisans UI, özellik kapısı (harici DDC, sınırsız profil, uygulama-bağlı profiller Pro), marka/About + ilk açılış, paketleme.
+**DALGA 3 haritası (2026-10-20 — kullanıcı PC başında değil, şef tam yetki):**
+- Anahtar: Ed25519. Açık anahtar (hex) `c2b3483b3f4e1e71af18dffeedb491c6b28530e2e3880c79050a1632f52c5033` license.rs'e gömülü. Özel anahtar `~/.config/opencode/smart-screen-license-private.pem` — REPOYA ASLA.
+- Anahtar formatı: `SS-` öneki + Crockford Base32(u16 payload_len BE + payload + 64B imza), 5'li gruplar `-` ile. payload = `v1|<email>|<YYYY-MM-DD>`.
+- Komutlar: `license_status`, `license_activate(key)`, `license_deactivate()`. Depo: `~/.config/opencode/smart-screen-license.json` (yalnız key; yüklerken yeniden doğrulanır).
+- Rust kapısı: `brightness_set_monitor` harici monitörde + lisans yok → Err("Pro gerekli"). monitor_list/okuma serbest (teaser). Profil limiti (3) ve uygulama bağlama frontend'de.
+- Dosya sahipliği: backend ajanı = `license.rs`, `lib.rs`, `Cargo.toml`, `tools/license-gen.mjs`. Frontend ajanı (sonra) = `index.html`, `src/main.ts`, `qa/run.mjs`. `.gitignore` şefte.
+
+**DALGA 3 kayıtları (2026-10-20):**
+- Backend TAMAM: `license.rs` (Ed25519, Crockford Base32, u16 BE + payload `v1|email|tarih` + 64B imza; status/activate/deactivate; atomik depo `smart-screen-license.json`), `lib.rs` 3 komut + `brightness_set_monitor` kapısı, `monitor.rs` `is_internal`/`classification_failed`, `Cargo.toml` ed25519-dalek 2.2, `tools/license-gen.mjs`.
+- Frontend TAMAM: Ayarlar'da Lisans kartı (`lic-*`), `applyProGates` (ücretsiz: 3 profil `FREE_MAX_PROFILES`, uygulama bağlama kapalı; mevcut kayıtlara dokunulmaz), `applyAutoMonitors` ücretsizde harici yazma denemez, QA senaryo 11 (kilitli/etkin/kaldırılmış + otomatik yol kilidi).
+- İnceleme PASS + 4 MINOR/3 NIT düzeltildi (şef): "sınırsız profil" metni gerçeğe çekildi (6), sınıflandırma kaybında kapı fail-open (dahili panel yanlış engellenmesin), silmede `applyProGates`, deactivate sonrası otomatik yol kilidi QA assert'i, `lic-key` temizleme, ilk tur lisans sonrası koşar, get_monitor bilinçli-serbest yorumu.
+- E2E kanıt: gerçek özel anahtarla `license-gen.mjs` ürettiği 199 karakterlik anahtar, gömülü Pro açık anahtarıyla Rust'ta doğrulandı (`live_generated_key_verifies_with_prod_key`, ignored, env `SMART_SCREEN_TEST_LICENSE`).
+- Şef doğrulaması: 134 test + 6 ignored, clippy 0, fmt temiz, build temiz, QA 11 senaryo PASS. Özel anahtar repoda değil (`.gitignore: *.pem`).
+- v1.0.0 damgası bu turda basıldı.
 
 **Faz 1 kayıtları:**- [A] keşif TAMAM (2026-10-18): DDC feature=`Win32_Devices_Display`; enumerasyon=EnumDisplayMonitors→GetPhysicalMonitorsFromHMONITOR; dahili/harici=QueryDisplayConfig OUTPUT_TECHNOLOGY_INTERNAL; hata 31=dahili panel/OSD kapalı; HDR resmi kaynak yok→ertelendi. Kod haritası: brightness.rs First-1 WMI varsayımı, gamma.rs tek ORIGINAL (monitör-başına gamma ERTELENDİ), activity.rs hmon zaten var, prefs version=1 hazır.
 - [B] backend TAMAM: `src-tauri/src/monitor.rs` (yeni, 379 satır) + `lib.rs` (3 komut: monitor_list/brightness_get_monitor/brightness_set_monitor) + `Cargo.toml` (Win32_Devices_Display). Eski brightness_get/set/gamma komutları DEĞİŞMEDİ. Şef doğrulaması: 111 test + 5 ignored, clippy 0, fmt temiz. Canlı: `\\.\DISPLAY1 | Generic PnP Monitor | internal=true api=wmi`.

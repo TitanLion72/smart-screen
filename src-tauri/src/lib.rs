@@ -8,6 +8,7 @@ mod contrast;
 mod decide;
 mod gamma;
 mod install;
+mod license;
 mod light;
 mod logger;
 mod monitor;
@@ -196,16 +197,44 @@ fn monitor_list() -> Result<Vec<monitor::MonitorInfo>, String> {
     monitor::list()
 }
 
-/// Tek monitorun parlakligini okur (yuzde 0-100).
+/// Tek monitorun parlakligini okur (yuzde 0-100). Okuma bilincli olarak
+/// serbesttir: ucretsiz kullanici listeyi ve degerleri gorebilir (teaser),
+/// yalniz yazma kapilidir.
 #[tauri::command]
 fn brightness_get_monitor(id: String) -> Result<u8, String> {
     monitor::get_brightness(&id)
 }
 
-/// Tek monitorun parlakligini yazar (yuzde 0-100).
+/// Tek monitorun parlakligini yazar (yuzde 0-100). Harici monitor (DDC)
+/// kontrolu Pro lisans ister; dahili panel her zaman serbesttir.
 #[tauri::command]
 fn brightness_set_monitor(id: String, value: u8) -> Result<(), String> {
+    let external = matches!(monitor::is_internal(&id), Ok(false));
+    // Siniflandirma kaybedildiyse (QueryDisplayConfig basarisiz) kapıyı
+    // uygulamayiz: dahili panel yanlislikla engellenmesin. Yazma yolu zaten
+    // tek monitörlü sistemde WMI'ya duser.
+    if external && !monitor::classification_failed() && !license::is_pro() {
+        return Err("harici monitör kontrolü Pro lisans gerektirir".to_string());
+    }
     monitor::set_brightness(&id, value)
+}
+
+/// Lisans durumu: Pro acik mi, kimde ve ne zaman verilmis.
+#[tauri::command]
+fn license_status() -> license::LicenseStatus {
+    license::status()
+}
+
+/// Lisans anahtarini dogrular ve depoya yazar.
+#[tauri::command]
+fn license_activate(key: String) -> Result<license::LicenseStatus, String> {
+    license::activate(&key)
+}
+
+/// Lisans kaydini siler (Pro kapisi kapanir).
+#[tauri::command]
+fn license_deactivate() -> license::LicenseStatus {
+    license::deactivate()
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -285,7 +314,10 @@ pub fn run() {
             contrast_audit,
             monitor_list,
             brightness_get_monitor,
-            brightness_set_monitor
+            brightness_set_monitor,
+            license_status,
+            license_activate,
+            license_deactivate
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

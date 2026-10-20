@@ -128,6 +128,7 @@
           <label class="field">Bağlı uygulamalar — ön plana gelince bu profil devralır
             <div class="tag-editor" id="pf-apps-editor"></div>
           </label>
+          <div class="hint" id="pf-apps-pro" hidden>Pro gerekli — uygulama bağlama Pro özelliğidir.</div>
           <div class="hint">Video / oyun / PDF öndeyse yine dokunulmaz; kural dondurmadır.</div>
           <div class="toolbar">
             <button id="pf-bind-current" class="btn-toggle" type="button">Ön plandakini bağla</button>
@@ -252,6 +253,20 @@
             <span class="spacer"></span>
             <span class="hint">v<span id="app-ver">-</span></span>
           </div>
+        </div>
+
+        <div class="panel-box" id="lic-box">
+          <div class="box-title">Lisans</div>
+          <div class="lic-row">
+            <span id="lic-status" class="lic-status">Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama</span>
+            <span class="spacer"></span>
+            <button id="lic-deactivate" class="btn-toggle btn-danger" type="button" hidden>Kaldır</button>
+          </div>
+          <div class="lic-row">
+            <input id="lic-key" type="text" spellcheck="false" placeholder="SS-… lisans anahtarı" aria-label="Lisans anahtarı" />
+            <button id="lic-activate" class="btn-primary" type="button">Etkinleştir</button>
+          </div>
+          <div class="lic-err" id="lic-err" hidden></div>
         </div>
       </section>
 

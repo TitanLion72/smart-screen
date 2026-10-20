@@ -30,6 +30,7 @@ const buckets = Array.from({ length: 12 }, (_, i) => ({
 
 const stubScript = (themeName, themeMode, exe) => `
 window.__invocations = [];
+window.__licPro = false;
 window.__TAURI_INTERNALS__ = {
   invoke: async (cmd, args) => {
     window.__invocations.push([cmd, args ?? null]);
@@ -59,12 +60,29 @@ window.__TAURI_INTERNALS__ = {
         }
         return 42;
       case "brightness_set_monitor":
+        // Harici monitore yazma Pro ister (backend kilidi): lisans yoksa REJECT.
+        if (args && args.id && !args.id.includes("DISPLAY1") && !window.__licPro) {
+          throw "harici monitör kontrolü Pro lisans gerektirir";
+        }
         // DDC-hatali monitore yazma da duser: otomatik turun hatayi yutma
         // yolu denensin, uygulama ayakta kalmali.
         if (args && args.id && args.id.includes("DISPLAY3")) {
           throw "DDC/CI bu monitorda calismiyor (OSD'den kapali olabilir)";
         }
         return null;
+      case "license_status":
+        return window.__licPro
+          ? { pro: true, email: "qa@test.local", issued: "2026-10-20" }
+          : { pro: false, email: null, issued: null };
+      case "license_activate": {
+        const key = args && typeof args.key === "string" ? args.key.trim() : "";
+        if (!key.startsWith("SS-") || key.length < 20) throw "geçersiz lisans anahtarı";
+        window.__licPro = true;
+        return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
+      }
+      case "license_deactivate":
+        window.__licPro = false;
+        return { pro: false, email: null, issued: null };
       case "battery_status": return [85, true];
       case "warmth_auto": return 35;
       case "contrast_audit": return [
@@ -313,8 +331,16 @@ async function run() {
   });
 
   // 10. Automatic decision also writes external monitors; a failing DDC write is
-  //     shown on the row and never takes the app down.
-  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations }) => {
+  //     shown on the row and never takes the app down. Harici otomatik yazma Pro
+  //     ister: once lisans etkinlestirilir.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab }) => {
+    await openTab("settings");
+    await page.locator("#lic-key").fill("SS-QA-TEST-KEY-1234567890");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(400);
+    const licText = (await page.locator("#lic-status").textContent()) ?? "";
+    if (!licText.includes("Pro")) fail("lisans", `etkinlesen kart Pro gostermedi: ${licText}`);
+    await openTab("panel");
     await page.locator("#now-btn").click();
     await page.waitForTimeout(800);
     const calls = await invocations();
@@ -356,6 +382,88 @@ async function run() {
       .at(-1);
     if (!manual || manual[1].value !== 52) fail("otomatik", `DDC hatasindan sonra elle yazma calismiyor: ${JSON.stringify(manual)}`);
     await page.screenshot({ path: join(shotDir, "10-otomatik.png") });
+  });
+
+  // 11. License gates: free tier never auto-writes external monitors and manual
+  //     external writes fail with a Pro error on the row; an "SS-" key unlocks
+  //     them; deactivation locks again.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab }) => {
+    const rowErr = async (i) =>
+      (await page.locator("#monitor-list .monitor-row").nth(i).locator(".mon-err").textContent()) ?? "";
+    // Ucretsiz: otomatik tur harici monitore yazmayi DENEMEZ (log temiz).
+    await page.locator("#now-btn").click();
+    await page.waitForTimeout(800);
+    const autoExt = (await invocations()).filter(
+      ([c, a]) => c === "brightness_set_monitor" && a && !String(a.id).includes("DISPLAY1"),
+    );
+    if (autoExt.length !== 0) {
+      fail("lisans", `ucretsizde otomatik harici yazma denemesi: ${JSON.stringify(autoExt)}`);
+    }
+    // Elle harici yazma serbest denenir; backend hatasi satirda "Pro" olarak gorunur.
+    await page.locator("#monitor-list .monitor-row").nth(1).click();
+    await page.waitForTimeout(250);
+    await page.locator("#monitor-plus").click();
+    await page.waitForTimeout(250);
+    const errFree = await rowErr(1);
+    if (!errFree.includes("Pro")) fail("lisans", `elle harici yazmada Pro hatasi cikmadi: ${errFree}`);
+    // Profil kapisi: uygulama baglama ucretsizde kapali.
+    const appsInput = page.locator("#pf-apps-editor .tag-input");
+    if (!(await appsInput.isDisabled())) fail("lisans", "ucretsizde uygulama girisi acik kaldi");
+    // Bos anahtar uyarisi, gecersiz anahtar karta kirmizi yazar.
+    await openTab("settings");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(200);
+    if (!((await page.locator("#lic-err").textContent()) ?? "")) fail("lisans", "bos anahtarda uyari cikmadi");
+    await page.locator("#lic-key").fill("kisa-anahtar");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(250);
+    const badKeyErr = (await page.locator("#lic-err").textContent()) ?? "";
+    if (!badKeyErr) fail("lisans", "gecersiz anahtarda karta hata yazilmadi");
+    // Gecerli anahtar: kart Pro'ya doner, hata temizlenir, kapilar acilir.
+    await page.locator("#lic-key").fill("SS-QA-TEST-KEY-1234567890");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(400);
+    const lic = (await page.locator("#lic-status").textContent()) ?? "";
+    if (!lic.includes("Pro") || !lic.includes("qa@test.local")) fail("lisans", `etkinlesen kart eksik: ${lic}`);
+    if (await page.locator("#lic-err").isVisible()) fail("lisans", "etkinlesten sonra hata hala gorunuyor");
+    if (await appsInput.isDisabled()) fail("lisans", "etkinlesten sonra uygulama girisi hala kapali");
+    // Pro acilinca elle harici yazma gecer.
+    await openTab("panel");
+    await page.locator("#monitor-list .monitor-row").nth(1).click();
+    await page.waitForTimeout(250);
+    await page.locator("#monitor-plus").click();
+    await page.waitForTimeout(250);
+    const okWrite = (await invocations())
+      .filter(([c, a]) => c === "brightness_set_monitor" && a && String(a.id).includes("DISPLAY2"))
+      .at(-1);
+    if (!okWrite || okWrite[1].value !== 52) fail("lisans", `Pro ile harici yazma olmadi: ${JSON.stringify(okWrite)}`);
+    const errPro = await rowErr(1);
+    if (errPro) fail("lisans", `Pro ile yazmada satir hatasi kaldi: ${errPro}`);
+    // Kaldirmak onay istemez; kart ve satir tekrar kilitlenir.
+    await openTab("settings");
+    await page.locator("#lic-deactivate").click();
+    await page.waitForTimeout(300);
+    const off = (await page.locator("#lic-status").textContent()) ?? "";
+    if (!off.includes("Ücretsiz")) fail("lisans", `kaldirinca kart donmedi: ${off}`);
+    await openTab("panel");
+    // Otomatik yol da tekrar kilitlenmeli: karar tetikle, harici yazma olmamali.
+    const before = (await invocations())
+      .filter(([c, a]) => c === "brightness_set_monitor" && a && !String(a.id).includes("DISPLAY1"))
+      .length;
+    await page.locator("#now-btn").click();
+    await page.waitForTimeout(700);
+    const autoOff = (await invocations())
+      .filter(([c, a]) => c === "brightness_set_monitor" && a && !String(a.id).includes("DISPLAY1"))
+      .length;
+    if (autoOff !== before) fail("lisans", `kaldirinca otomatik harici yazma devam ediyor (${before} -> ${autoOff})`);
+    await page.locator("#monitor-list .monitor-row").nth(1).click();
+    await page.waitForTimeout(250);
+    await page.locator("#monitor-plus").click();
+    await page.waitForTimeout(250);
+    const errOff = await rowErr(1);
+    if (!errOff.includes("Pro")) fail("lisans", `kaldirinca Pro hatasi gelmedi: ${errOff}`);
+    await checkOverflow(page, "lisans");
+    await page.screenshot({ path: join(shotDir, "11-lisans.png") });
   });
 
   await browser.close();

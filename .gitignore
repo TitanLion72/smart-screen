@@ -29,3 +29,8 @@ qa/test-results
 *.njsproj
 *.sln
 *.sw?
+
+# Lisans: ozel anahtarlar ASLA repoya
+*.pem
+tools/.license-private.pem
+

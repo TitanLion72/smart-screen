@@ -4,7 +4,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
 import { ACCENTS, MODE_OPTIONS, MODE_LABEL, RISKY, SOURCE_LABEL, SOURCE_OPTIONS, THEMES } from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
-import { MAX_PROFILES, createProfile, duplicateProfile, getSetting, loadActiveId, loadProfiles, restoreSeedProfiles, saveActiveId, saveProfiles, setSetting, upsertProfile } from "./store";
+import { FREE_MAX_PROFILES, MAX_PROFILES, createProfile, duplicateProfile, getSetting, loadActiveId, loadProfiles, restoreSeedProfiles, saveActiveId, saveProfiles, setSetting, upsertProfile } from "./store";
 import type { Profile } from "./store";
 import { bindSwitch, buildSeg, buildTagEditor } from "./widgets";
 import type { TagHandle } from "./widgets";
@@ -997,7 +997,7 @@ function paintEditor(): void {
   });
   el("pf-apps-count").textContent = `${(draft.apps ?? []).length} uygulama`;
   (el("pf-delete") as HTMLButtonElement).disabled = profiles.length <= 1;
-  (el("pf-add") as HTMLButtonElement).disabled = profiles.length >= MAX_PROFILES;
+  applyProGates();
 }
 
 /** Profil editörü tema çipleri: seçili tema vurgulanır, tıklamak draft'a yazar. */
@@ -1336,6 +1336,9 @@ async function applyAutoMonitors(target: number): Promise<void> {
   const value = Math.max(0, Math.min(100, Math.round(target)));
   for (const m of monitors) {
     if (m.is_internal) continue;
+    // Pro kapısı: ücretsiz sürümde harici monitörlere otomatik yazma denenmez —
+    // backend zaten reddedecek, her turda hata logu şişmesin.
+    if (!licensePro) continue;
     // 0 geçerli değerdir: undefined kontrolü falsy ile yapılmamalı.
     const prev = lastAppliedByMonitor[m.id];
     if (prev !== undefined && Math.abs(prev - value) < 3) continue;
@@ -1362,6 +1365,70 @@ async function applyAutoMonitors(target: number): Promise<void> {
       });
   }
   await monWriteChain;
+}
+
+// ---------- lisans ----------
+
+/** Lisans durumu (backend `license_status`); kayıt backend'de tutulur. */
+interface LicenseStatus {
+  pro: boolean;
+  email: string | null;
+  issued: string | null;
+}
+
+/** Pro lisansı: harici monitör otomatik yazması ve profil kapıları buna bakar. */
+let licensePro = false;
+
+/** Lisans kartındaki kırmızı mesaj; her yeni durumda temizlenir. */
+function setLicErr(msg: string): void {
+  el("lic-err").textContent = msg;
+  el("lic-err").hidden = false;
+}
+
+function renderLicense(st: LicenseStatus | null): void {
+  licensePro = st?.pro === true;
+  el("lic-status").textContent = licensePro
+    ? `Pro — ${st?.email ?? "?"} (${st?.issued ?? "?"})`
+    : "Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama";
+  (el("lic-deactivate") as HTMLButtonElement).hidden = !licensePro;
+  el("lic-err").hidden = true;
+}
+
+/**
+ * Pro kapıları: ücretsizde en fazla `FREE_MAX_PROFILES` profil ve uygulama
+ * bağlama kapalı. Mevcut kayıtlara dokunulmaz; yalnız yeni ekleme engellenir.
+ */
+function applyProGates(): void {
+  const limit = licensePro ? MAX_PROFILES : FREE_MAX_PROFILES;
+  (el("pf-add") as HTMLButtonElement).disabled = profiles.length >= limit;
+  const input = el("pf-apps-editor").querySelector<HTMLInputElement>(".tag-input");
+  if (input) {
+    input.disabled = !licensePro;
+    input.placeholder = licensePro ? "ornek.exe + Enter" : "Pro gerekli";
+  }
+  el("pf-apps-pro").hidden = licensePro;
+  (el("pf-bind-current") as HTMLButtonElement).disabled = !licensePro;
+}
+
+/** Ücretsiz sürümde profil sınırı doluysa true döner ve "Pro gerekli" yazar. */
+function proProfileBlocked(): boolean {
+  if (licensePro || profiles.length < FREE_MAX_PROFILES) return false;
+  log(`Pro gerekli: ücretsiz sürümde en fazla ${FREE_MAX_PROFILES} profil`, "warn");
+  return true;
+}
+
+/** Lisans durumunu çeker, kartı günceller ve monitör/profil kapılarını tazeler. */
+async function refreshLicense(): Promise<void> {
+  try {
+    const st = await invoke<LicenseStatus>("license_status");
+    renderLicense(st);
+  } catch (e) {
+    licensePro = false;
+    setLicErr("lisans durumu okunamadı: " + String(e));
+    applyProGates();
+    return;
+  }
+  applyProGates();
 }
 
 // ---------- boot ----------
@@ -1545,6 +1612,36 @@ window.addEventListener("DOMContentLoaded", () => {
     log(`bağlandı: ${exe} → ${draft.name} (Kaydet ile kalıcı olur)`, "ok");
   });
 
+  // Lisans: etkinleştir / kaldır. Kaldırma geri alınabilir işlem, onay istenmez.
+  el("lic-activate").addEventListener("click", () => {
+    const key = (el("lic-key") as HTMLInputElement).value.trim();
+    if (!key) {
+      setLicErr("lisans anahtarı girin");
+      return;
+    }
+    void invoke<LicenseStatus>("license_activate", { key })
+      .then((st) => {
+        renderLicense(st);
+        applyProGates();
+        // Anahtar ekranda kalmasin; kart zaten durumu gosteriyor.
+        (el("lic-key") as HTMLInputElement).value = "";
+        log(licensePro ? "Pro lisans etkinleştirildi" : "lisans geçerli değil", licensePro ? "ok" : "warn");
+      })
+      .catch((e) => {
+        setLicErr(String(e));
+        log("lisans etkinleştirilemedi: " + String(e), "bad");
+      });
+  });
+  el("lic-deactivate").addEventListener("click", () => {
+    void invoke<LicenseStatus>("license_deactivate")
+      .then((st) => {
+        renderLicense(st);
+        applyProGates();
+        log("lisans kaldırıldı", "warn");
+      })
+      .catch((e) => setLicErr(String(e)));
+  });
+
   el("audit-refresh").addEventListener("click", () => void loadAudit());
   bindSwitch(el("gate-switch") as HTMLButtonElement, auditGate, (v) => {
     auditGate = v;
@@ -1555,6 +1652,7 @@ window.addEventListener("DOMContentLoaded", () => {
 
   el("pf-save").addEventListener("click", saveDraft);
   el("pf-add").addEventListener("click", () => {
+    if (proProfileBlocked()) return;
     if (profiles.length >= MAX_PROFILES) return;
     const p = createProfile(`Profil ${profiles.length + 1}`);
     profiles = upsertProfile(profiles, p);
@@ -1564,6 +1662,7 @@ window.addEventListener("DOMContentLoaded", () => {
     selectForEdit(p.id);
   });
   el("pf-duplicate").addEventListener("click", () => {
+    if (proProfileBlocked()) return;
     if (profiles.length >= MAX_PROFILES) return;
     const p = duplicateProfile(draft);
     profiles = upsertProfile(profiles, p);
@@ -1602,9 +1701,13 @@ window.addEventListener("DOMContentLoaded", () => {
       buildProfileSwitch();
       selectForEdit(activeId);
     }
+    // editorDirty iken applyProfile atlanirsa kapilar bayat kalabilir.
+    applyProGates();
     log("profil silindi", "warn");
   });
   el("pf-restore").addEventListener("click", () => {
+    // Geri getirme de yeni profil ekler: ücretsizde sınır doluysa Pro ister.
+    if (proProfileBlocked()) return;
     const result = restoreSeedProfiles(profiles);
     profiles = result.profiles;
     saveProfiles(profiles);
@@ -1649,12 +1752,16 @@ window.addEventListener("DOMContentLoaded", () => {
   void showCalibration();
   void applyWarmth();
   void initMonitors();
+  void refreshLicense().finally(() => {
+    // Ilk tur lisans durumundan SONRA kossun: Pro kullanicinin ilk turda
+    // harici monitör yazmasi atlanmasin.
+    void tick("açılış");
+  });
   // Boş log için yönlendirme (log() ilk çağrıda bu elemanı kaldırır).
   const logEmpty = document.createElement("div");
   logEmpty.className = "log-empty";
   logEmpty.textContent = "İlk ölçüm birkaç dakika içinde düşer.";
   el("log").append(logEmpty);
-  void tick("açılış");
   window.setInterval(() => {
     tickBreak();
     void refreshMonitorList();

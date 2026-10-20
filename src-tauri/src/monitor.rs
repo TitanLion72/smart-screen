@@ -68,6 +68,13 @@ pub fn device_ids() -> Vec<String> {
         .unwrap_or_default()
 }
 
+/// Monitor dahili panel mi? (Pro kapisi: harici DDC kontrolu lisanslidir.)
+/// Bulunamayan kimlik hata dondurur; cagri yolu "monitör bulunamadı"ya dusmez,
+/// set_brightness ayni hatayi uretir.
+pub fn is_internal(id: &str) -> Result<bool, String> {
+    find_monitor(id).map(|m| m.is_internal)
+}
+
 /// Tek monitorun parlakligini okur (yuzde 0-100).
 pub fn get_brightness(id: &str) -> Result<u8, String> {
     let m = find_monitor(id)?;
@@ -130,7 +137,10 @@ fn enumerate() -> Result<Vec<RawMonitor>, String> {
         let Ok(device) = device_name(hmon) else {
             continue;
         };
-        let is_internal = internals.get(&device).copied().unwrap_or(false);
+        let is_internal = internals
+            .as_ref()
+            .and_then(|m| m.get(&device).copied())
+            .unwrap_or(false);
         let name = friendly_name(hmon).unwrap_or_else(|| device.clone());
         out.push(RawMonitor {
             hmon,
@@ -140,6 +150,12 @@ fn enumerate() -> Result<Vec<RawMonitor>, String> {
         });
     }
     Ok(out)
+}
+
+/// Dahili/harici siniflandirmasi kullanilabilir mi? QueryDisplayConfig
+/// basarisizsa true: Pro kapisinin dahili paneli yanlis engellemesini onler.
+pub fn classification_failed() -> bool {
+    internal_sources().is_none()
 }
 
 /// Tek monitorlu kurulum mu? QueryDisplayConfig siniflandirmayi kaybettiginde
@@ -192,9 +208,10 @@ fn device_name(hmon: HMONITOR) -> Result<String, String> {
 }
 
 /// QueryDisplayConfig + GET_SOURCE_NAME ile "GDI kaynak adi -> dahili mi"
-/// haritasini cikarir. Basarisizsa bos doner: tum monitorlar harici sayilir
-/// ve api karari runtime'a kalir (DDC hata verirse kullanici gorur).
-fn internal_sources() -> HashMap<String, bool> {
+/// haritasini cikarir. Hicbir harita cikamazsa (QueryDisplayConfig basarisiz)
+/// None doner: siniflandirma bilinmiyordur ve Pro kapisinin yanlis engelleme
+/// yapmamasi icin `classification_failed` sorgulanir.
+fn internal_sources() -> Option<HashMap<String, bool>> {
     let mut map = HashMap::new();
     let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = vec![DISPLAYCONFIG_PATH_INFO::default(); 16];
     let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = vec![DISPLAYCONFIG_MODE_INFO::default(); 32];
@@ -220,7 +237,7 @@ fn internal_sources() -> HashMap<String, bool> {
             continue;
         }
         if rc.0 != ERROR_SUCCESS.0 {
-            return map;
+            return None;
         }
         paths.truncate(n_path as usize);
         for p in &paths {
@@ -237,9 +254,9 @@ fn internal_sources() -> HashMap<String, bool> {
                 map.insert(name, internal);
             }
         }
-        return map;
+        return Some(map);
     }
-    map
+    None
 }
 
 /// Path'in kaynak GDI adini (szDevice ile eslesir) sorar.
