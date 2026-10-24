@@ -163,6 +163,23 @@ desteği doğrulanacak (desteklenmiyorsa README + Hakkında yeterli, abartma).
   için UI'da yazma kontrolü (altyapı hazır, arayüz yok), gece ışığı entegrasyonu (belgesiz,
   global), CHANGELOG dosyası.
 
+### [K4 RELEASE] v2.1.0 (2026-10-25)
+- Commit `8598641`, tag `v2.1.0`.
+- **Release:** https://github.com/TitanLion72/smart-screen/releases/tag/v2.1.0
+- Paketler: `setup.exe` 2.52 MiB · `msi` 3.54 MiB · her ikisinin `.sig` + `.sha256`'si ·
+  `latest.json`. Release `--latest` işaretli.
+- **Canlı zincir doğrulandı (şef):** `releases/latest/download/latest.json` HTTP 200,
+  içerik yerel dosyayla **birebir**, `signature` = `.sig` içeriğiyle **birebir** (444 kr),
+  setup.exe URL 200, `.sha256` hesaplanan hash ile eşleşti
+  (`ba8660533dd4…b6f7be0a`).
+- **İmza anahtarı:** `~/.tauri/smart-screen-updater.key` (+ şifre
+  `~/.config/opencode/smart-screen-updater-password.txt`). Pubkey `tauri.conf.json` ile
+  birebir eşleştiği doğrulandı. **İki kopya yedeklenmeli; kayıp = güncelleme yayını biter.**
+- Not: `tauri build` çıktısı PowerShell hattında `ExitCode 1` döndürüyor (npm kabuğu
+  artefaktı) ama Tauri "Finished 2 bundles + 2 updater signatures" diyor ve dosyalar
+  diskte/release'te doğrulandı — gerçek hata yok.
+- `latest.json` repoya **commit edilmez** (üretilen yayın varlığı; `.gitignore`'a eklenebilir).
+
 
 
 
