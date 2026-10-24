@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! OpenCode `cli.json` icindeki `theme` alanini okur/yazar.
 //!
 //! Kural (AGENTS.md): yalniz `theme` alanini degistir, diger

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Saat + lamba rengine gore hedef tema ve parlaklik adimi.
 //!
 //! Kurallar (AGENTS.md + plan): slot haritasi, tek adimda en fazla

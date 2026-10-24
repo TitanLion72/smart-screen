@@ -683,6 +683,13 @@ button:disabled:active {
   color: var(--danger);
 }
 
+/* Güncelleme bandı: bilgi tonu (vurgu rengi, sakin). */
+.band.info {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--text-1);
+}
+
 .band-ic {
   width: 16px;
   height: 16px;
@@ -1313,7 +1320,7 @@ button.swatch[aria-pressed="true"] {
 
 .monitor-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto 52px minmax(0, 1.2fr);
+  grid-template-columns: minmax(0, 1fr) auto auto auto 52px minmax(0, 1.2fr);
   align-items: center;
   gap: var(--sp-2);
   min-height: 34px;
@@ -1343,11 +1350,34 @@ button.swatch[aria-pressed="true"] {
   background: var(--danger-soft);
 }
 
+/* HDR açık monitör: otomasyon sıcak ton yazamaz, satır soluk kalır. */
+.monitor-row.hdr {
+  opacity: 0.55;
+}
+
 .monitor-row .badge {
   height: 18px;
   line-height: 18px;
   padding: 0 7px;
   font-size: 10px;
+}
+
+/* Sıcak ton rozeti: donanımsal / yazılımsal / HDR. */
+.ct-badge {
+  height: 18px;
+  line-height: 18px;
+  padding: 0 7px;
+  font-size: 10px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.ct-badge.hdr {
+  color: var(--warning);
+  border-color: var(--warning);
+  background: var(--warning-soft);
 }
 
 .mon-name {
@@ -1377,6 +1407,11 @@ button.swatch[aria-pressed="true"] {
 .mon-slider {
   grid-column: 1 / -1;
   width: 100%;
+}
+
+/* Ritim: HDR notu — sıcak ton kapalıysa tek satır uyarı tonu. */
+.warm-hdr {
+  color: var(--warning);
 }
 
 /* Seçili monitörün elle kontrolü: slider + yüzde + −/+. */

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 /** Shared labels and theme catalog for the panel. */
 
 import builtinColors from "./theme-colors.json";

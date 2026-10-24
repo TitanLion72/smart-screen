@@ -1,5 +1,171 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## V2.1 TURU (2026-10-24) — "hızlı erişim + güven"
+
+**Hedef v2.1.0:** v2'nin üstüne üç şey: (1) tray'den tek tıkla **hızlı panel (flyout)**,
+(2) **otomatik güncelleme** altyapısı, (3) **GPL uyumu** (Hakkında/yasal bildirim,
+kurulumda lisans metni) + kullanıcının v2 testinden çıkan düzeltmeler.
+KURAL: v2.1 de final değil; sürüm numarası artar, geliştirme sürer.
+
+**Dalga haritası:**
+- [K1] **araştırma (3 paralel, arka planda):** (a) Tauri updater + kod imzalama maliyeti/
+  SmartScreen, (b) DDC/CI VCP 0x0C renk sıcaklığı + HDR davranışı, (c) tray flyout
+  kalıpları + Tauri'de ikinci pencere tuzağı. Hepsi salt-okuma.
+- [K1.5] **kullanıcı test triyajı:** kullanıcı v2'yi test ediyor; gelen bulgular
+  dalgaları kesebilir ve önceliklidir. Bulgular HANDOFF'a `[v2-test]` etiketiyle yazılır.
+- [K2] **tasarım (şef):** flyout yerleşimi (hangi 4 kontrol), updater UX (ne zaman sorar,
+  nasıl ertelenir), Hakkında/lisans ekranı, güncelleme sonrası ilk açılış.
+- [K3] **uygulama:** (a) backend: updater plugin + `latest.json` üretimi, DDC sıcaklık
+  (varsa), monitör önbelleği ∥ (b) UI: flyout penceresi (`flyout.html` + TS/CSS,
+  ayrı dosya sahipliği) → (c) kablolama + QA senaryoları (flyout + updater stub).
+- [K4] **doğrulama + reviewer + release v2.1.0.**
+
+**Dosya sahipliği (çakışma önleme):** backend yazarı yalnız `src-tauri/`; flyout yazarı
+yalnız `flyout.html`, `src/flyout.ts`, `src/flyout.css`; ana UI/QA bağlaması sıralı ve
+tek yazar (`src/main.ts`, `src/panels.ts`, `index.html`, `qa/run.mjs`).
+
+**Açık kararlar (K1 sonuçlarıyla netleşecek):** imzalama şimdi mi (aylık ücret) yoksa
+sonra mı; VCP 0x0C desteklemeyen monitörde sessiz yedek mi yoksa gizli mi; updater
+`installMode` ve kanal (stable only).
+
+### [K1a] updater + imzalama sonucu (2026-10-24, PASS)
+- **Updater YAPILACAK (v2.1):** `tauri-plugin-updater` (+ `plugin-process` relaunch),
+  `bundle.createUpdaterArtifacts: true`, `plugins.updater` = GitHub
+  `releases/latest/download/latest.json`, `installMode: "passive"` (varsayılan/önerilen).
+  `latest.json` şeması: `version`, `notes`, `pub_date` (RFC3339),
+  `platforms."windows-x86_64".{signature,url}`; **signature = .sig dosyasının İÇERİĞİ**.
+  `gh release` ile elle üretilebilir; `tauri-action` `uploadUpdaterJson` +
+  `updaterJsonPreferNsis:true` ile otomatikleştirir (varsayılan MSI'yi tercih ediyor, biz
+  setup.exe dağıtıyoruz → NSIS'e çevir).
+- **Anahtar:** `tauri signer generate`; private key ASLA repoya girmez (`*.key` ignore),
+  GitHub Actions secret + offline yedek. **Kaybedilirse mevcut kullanıcılara güncelleme
+  yayınlanamaz** — iki kopya yedek zorunlu. Public key repoda güvenli.
+- **Kod imzalama ERTELENDİ (coğrafi engel):** Azure Artifact Signing public trust
+  sertifikaları bireysel geliştiriciler için yalnız ABD/Kanada; **Türkiye listede yok** →
+  kullanılamıyor. OV ~$129–530/yıl, EV ~$349–669/yıl + HSM zorunlu. 2024'ten beri EV
+  itibar avantajı YOK; SmartScreen itibarı zaman+hacimle geliyor. Alternatif: release'e
+  `.sha256` + README "bilinmeyen yayıncı normaldir" notu; ileride Certum €69 OSS
+  sertifikası değerlendirilebilir.
+- **Rollback:** düşük sürüm yayınlamak yerine derhal patch (v2.1.1); `latest.json`
+  geri çevrilebilir ama downgrade koruması sunucu lehine override edilir → meşru yol.
+- **Risk:** `latest.json` ele geçirilse bile saldırgan ancak **private key ile imzalanmış**
+  yük yükletebilir — asıl kapı imza, TLS değil.
+
+### [K1b] DDC sıcaklık + HDR sonucu (2026-10-24, PASS)
+- **VCP 0x0C mutlak Kelvin DEĞİL:** `K = 3000 + değer × VCP 0x0B (increment)`;
+  increment yok/0 ise yorum geçersiz. Etkin olması için VCP 0x14 "User 1/2/3" olmalı;
+  bazı monitörler 0x0C'yi yok sayar. `SaveCurrentSettings` çoğu monitörde desteklenmez
+  → güç kesintisi sonrası kalıcılık garanti değil. Maliyet: set ~50 ms, get ~40 ms.
+- **Çakışma:** 0x0C panel white point'ini, gamma rampası da white point'i çarpar →
+  ikisi birlikte kullanılırsa sıcaklık iki kez uygulanır. Kural: **monitör başına tek yol**.
+- **HDR:** `SetDeviceGammaRamp` HDR modunda "tanımsız davranış" (MS resmî); pratikte
+  Windows rampaları yok sayıyor. **HDR açıkken sıcak ton uygulanmayacak** (mevcut rampa
+  identity'ye döner). Tespit: `DISPLAYCONFIG_DEVICE_INFO_GET_ADVANCED_COLOR_INFO`
+  (`DisplayConfigGetDeviceInfo`); **projede HDR tespiti yok — v2.1 ön koşulu**.
+- **Öneri sırası:** (1) HDR tespiti + kapı, (2) monitör başına bir kez capability probe
+  (`0x0C`/`0x14`/`0x0B`) + önbellek, (3) varsa 0x0C yazımı (yalnız >250 K değişimde,
+  monitör başına en fazla 10 dk'da bir, `SaveCurrentSettings` YOK), yoksa kalıcı gamma
+  yedeği + UI rozeti "yazılımsal", (4) 3 üst üste hatada o monitörde yolu kapat,
+  (5) log'a tanılama satırı.
+- **Gece ışığı registry API'si KULLANILMAYACAK:** belgesiz, global (monitör-başına değil),
+  HDR'da belirsiz, CloudStore senkronizasyonuyla dövüşür.
+- **Doğrulanamadı:** 0x0C destek oranı ve HDR açıkken DDC parlaklık davranışı — harici
+  monitörde ampirik test gerekir.
+
+### [K1c] tray flyout sonucu (2026-10-24, PASS)
+- **Mevcut kod düzeltmesi:** `lib.rs:308` `show_menu_on_left_click(true)` + tray olay
+  dinleyicisi yok → **sol tık bugün menüyü açıyor**, pencere değil. Flyout için sol tık
+  olayı, sağ tık menüsü.
+- **Deadlock tuzağı:** `WebviewWindowBuilder` Windows'ta **senkron komut ve olay
+  işleyicilerinde kilitleniyor** (Tauri docs). Pencere `setup`'ta yaratılacak, gösterme
+  async komutla.
+- **Kapanma tuzağı:** `lib.rs:322` her pencerede `CloseRequested`'ı yutup `hide()` ediyor →
+  label filtresi şart. `window-state` plugin'i flyout geometrisini kaydedebilir → filtre.
+- **Pencere:** 340×420 logical, `decorations:false`, `alwaysOnTop`, `skipTaskbar`,
+  `resizable:false`, `transparent:false` (bilinen hayalet kenar hataları), `shadow:true`.
+  Konum: tray `rect` merkezi + `Monitor::work_area()` alt kenarı - 8, doğru monitör
+  `monitor_from_point`, `scale_factor` ile physical hesap.
+- **Kapanma davranışı:** dışına tık → `Focused(false)` → `hide()`; ESC → gizle; tray'e
+  tekrar tık → toggle. Sağ tık menüsü sırası: **Ayarlar** (kalın) → "1 saat duraklat"
+  (check) → "Bugün kapat" → ayırıcı → **Çıkış**. MS UX kılavuzu: flyout'ta yalnız en sık
+  ayarlar, hepsi anında etkili.
+- **Maliyet:** ikinci webview ≈ +95 MB renderer (bu makinede ölçüldü), gizli webview ~5 dk
+  sonra throttle. Flyout hafif tutulacak (grafik/kamera yok).
+- **Erişilebilirlik:** ESC ile kapanma (WCAG 2.1.2), `forced-colors` desteği.
+
+### [K2] TASARIM KARARLARI (2026-10-24)
+
+**Flyout içeriği (340×420):** (1) üst şerit: aktif tema adı + parlaklık yüzdesi + kip
+rozeti; (2) parlaklık kaydırıcısı + ±10 düğmeleri (anında yazar); (3) hızlı eylemler:
+**Şimdi ölç / 1 saat duraklat / Bugün kapat / Kilitle**; (4) alt bağlantı: **Ayarlar**
+(ana pencereyi açar). Sıcak ton flyout'a GİRMEZ (canlı önizleme ana pencerede; flyout
+hafif kalacak).
+
+**Pencere-arası sözleşme (tek doğru kaynak):**
+- Flyout → ana pencere: `emit("ss:action", { action })`; `action ∈ {"measure","pause-1h",
+  "day-off","lock","open-main"}`.
+- Ana pencere → flyout: `emit("ss:state", { brightness, theme, mode, pausedUntil, licensed })`
+  her render sonrası (throttle 1 sn).
+- Flyout komutları: `brightness_get`, `brightness_set`, `flyout_hide` (backend).
+- Görünürlük: backend `flyout_show` / `flyout_hide`; tray sol tık toggle; ESC → hide.
+
+**Updater UX:** açılışta 10 sn sonra + 24 saatte bir kontrol; sessiz başarısızlık yok ama
+spam de yok (tek satır log). Güncelleme varsa Bugün sekmesinde **tek satır band**:
+"v2.1.1 hazır — İndir ve yeniden başlat / Ertele". Onaysız yeniden başlatma YOK.
+`installMode: "passive"`. `latest.json` + `.sha256` release'e eklenecek
+(`tools/release-manifest.mjs` üretir).
+
+**GPL/Hakkında:** Gelişmiş kartının en altında: sürüm · "GPL-3.0-or-later" · kaynak
+bağlantısı · "garanti yok" satırı. Kurulumda lisans metni: Tauri'nin NSIS lisans sayfası
+desteği doğrulanacak (desteklenmiyorsa README + Hakkında yeterli, abartma).
+
+**DDC sıcaklık:** capability probe monitör başına bir kez önbelleklenir; destekleyende
+"donanımsal", desteklemeyende "yazılımsal" rozeti; HDR açıkken sıcak ton kapalı ve
+"neden" satırında görünür.
+
+### [K3] UYGULAMA (2026-10-24/25)
+- **Backend (PASS, şef doğruladı):** `tauri-plugin-updater` + `process`; `createUpdaterArtifacts`,
+  `plugins.updater` (pubkey = `~/.tauri/smart-screen-updater.key.pub` ile birebir doğrulandı,
+  GitHub endpoint, `installMode: passive`). `hdr.rs`: `GET_ADVANCED_COLOR_INFO` bit-1 +
+  `warm_allowed` kapısı + `unwarm_device` (orijinal rampaya döner, identity yazıp kalibrasyonu
+  EZMEZ). `colortemp.rs`: MCCS caps parser (0x0C/0x0B/0x14-User), `K = 3000 + değer×artış`,
+  2500–6500 kelepçe, >250 K eşik, 10 dk hız sınırı, 3 hatada kapat, HDR'de `Err`,
+  `SaveCurrentSettings` YOK, `Caps::Unknown` + 3 tur yeniden deneme, max VCP'den okunur.
+  Tray: sol tık toggle (`should_toggle_open` + 300 ms autohide damgası), sağ tık menü
+  (Ayarlar/pause✓/dayoff✓/Çıkış), `CloseRequested` + `Focused(false)` label filtreli,
+  window-state denylist. `tools/release-manifest.mjs` (latest.json + .sha256).
+- **Flyout UI (PASS):** `flyout.html` + `src/flyout.ts` + `src/flyout.css`, 340×420, 16 `fx-*` id,
+  `vite.config.ts` ikinci giriş (`dist/flyout.html`).
+- **Bağlama + QA (PASS):** `ss:action` (measure/pause-1h/day-off/lock/open-main/brightness-set)
+  ↔ `ss:state` (1 sn throttle). Updater: 10 sn sonra + günde bir, `update-band` + "Ertele" 24 saat
+  (yalnız bandı bastırır, kontrol devam eder), onaysız restart yok. HDR rozeti + `warm-hdr-note`.
+  GPL Hakkında bloğu. QA 11 → **15 senaryo** (flyout, güncelleme, HDR, Hakkında); stub
+  bilinmeyen komutta throw.
+- **K4 reviewer (REVISE → 12/12 düzeltildi):** MAJOR: (1) flyout "Ayarlar" için
+  `core:window:allow-show/allow-set-focus` eksikti; (2) opener scope yalnız ms-settings'ti,
+  GPL kaynak bağlantısı ölüydü → `https://github.com/TitanLion72/*`; (3) tray toggle yarışı
+  (açık flyout kapanmıyordu) → 300 ms autohide damgası + saf fonksiyon + 3 test.
+  MINOR: güncelleme ertelemesi bandı 48 saat sonra döndürüyordu; `gamma.rs` hata kıyası HDR'de
+  elenen cihazları saymıyordu; HDR sonradan açılınca sıcak ton takılı kalıyordu; `kelvin_to_value`
+  sabit üst sınır + yanlış `last_write`; geçici DDC hatası kalıcı "desteklenmiyor" oluyordu;
+  flyout parlaklık yazımı ana state'i güncellemiyordu; QA'da flyout taşma kontrolü yoktu ve
+  kurulum yolu test edilmiyordu. NIT: ölü `flyout_show` komutu kaldırıldı, `ColorTempInfo.kelvin`.
+- **K4 şef doğrulaması (kendi eliyle):** `cargo test` **171 + 2** yeşil (7 ignored) ·
+  `clippy --all-targets -D warnings` **0** · `fmt --check` temiz · `npm.cmd run build` temiz
+  (index + flyout) · `node qa/run.mjs` **PASS ×2** · 30 ekran görüntüsü.
+- **Açık kaynak hazırlığı:** `CONTRIBUTING.md`, `SECURITY.md`, `CODE_OF_CONDUCT.md`,
+  issue/PR şablonları, GitHub topics, README'de GPLv3 §6(d) Corresponding Source açıklaması.
+  **SPDX** başlıkları 32 kaynak dosyaya eklendi (`tools/add-spdx.mjs`, `--check` CI'ya uygun).
+  Bağımlılık lisans taraması: tümü izin verici (MIT/Apache/BSD/ISC/Zlib/MPL-2.0) → GPL uyumlu.
+  Git geçmişinde `.pem`/`.key`/`.env` sızıntısı YOK (tam tarama).
+- **Bilinçli ertelenen (v2.2+):** Authenticode kod imzalama (Azure Trusted Signing bireysel
+  geliştirici için ABD/Kanada ile sınırlı → TR kapsam dışı; OV ~$129+/yıl + HSM), DDC 0x0C
+  için UI'da yazma kontrolü (altyapı hazır, arayüz yok), gece ışığı entegrasyonu (belgesiz,
+  global), CHANGELOG dosyası.
+
+
+
+
 ## V2.0 TURU (2026-10-23) — repo PUBLIC: UI/UX sıfırdan + stabilite
 
 Kullanıcı talimatı: arayüz hiç anlaşılır değil → **yepyeni, yaratıcı UI/UX (sıfırdan)**;

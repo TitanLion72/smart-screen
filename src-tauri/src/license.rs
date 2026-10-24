@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Offline Ed25519 lisans dogrulamasi (Pro = harici monitor DDC kontrolu).
 //!
 //! Anahtar uretimi disarida yapilir (`tools/license-gen.mjs`); gizli anahtar

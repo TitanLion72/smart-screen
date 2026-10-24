@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 /**
  * orchestr.ts — durum + tur/karar motoru (DOM yok).
  *
@@ -14,6 +16,7 @@
  */
 
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import { MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
@@ -75,6 +78,21 @@ export interface MonitorInfo {
   api: string;
 }
 
+/** Monitör başına HDR durumu (backend `hdr_status_all`). */
+export interface HdrStatus {
+  device: string;
+  hdr: boolean;
+}
+
+/** Monitör başına donanımsal sıcaklık desteği (backend `monitor_color_temp_info`). */
+export interface ColorTempInfo {
+  device: string;
+  supported: boolean;
+  /** duzeltme (md.12): backend anlık K gönderiyorsa dolu gelir. */
+  kelvin?: number;
+  increment: number;
+}
+
 /** Lisans durumu (backend `license_status`); kayıt backend'de tutulur. */
 export interface LicenseStatus {
   pro: boolean;
@@ -100,6 +118,10 @@ export interface MonitorRowState {
   info: MonitorInfo;
   value: number | null;
   error: string | null;
+  /** Monitörde HDR açık mı (rozet + soluk satır)? */
+  hdr: boolean;
+  /** Donanımsal sıcaklık desteği; null = bilinmiyor. */
+  ctSupported: boolean | null;
 }
 
 /** Hero/Işık kartına düşen son tur görünüm verisi. */
@@ -210,6 +232,8 @@ export interface AppState {
   monitorCtrlEnabled: boolean;
   lastAppliedByMonitor: Record<string, number | undefined>;
   monitorFailed: string[];
+  /** Herhangi bir bağlı monitörde HDR açık mı (flyout + why-line + not)? */
+  hdrOn: boolean;
   light: LightCard;
   /** Son turun hedef yüzdesi (ofset dahil) ve taban değeri. */
   targetPct: number | null;
@@ -303,6 +327,7 @@ export const S: AppState = {
   monitorCtrlEnabled: false,
   lastAppliedByMonitor: {},
   monitorFailed: [],
+  hdrOn: false,
   light: { text: "-", title: "", sub: "-", dot: "" },
   targetPct: null,
   desiredBase: null,
@@ -340,10 +365,42 @@ export function log(msg: string, level: Level = "info"): void {
 
 function render(): void {
   hooks.render();
+  scheduleStateEmit();
 }
 
 function renderEditor(): void {
   hooks.renderEditor();
+}
+
+// ---------- flyout durum köprüsü ----------
+
+/** ss:state emit sıklığı: her render sonrası en fazla 1 sn'de bir. */
+const STATE_EMIT_MS = 1000;
+let stateEmitTimer: number | null = null;
+let stateEmitAt = 0;
+
+/**
+ * Flyout'a giden durum özeti. Emit hatası yutulur: flyout kapalıyken
+ * (pencere yok) hata normaldir, log şişmemesi gerekir.
+ */
+function scheduleStateEmit(): void {
+  if (stateEmitTimer !== null) return;
+  const wait = Math.max(0, stateEmitAt + STATE_EMIT_MS - Date.now());
+  stateEmitTimer = window.setTimeout(() => {
+    stateEmitTimer = null;
+    stateEmitAt = Date.now();
+    void emit("ss:state", {
+      brightness: Math.round(S.lastAppliedBright),
+      target: S.targetPct !== null ? Math.round(S.targetPct) : null,
+      theme: S.appliedKey ? S.appliedKey.split("|")[0] : null,
+      mode: S.mode,
+      pausedUntil: S.pauseUntil,
+      licensed: S.licensePro,
+      hdr: S.hdrOn,
+      locked: S.locked,
+      dayOff: S.pauseKind === "day" && S.pauseUntil !== null,
+    }).catch(() => undefined);
+  }, wait);
 }
 
 // ---------- küçük yardımcılar ----------
@@ -811,6 +868,19 @@ export async function refresh(): Promise<void> {
 }
 
 /**
+ * duzeltme (md.9): flyout slider'ının yazdığı parlaklık ana duruma işlenir.
+ * Böylece sonraki render/ss:state slider'ı eski değere geri çekmez; dakikalık
+ * tur da yeni değeri taban alır. Aynı donanımı kullanan dahili panel için
+ * ekstra okuma gerekmez.
+ */
+export function noteExternalBrightness(value: number): void {
+  const v = Math.max(0, Math.min(100, Math.round(value)));
+  if (!Number.isFinite(v)) return;
+  S.lastAppliedBright = v;
+  render();
+}
+
+/**
  * stabilite (a): tur sürerken gelen istek tek "son istek" olarak kuyruğa
  * alınır; tur bitince bir kez koşar. Böylece iç içe turlar yarışmaz.
  */
@@ -1243,13 +1313,67 @@ export async function initMonitors(): Promise<void> {
       info,
       value: null,
       error: null,
+      hdr: false,
+      ctSupported: null,
     }));
   } catch (e) {
     S.monitors = [];
     log("monitörler okunamadı: " + String(e), "warn");
   }
   render();
+  await refreshMonitorMeta();
   await syncMonitors();
+}
+
+/**
+ * Monitör başına HDR ve donanımsal sıcaklık (MCCS) desteğini çeker. Hata
+ * durumunda alanlar boş kalır ve komut başına yalnız bir kez log yazılır
+ * (dakikalık turda spam yok).
+ */
+let hdrWarned = "";
+let ctWarned = "";
+
+async function refreshMonitorMeta(): Promise<void> {
+  let hdrAll: HdrStatus[] = [];
+  let ctInfo: ColorTempInfo[] = [];
+  try {
+    const raw = await invoke<HdrStatus[]>("hdr_status_all");
+    hdrAll = Array.isArray(raw) ? raw : [];
+    hdrWarned = "";
+  } catch (e) {
+    const msg = String(e);
+    if (hdrWarned !== msg) {
+      hdrWarned = msg;
+      log("monitör HDR bilgisi okunamadı: " + msg, "warn");
+    }
+  }
+  try {
+    const raw = await invoke<ColorTempInfo[]>("monitor_color_temp_info");
+    ctInfo = Array.isArray(raw) ? raw : [];
+    ctWarned = "";
+  } catch (e) {
+    const msg = String(e);
+    if (ctWarned !== msg) {
+      ctWarned = msg;
+      log("monitör sıcaklık desteği okunamadı: " + msg, "warn");
+    }
+  }
+  const hdrMap = new Map(hdrAll.map((h) => [h.device, h.hdr === true]));
+  const ctMap = new Map(ctInfo.map((c) => [c.device, c.supported === true]));
+  for (const m of S.monitors) {
+    m.hdr = hdrMap.get(m.info.id) ?? false;
+    m.ctSupported = ctMap.has(m.info.id) ? (ctMap.get(m.info.id) ?? null) : null;
+  }
+  // duzeltme (md.6): HDR durumu bir önceki tura göre değiştiyse sıcak ton
+  // yeniden uygulanır — kullanıcı HDR'ı sonradan açıp kapatınca ekran seçenek
+  // değişene kadar sıcak (ya da soğuk) kalmasın. Duraklatma/kilit kuralı
+  // burada da geçerlidir.
+  const hdrChanged = S.hdrOn !== S.monitors.some((m) => m.hdr);
+  S.hdrOn = S.monitors.some((m) => m.hdr);
+  if (hdrChanged && !isPaused() && !S.locked) {
+    void applyWarmth();
+  }
+  render();
 }
 
 /**
@@ -1266,10 +1390,15 @@ export async function refreshMonitorList(): Promise<void> {
   const next = Array.isArray(list) ? list : [];
   const ids = new Set(next.map((m) => m.id));
   const same = ids.size === S.monitors.length && S.monitors.every((m) => ids.has(m.info.id));
-  if (same) return;
+  if (same) {
+    // Küme değişmese de HDR/sıcaklık desteği tazelenir (dışarıdan açılıp
+    // kapatılabilir).
+    await refreshMonitorMeta();
+    return;
+  }
   S.monitors = next.map((info) => {
     const prev = monitorRow(info.id);
-    return prev ? { ...prev, info } : { info, value: null, error: null };
+    return prev ? { ...prev, info } : { info, value: null, error: null, hdr: false, ctSupported: null };
   });
   // Tak/çıkar sonrası hata ve yazma geçmişi çıkarılan monitörlere ait olabilir.
   S.monitorFailed = [];
@@ -1278,6 +1407,7 @@ export async function refreshMonitorList(): Promise<void> {
   }
   log(`monitörler değişti: ${next.map((m) => m.name).join(", ") || "yok"}`, "ok");
   render();
+  await refreshMonitorMeta();
   await syncMonitors();
 }
 

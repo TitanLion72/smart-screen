@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 // OpenCode tema aracinin paketindeki yerlesik tema renklerini cikarir ve
 // src/theme-colors.json icine yazar. AMAC: tema seciminde GERCEK onizleme
 // cizmek. Tahmin yok, hicbir renk uydurulmuyor.

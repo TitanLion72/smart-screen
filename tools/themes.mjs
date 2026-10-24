@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 // Smart-screen goz konforu temalarini uretir ve iki yere yazar:
 //   src-tauri/themes/            -> derlemeye gomulen kopya (kurulum kaynagi)
 //   ~/.config/opencode/themes/   -> OpenCode'un okudugu yer Token agaci elle yazilmaz: base butun semantik tokenlari

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Monitor enumerasyonu ve monitor-basina parlaklik kontrolu.
 //!
 //! Zincir: EnumDisplayMonitors -> MONITORINFOEXW (szDevice = stabil kimlik,
@@ -232,6 +234,26 @@ fn device_name(hmon: HMONITOR) -> Result<String, String> {
 /// yapmamasi icin `classification_failed` sorgulanir.
 fn internal_sources() -> Option<HashMap<String, bool>> {
     let mut map = HashMap::new();
+    for p in &active_paths()? {
+        // Dahili panel yalnizca INTERNAL bildirmez: eDP cogu zaman
+        // DISPLAYPORT_EMBEDDED, eski paneller LVDS/UDI_EMBEDDED dondurur.
+        // Bu kume dahili sayilmazsa laptop paneli "harici" sanilir ve
+        // kullanici kendi ekraninda DDC hatasi gorur.
+        let tech = p.targetInfo.outputTechnology.0;
+        let internal = tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL.0
+            || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED.0
+            || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EMBEDDED.0
+            || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_LVDS.0;
+        if let Some(name) = source_gdi_name(p) {
+            map.insert(name, internal);
+        }
+    }
+    Some(map)
+}
+
+/// QueryDisplayConfig ile etkin goruntuleme yollarini toplar. hdr.rs ve
+/// siniflandirma buradan paylasir; hicbir yol cikaramazsa None doner.
+pub(crate) fn active_paths() -> Option<Vec<DISPLAYCONFIG_PATH_INFO>> {
     let mut paths: Vec<DISPLAYCONFIG_PATH_INFO> = vec![DISPLAYCONFIG_PATH_INFO::default(); 16];
     let mut modes: Vec<DISPLAYCONFIG_MODE_INFO> = vec![DISPLAYCONFIG_MODE_INFO::default(); 32];
     for _ in 0..4 {
@@ -259,27 +281,13 @@ fn internal_sources() -> Option<HashMap<String, bool>> {
             return None;
         }
         paths.truncate(n_path as usize);
-        for p in &paths {
-            // Dahili panel yalnizca INTERNAL bildirmez: eDP cogu zaman
-            // DISPLAYPORT_EMBEDDED, eski paneller LVDS/UDI_EMBEDDED dondurur.
-            // Bu kume dahili sayilmazsa laptop paneli "harici" sanilir ve
-            // kullanici kendi ekraninda DDC hatasi gorur.
-            let tech = p.targetInfo.outputTechnology.0;
-            let internal = tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL.0
-                || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED.0
-                || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EMBEDDED.0
-                || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_LVDS.0;
-            if let Some(name) = source_gdi_name(p) {
-                map.insert(name, internal);
-            }
-        }
-        return Some(map);
+        return Some(paths);
     }
     None
 }
 
-/// Path'in kaynak GDI adini (szDevice ile eslesir) sorar.
-fn source_gdi_name(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {
+/// Path'in kaynak GDI adini (szDevice ile eslesir) sorar. hdr.rs de kullanir.
+pub(crate) fn source_gdi_name(path: &DISPLAYCONFIG_PATH_INFO) -> Option<String> {
     let mut req = DISPLAYCONFIG_SOURCE_DEVICE_NAME::default();
     req.header.r#type = DISPLAYCONFIG_DEVICE_INFO_GET_SOURCE_NAME;
     req.header.size = std::mem::size_of::<DISPLAYCONFIG_SOURCE_DEVICE_NAME>() as u32;
@@ -346,6 +354,21 @@ fn ddc_get_brightness(m: &RawMonitor) -> Result<u8, String> {
     let result = read_ddc(&physical);
     destroy_monitors(&physical);
     result
+}
+
+/// Monitör kimliği (szDevice) için fiziksel DDC tanıtıcılarını açar; VCP
+/// işlemleri (renk sıcaklığı vb.) bu yolu kullanır. Tanıtıcıları kapatmak
+/// çağıranın işidir (`close_handles`). Dahili panelde DDC yoksa boş liste
+/// döner — çağıran Türkçe hata verir.
+pub(crate) fn physical_handles(id: &str) -> Result<Vec<PHYSICAL_MONITOR>, String> {
+    let snap = snapshot()?;
+    let m = find_monitor(&snap, id)?;
+    physical_monitors(m.hmon)
+}
+
+/// `physical_handles`'ın açtığı tanıtıcıları kapatır.
+pub(crate) fn close_handles(physical: &[PHYSICAL_MONITOR]) {
+    destroy_monitors(physical)
 }
 
 fn ddc_set_brightness(m: &RawMonitor, value: u8) -> Result<(), String> {

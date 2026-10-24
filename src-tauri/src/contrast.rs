@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! WCAG metin/zemin kontrast denetimi.
 //!
 //! Amac "bu tema goz icin okunakli mi" sorusunu his yerine olcuye

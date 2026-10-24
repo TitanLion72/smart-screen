@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Windows acilisinda baslatma (HKCU Run anahtari).
 //!
 //! Yalniz kendi exe yolunu yazar/siler; baska anahtara dokunmaz.

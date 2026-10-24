@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Tur basina tek satir disk logu. Grafik ve gecmise bakis buradan okunur.
 //!
 //! Format (sabit, bozma): `iso | source=.. | level=.. | tone=.. |

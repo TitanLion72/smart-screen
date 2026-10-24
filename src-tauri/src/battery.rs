@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Pil yuzdesi + sarj durumu. Karar uygulayiciye veri saglar; kalibrasyon yok.
 
 use crate::ps;

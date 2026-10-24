@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 /** Local persistence for panel preferences and user-defined profiles. */
 
 import type { Mode, Source } from "./catalog";

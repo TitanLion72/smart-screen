@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Kameradan tek kare alip ortam isigini tahmin eder.
 //!
 //! Kural (AGENTS.md): kare diske yazilmaz, kamera mesgulse hata

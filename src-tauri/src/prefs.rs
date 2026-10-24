@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Kullanici tema tercihleri: saat + isik seviyesi -> (tema, mod).
 //! El ile yapilan secimler kaydedilir, ayni kosulda once onlar uygulanir.
 

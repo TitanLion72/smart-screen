@@ -1,4 +1,6 @@
 #!/usr/bin/env node
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! smart-screen lisans anahtari ureteci (offline Ed25519).
 //!
 //! Kullanim:

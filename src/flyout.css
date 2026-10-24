@@ -1,0 +1,469 @@
+/* ════════════════════════════════════════════════════════════════════
+   smart-screen — tray flyout (src/flyout.css) · 340×420, scroll yok
+   ════════════════════════════════════════════════════════════════════
+   Değişken adları src/styles.css SÖZLEŞMESİYLE aynıdır (--bg-0/--bg-1,
+   --surface-1..3, --input, --border-*, --text-1..4, --accent*,
+   --success/--warning/--danger (+soft), --r-*, --shadow-1, --inner-top,
+   --ease-out, --dur-1/2, --font-sans/--font-mono, --sp-1..6, --track).
+   Yalnız değerleri burada yeniden tanımlanır; flyout.html tek CSS
+   kaynağı olarak yalnız bu dosyayı yükler.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --bg-0: #080b12;
+  --bg-1: #0d1320;
+  --bg-2: #0b101b;
+  --surface-1: #131b2e;
+  --surface-2: #1a2440;
+  --surface-3: #222f52;
+  --input: #0b1220;
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-standard: rgba(255, 255, 255, 0.09);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --text-1: #f1f5f9;
+  --text-2: #c3cee3;
+  --text-3: #8a96b0;
+  --text-4: #7a87a3;
+  --accent: #6e9bff;
+  --accent-hover: #8db2ff;
+  --accent-active: #4f7ef0;
+  --accent-soft: rgba(110, 155, 255, 0.14);
+  --accent-ring: rgba(110, 155, 255, 0.4);
+  --on-accent: #060b16;
+  --success: #34d399;
+  --success-soft: rgba(52, 211, 153, 0.13);
+  --warning: #fbbf24;
+  --warning-soft: rgba(251, 191, 36, 0.13);
+  --danger: #f87171;
+  --danger-soft: rgba(248, 113, 113, 0.13);
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --font-sans: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
+    "SF Pro Text", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Code", "JetBrains Mono", "SF Mono",
+    Consolas, "Courier New", monospace;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --track: var(--surface-3);
+
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.5;
+  letter-spacing: -0.01em;
+  color: var(--text-2);
+  background-color: var(--bg-0);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  overflow: hidden; /* flyout: içerik TAŞMAZ, scroll yok */
+}
+
+body {
+  background:
+    radial-gradient(420px 180px at 20% -60px, rgba(110, 155, 255, 0.12), transparent 70%),
+    var(--bg-0);
+  user-select: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.spacer {
+  flex: 1;
+}
+
+/* ═══════════════ Kök düzen: 8px tabanlı aralık ═══════════════ */
+
+.fx {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-4);
+}
+
+/* ── 1. Başlık şeridi ── */
+
+.fx-head {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 28px;
+}
+
+.fx-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--text-3);
+  flex: none;
+}
+
+.dot.accent {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-ring);
+}
+
+.fx-title {
+  font-size: 15.5px;
+  font-weight: 600;
+  color: var(--text-1);
+  white-space: nowrap;
+}
+
+.badge {
+  height: 22px;
+  line-height: 22px;
+  padding: 0 10px;
+  border-radius: var(--r-pill);
+  font-size: 11.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.badge.info {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+.fx-close {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--text-3);
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out),
+    color var(--dur-1) var(--ease-out);
+}
+
+.fx-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.fx-close:hover {
+  background: var(--surface-2);
+  color: var(--text-1);
+}
+
+/* ── 2. Parlaklık bloğu ── */
+
+.fx-bright-card {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+  padding: var(--sp-3) var(--sp-4);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), transparent 40%),
+    var(--surface-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow-1), var(--inner-top);
+}
+
+.fx-bright {
+  font-family: var(--font-mono);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-1);
+}
+
+.fx-bright-sub {
+  font-size: 12px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fx-slider-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.fx-step {
+  width: 36px;
+  height: 36px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--border-standard);
+  border-radius: var(--r-sm);
+  background: var(--surface-2);
+  color: var(--text-2);
+  font-size: 16px;
+  font-weight: 600;
+  font-family: inherit;
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out),
+    transform var(--dur-1) var(--ease-out);
+}
+
+.fx-step:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.fx-step:active {
+  transform: scale(0.97);
+}
+
+input[type="range"] {
+  flex: 1;
+  min-width: 0;
+  height: 4px;
+  margin: 0;
+  appearance: none;
+  -webkit-appearance: none;
+  background: var(--track);
+  border-radius: var(--r-pill);
+  outline: none;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  border: 2px solid var(--bg-0);
+  cursor: pointer;
+}
+
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border: 2px solid var(--bg-0);
+  border-radius: var(--r-pill);
+  background: var(--accent);
+  cursor: pointer;
+}
+
+/* ── 3. Hızlı eylemler (2×2) ── */
+
+.fx-actions {
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-2);
+}
+
+.fx-actions button {
+  height: 44px;
+  padding: 0 var(--sp-2);
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform var(--dur-1) var(--ease-out),
+    background-color var(--dur-1) var(--ease-out),
+    border-color var(--dur-1) var(--ease-out);
+}
+
+.fx-actions button:active {
+  transform: scale(0.97);
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-primary:active {
+  background: var(--accent-active);
+}
+
+.btn-toggle {
+  background: var(--surface-2);
+  color: var(--text-2);
+  border-color: var(--border-standard);
+}
+
+.btn-toggle:hover {
+  background: var(--surface-3);
+  border-color: var(--border-strong);
+}
+
+.btn-toggle.active {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hover);
+}
+
+/* ── Hata satırı ── */
+
+.fx-error {
+  flex: none;
+  min-height: 16px;
+  font-size: 11.5px;
+  color: var(--danger);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── 4. Alt satır ── */
+
+.fx-foot {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: 20px;
+}
+
+.fx-hdr {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--warning);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.linklike {
+  all: unset;
+  color: var(--accent-hover);
+  cursor: pointer;
+  font-size: 12px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+
+.linklike:hover {
+  text-decoration: underline;
+}
+
+.linklike:focus-visible {
+  outline: 2px solid var(--accent-ring);
+  outline-offset: 2px;
+}
+
+/* ── 5. Sürüm ── */
+
+.fx-version {
+  margin-top: auto;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+  color: var(--text-4);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ═══════════════ Erişilebilirlik ═══════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media (forced-colors: active) {
+  body,
+  .fx {
+    background: Canvas;
+    color: CanvasText;
+  }
+
+  .fx-bright-card {
+    background: Canvas;
+    border-color: CanvasText;
+    box-shadow: none;
+  }
+
+  .badge,
+  .btn-toggle,
+  .fx-step,
+  .fx-close {
+    background: ButtonFace;
+    color: ButtonText;
+    border-color: ButtonText;
+  }
+
+  .btn-primary {
+    background: Highlight;
+    color: HighlightText;
+    border-color: HighlightText;
+  }
+
+  input[type="range"],
+  input[type="range"]::-webkit-slider-thumb {
+    background: ButtonFace;
+    border-color: ButtonText;
+    forced-color-adjust: none;
+  }
+
+  .fx-error,
+  .fx-hdr {
+    color: CanvasText;
+    border: 1px dashed CanvasText;
+    padding: 0 4px;
+  }
+}

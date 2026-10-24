@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Uygulamanin kendi goz konforu temalarini kurar.
 //!
 //! Temalar `tools/themes.mjs` ile uretilir ve derlemeye `../themes/*.json`

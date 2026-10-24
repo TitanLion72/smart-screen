@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 // Visual + functional QA for the smart-screen UI shell (index.html SÖZLEŞME v2).
 // Serves ../dist with a stubbed Tauri bridge, walks the four tabs, captures
 // screenshots into ./shots, and fails on overflow, dead controls, swallowed
@@ -33,13 +35,39 @@ const buckets = Array.from({ length: 12 }, (_, i) => ({
   samples: i < 6 ? 4 : 0,
 }));
 
-const stubScript = (themeName, themeMode, exe) => `
+const stubScript = (themeName, themeMode, exe, opts) => `
 window.__invocations = [];
 window.__licPro = false;
 window.__theme = [${JSON.stringify(themeName)}, ${JSON.stringify(themeMode)}];
 window.__target = ["vesper", "dark", 30];
 window.__logs = ["2026-10-06T20:58:00.000Z | source=auto/auto | level=dark | tone=neutral | desired=30 | applied=30 | theme=vesper/dark | note=izle"];
+window.__hdrAll = ${JSON.stringify(opts && opts.hdrAll ? opts.hdrAll : [])};
+window.__update = ${
+  opts && opts.updateVersion
+    ? ` { rid: 1, currentVersion: "1.4.0", version: ${JSON.stringify(opts.updateVersion)}, date: "2026-10-01T00:00:00Z", body: "QA sürümü", rawJson: null }`
+    : "null"
+};
+// Olay köprüsü: transformCallback kayıtları + plugin:event dinleyicileri.
+// Testler window.__emit("ss:action"|"ss:state", payload) ile tetikler.
+window.__callbacks = new Map();
+window.__listeners = [];
+window.__emitted = [];
+let __cbSeq = 0;
+window.__emit = (event, payload) => {
+  for (const l of window.__listeners) {
+    if (l.event === event && l.cb) l.cb({ event, id: l.id, payload });
+  }
+};
 window.__TAURI_INTERNALS__ = {
+  metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
+  transformCallback: (cb) => {
+    __cbSeq += 1;
+    window.__callbacks.set(__cbSeq, cb);
+    return __cbSeq;
+  },
+  unregisterCallback: (id) => {
+    window.__callbacks.delete(id);
+  },
   invoke: async (cmd, args) => {
     window.__invocations.push([cmd, args ?? null]);
     switch (cmd) {
@@ -112,6 +140,16 @@ window.__TAURI_INTERNALS__ = {
       case "gamma_set_warmth": return null;
       case "gamma_restore": return null;
       case "animations_set": return null;
+      // v2.1 backend: HDR + donanımsal sıcaklık görünürlüğü.
+      case "hdr_status": return false;
+      case "hdr_status_all": return window.__hdrAll;
+      case "monitor_color_temp_info": return [
+        { device: ${JSON.stringify("\\\\.\\DISPLAY1")}, supported: true, increment: 50 },
+        { device: ${JSON.stringify("\\\\.\\DISPLAY2")}, supported: false, increment: 0 },
+        { device: ${JSON.stringify("\\\\.\\DISPLAY3")}, supported: false, increment: 0 },
+      ];
+      case "monitor_set_color_temp": return null;
+      case "flyout_hide": return null;
       case "contrast_audit": return [
         { name: "ss-night", mode: "dark", text_on_bg: 8.5, muted_on_bg: 5.9, syntax_min: 4.9, verdict: "AA" },
         { name: "soluk-tema", mode: "dark", text_on_bg: 2.2, muted_on_bg: 1.1, syntax_min: 1.0, verdict: "FAIL" },
@@ -133,12 +171,30 @@ window.__TAURI_INTERNALS__ = {
         frozenTicksToday: 2,
         ticksToday: 24,
       };
-      // Tauri eklenti köprüleri (app/version, notification, opener).
+      // Tauri eklenti köprüleri (app/version, notification, opener, event,
+      // updater, process, window).
       case "plugin:app|version": return "1.4.0";
       case "plugin:notification|is_permission_granted": return true;
       case "plugin:notification|request_permission": return "granted";
       case "plugin:notification|notify": return null;
       case "plugin:opener|open_url": return null;
+      case "plugin:event|listen": {
+        const cb = args && args.handler ? window.__callbacks.get(args.handler) : null;
+        const id = window.__listeners.length + 1;
+        window.__listeners.push({ event: args ? args.event : "", cb: cb ?? null, id });
+        return id;
+      }
+      case "plugin:event|unlisten": return null;
+      case "plugin:event|emit":
+        window.__emitted.push({ event: args ? args.event : "", payload: args ? args.payload : null });
+        return null;
+      case "plugin:updater|check": return window.__update;
+      // duzeltme (md.10b): Update sınıfı gerçek downloadAndInstall'ı bu
+      // komutla çağırır; stub null dönerse kurulum akışı tamamlanır.
+      case "plugin:updater|download_and_install": return null;
+      case "plugin:process|restart": return null;
+      case "plugin:window|show": return null;
+      case "plugin:window|set_focus": return null;
       default:
         // Bilinmeyen komut sessizce null DONMEZ — regresyon yakalansin diye firlar.
         throw new Error("bilinmeyen invoke komutu: " + cmd);
@@ -181,7 +237,7 @@ async function run() {
   const base = `http://localhost:${server.address().port}/`;
   const browser = await chromium.launch();
 
-  async function scenario(themeName, themeMode, steps, exe) {
+  async function scenario(themeName, themeMode, steps, exe, opts) {
     const page = await browser.newPage({ viewport: { width: 800, height: 600 } });
     page.on("pageerror", (e) => consoleErrors.push(String(e)));
     page.on("console", (m) => {
@@ -189,7 +245,7 @@ async function run() {
     });
     // log-clear-btn onaylıdır; QA onayı otomatik verir.
     page.on("dialog", (d) => void d.accept());
-    await page.addInitScript(stubScript(themeName, themeMode, exe));
+    await page.addInitScript(stubScript(themeName, themeMode, exe, opts));
     await page.goto(base, { waitUntil: "networkidle" });
     await page.waitForTimeout(600);
     const invocations = async () => page.evaluate(() => window.__invocations);
@@ -249,7 +305,7 @@ async function run() {
   // 1. Bugün: hero + durum kartları + monitörler + olay akışı.
   await scenario("catppuccin-macchiato", "dark", async ({ page, shot }) => {
     await checkOverflow(page, "bugun");
-    for (const id of ["break-band", "risk-band"]) {
+    for (const id of ["break-band", "risk-band", "update-band"]) {
       check(!(await page.locator(`#${id}`).isVisible()), "sizinti", `#${id} panelde gorunuyor`);
     }
     const bright = await text(page, "#st-bright");
@@ -353,6 +409,7 @@ async function run() {
     check(left.endsWith("%"), "ritim", `day-now konumu yuzde degil: "${left}"`);
     const calib = await text(page, "#calib-hint");
     check(calib.includes("kalibrasyon"), "ritim", `kalibrasyon gosterimi eksik: "${calib}"`);
+    check(await page.locator("#warm-hdr-note").isHidden(), "ritim", "HDR notu hdr yokken gorunuyor");
 
     await page.locator("#sleep-start").fill("2");
     await page.locator("#sleep-cap").click();
@@ -747,6 +804,186 @@ async function run() {
     check(frozenDay.includes("kaldı"), "duraklatma", `day-off kalan sure: "${frozenDay}"`);
     await checkOverflow(page, "duraklatma");
     await shot("11-duraklatma.png");
+  });
+
+  // 12. Flyout: ana pencere olay köprüsü (ss:action) + flyout.html sözleşmesi.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, shot }) => {
+    // (a) Köprü: ss:action -> duraklatma toggle / ölçüm / pencere açma.
+    await page.evaluate(() => window.__emit("ss:action", { action: "pause-1h" }));
+    await page.waitForTimeout(250);
+    check((await text(page, "#mode-badge")).includes("Duraklatıldı"), "flyout", "ss:action pause-1h duraklatmadi");
+    await page.evaluate(() => window.__emit("ss:action", { action: "pause-1h" }));
+    await page.waitForTimeout(250);
+    check((await text(page, "#mode-badge")).includes("İzliyor"), "flyout", "ss:action pause-1h geri acmadi");
+    const mark = (await invocations()).length;
+    await page.evaluate(() => window.__emit("ss:action", { action: "measure" }));
+    await page.waitForTimeout(700);
+    const afterMeasure = (await invocations()).slice(mark).map(([c]) => c);
+    check(afterMeasure.includes("decide_target"), "flyout", "ss:action measure tur calistirmadi");
+    await page.evaluate(() => window.__emit("ss:action", { action: "open-main" }));
+    await page.waitForTimeout(300);
+    const allCmds = (await invocations()).map(([c]) => c);
+    check(allCmds.includes("plugin:window|show"), "flyout", "ss:action open-main pencereyi gostermedi");
+    // Durum köprüsü: render sonrası (1 sn throttle) ss:state emit edilir.
+    const stateEmits = (await invocations()).filter(
+      ([c, a]) => c === "plugin:event|emit" && a && a.event === "ss:state",
+    );
+    check(stateEmits.length > 0, "flyout", "ss:state hic emit edilmedi");
+    if (stateEmits.length > 0) {
+      const p = stateEmits.at(-1)[1].payload;
+      check(
+        typeof p.brightness === "number" && typeof p.licensed === "boolean" && typeof p.hdr === "boolean",
+        "flyout",
+        `ss:state alanlari eksik: ${JSON.stringify(p)}`,
+      );
+    }
+
+    // (b) Flyout sayfası: 16 fx-* id + slider yazması + ESC + ss:state.
+    const fpage = await browser.newPage({ viewport: { width: 360, height: 460 } });
+    fpage.on("pageerror", (e) => consoleErrors.push(String(e)));
+    fpage.on("console", (m) => {
+      if (m.type() === "error") consoleErrors.push(m.text());
+    });
+    await fpage.addInitScript(stubScript("catppuccin-macchiato", "dark"));
+    await fpage.goto(base + "flyout.html", { waitUntil: "networkidle" });
+    await fpage.waitForTimeout(400);
+    const fInvocations = async () => fpage.evaluate(() => window.__invocations);
+    const fxCount = await fpage.locator("[id^='fx-']").count();
+    check(fxCount === 16, "flyout", `fx-* id sayisi=${fxCount} (beklenen 16)`);
+    // duzeltme (md.10a): flyout kökü (.fx) hiçbir yönde taşmamalı.
+    const fxBox = await fpage.locator(".fx").evaluate((el2) => ({
+      w: el2.scrollWidth,
+      cw: el2.clientWidth,
+      h: el2.scrollHeight,
+      ch: el2.clientHeight,
+    }));
+    check(
+      fxBox.w <= fxBox.cw && fxBox.h <= fxBox.ch,
+      "flyout-tasma",
+      `.fx koku tasiyor: scroll ${fxBox.w}x${fxBox.h} > client ${fxBox.cw}x${fxBox.ch}`,
+    );
+    const bright0 = ((await fpage.locator("#fx-bright").textContent()) ?? "").trim();
+    check(bright0 === "%42", "flyout", `acilis yuzdesi "%42" degil: "${bright0}"`);
+    await fpage.locator("#fx-slider").evaluate((el2) => {
+      el2.value = "60";
+      el2.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await fpage.waitForTimeout(250);
+    const setCalls = (await fInvocations()).filter(([c]) => c === "brightness_set");
+    check(
+      setCalls.length > 0 && setCalls.at(-1)[1] && setCalls.at(-1)[1].value === 60,
+      "flyout",
+      `slider brightness_set yazmadi: ${JSON.stringify(setCalls.at(-1))}`,
+    );
+    // duzeltme (md.9/md.10): yazma sonrası ana pencereye brightness-set action
+    // gider — sonraki ss:state slider'ı eski değere çekmesin.
+    const bActions = (await fInvocations()).filter(
+      ([c, a]) =>
+        c === "plugin:event|emit" &&
+        a &&
+        a.event === "ss:action" &&
+        a.payload &&
+        a.payload.action === "brightness-set",
+    );
+    check(
+      bActions.length > 0 && bActions.at(-1)[1].payload.value === 60,
+      "flyout",
+      `brightness-set action gonderilmedi: ${JSON.stringify(bActions.at(-1))}`,
+    );
+    await fpage.keyboard.press("Escape");
+    await fpage.waitForTimeout(250);
+    const fcmds = (await fInvocations()).map(([c]) => c);
+    check(fcmds.includes("flyout_hide"), "flyout", "ESC flyout_hide cagirmadi");
+    await fpage.evaluate(() => window.__emit("ss:state", { brightness: 77 }));
+    await fpage.waitForTimeout(250);
+    const bright1 = ((await fpage.locator("#fx-bright").textContent()) ?? "").trim();
+    check(bright1 === "%77", "flyout", `ss:state yuzdeyi guncellemedi: "${bright1}"`);
+    await fpage.screenshot({ path: join(shotDir, "12-flyout.png") });
+    await fpage.close();
+  });
+
+  // 13. Güncelleme bandı: check sürüm döndürünce band açılır, ertele gizler.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, shot }) => {
+    // İlk kontrol açılıştan 10 sn sonra gelir; QA o kadar bekler.
+    await page.waitForTimeout(10_500);
+    const checked = (await invocations()).some(([c]) => c === "plugin:updater|check");
+    check(checked, "guncelleme", "plugin:updater|check cagrilmadi");
+    check(await page.locator("#update-band").isVisible(), "guncelleme", "update-band gorunmedi");
+    const txt = await text(page, "#update-text");
+    check(
+      txt.includes("9.9.9") && txt.includes("hazır"),
+      "guncelleme",
+      `bant metni surumu icermiyor: "${txt}"`,
+    );
+    await shot("13-guncelleme.png");
+    // duzeltme (md.10b): "Şimdi kur" — sahte downloadAndInstall + relaunch.
+    await page.locator("#update-install").click();
+    await page.waitForTimeout(300);
+    const installLabel = (await text(page, "#update-install"));
+    check(
+      installLabel === "Kuruluyor…",
+      "guncelleme",
+      `kur dugmesi "Kuruluyor…" olmali: "${installLabel}"`,
+    );
+    check(
+      await page.locator("#update-install").isDisabled(),
+      "guncelleme",
+      "kurulum sirasinda dugme kilitlenmeli",
+    );
+    const updCmds = (await invocations()).map(([c]) => c);
+    check(
+      updCmds.includes("plugin:updater|download_and_install"),
+      "guncelleme",
+      "downloadAndInstall cagrilmadi",
+    );
+    check(
+      updCmds.includes("plugin:process|restart"),
+      "guncelleme",
+      "relaunch (plugin:process|restart) cagrilmadi",
+    );
+    await page.locator("#update-later").click();
+    await page.waitForTimeout(250);
+    check(!(await page.locator("#update-band").isVisible()), "guncelleme", "update-later bandi gizlemedi");
+    const snooze = await page.evaluate(() => Number(localStorage.getItem("ss:updateSnoozeUntil") ?? "0"));
+    check(snooze > Date.now(), "guncelleme", `erteleme kaydi bozuk: ${snooze}`);
+  }, null, { updateVersion: "9.9.9" });
+
+  // 14. HDR: monitör rozeti "HDR" + soluk satır + Ritim'de sıcak ton notu.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    const rows = page.locator("#monitor-list .monitor-row");
+    check((await rows.count()) >= 3, "hdr", "monitor satirlari yok");
+    const hdrBadge = ((await rows.nth(1).locator(".ct-badge").textContent()) ?? "").trim();
+    check(hdrBadge === "HDR", "hdr", `HDR rozeti gorunmedi: "${hdrBadge}"`);
+    const hdrClass = (await rows.nth(1).getAttribute("class")) ?? "";
+    check(hdrClass.includes("hdr"), "hdr", "HDR satiri soluk (hdr sinifi) degil");
+    const hwBadge = ((await rows.nth(0).locator(".ct-badge").textContent()) ?? "").trim();
+    check(hwBadge === "donanımsal", "hdr", `DISPLAY1 donanimsal rozeti yok: "${hwBadge}"`);
+    const swBadge = ((await rows.nth(2).locator(".ct-badge").textContent()) ?? "").trim();
+    check(swBadge === "yazılımsal", "hdr", `DISPLAY3 yazilimsal rozeti yok: "${swBadge}"`);
+    await openTab("settings");
+    check(await page.locator("#warm-hdr-note").isVisible(), "hdr", "warm-hdr-note gorunmedi");
+    const note = await text(page, "#warm-hdr-note");
+    check(note.includes("HDR"), "hdr", `not metni HDR icermiyor: "${note}"`);
+    await checkOverflow(page, "hdr");
+    await shot("14-hdr.png");
+  }, null, { hdrAll: [{ device: "\\\\.\\DISPLAY2", hdr: true }] });
+
+  // 15. Hakkında: GPL lisans + sürüm + kaynak kodu düğmesi (Gelişmiş'in altı).
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, openAdvanced, shot }) => {
+    await openTab("settings");
+    await openAdvanced();
+    const lic = await text(page, "#about-license");
+    check(lic === "GPL-3.0-or-later", "hakkinda", `lisans metni yanlis: "${lic}"`);
+    const ver = await text(page, "#about-version");
+    check(ver.length > 0 && ver !== "-", "hakkinda", `surum dolmadi: "${ver}"`);
+    check(await page.locator("#about-warranty").isVisible(), "hakkinda", "garanti satiri gorunmedi");
+    const before = (await invocations()).filter(([c]) => c === "plugin:opener|open_url").length;
+    await page.locator("#about-source").click();
+    await page.waitForTimeout(250);
+    const after = (await invocations()).filter(([c]) => c === "plugin:opener|open_url").length;
+    check(after === before + 1, "hakkinda", "kaynak kodu dugmesi open_url cagirmadi");
+    await checkOverflow(page, "hakkinda");
+    await shot("15-hakkinda.png");
   });
 
   await browser.close();

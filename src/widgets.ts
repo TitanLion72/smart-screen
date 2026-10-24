@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 /** Small reusable controls: segmented picker, switch, tag editor. */
 
 export interface SegOption {

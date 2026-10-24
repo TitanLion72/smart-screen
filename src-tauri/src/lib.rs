@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Tauri komutlari: on yuz (TUI/panel) <-> backend koprusu.
 //!
 //! TUM komutlar `async`tir: ana (UI) thread hic bloklanmaz. Uzun suren isler
@@ -9,9 +11,11 @@ mod activity;
 mod autostart;
 mod battery;
 mod brightness;
+mod colortemp;
 mod contrast;
 mod decide;
 mod gamma;
+mod hdr;
 mod install;
 mod license;
 mod light;
@@ -21,6 +25,9 @@ mod prefs;
 mod ps;
 mod stats;
 mod theme;
+
+use std::sync::Mutex;
+use std::time::Instant;
 
 use activity::{
     foreground_exe as query_foreground_exe, is_blocked, is_fullscreen as query_fullscreen,
@@ -36,7 +43,9 @@ use logger::{
 use prefs::{
     clear_prefs as wipe_prefs, get_pref as lookup_pref, learn_pref as remember_pref, list_prefs,
 };
-use tauri::Manager;
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
+use tauri::{AppHandle, Emitter, Manager, Position, Rect, Size, WebviewUrl, WebviewWindowBuilder};
 use theme::{get_theme, set_theme};
 
 /// Bloklayici isi arka plan is parcaciginda calistirir; komutlar ana
@@ -59,6 +68,179 @@ fn log_setup_error(what: &str, err: &str) {
         "{now} | source=setup/setup | level=warn | tone=- | desired=- | \
          applied=- | theme=- | note={what}: {err}"
     ));
+}
+
+// duzeltme (v2.1 inceleme md.11): `flyout_show` komutu ölüydü — frontend
+// (src/flyout.ts) yalnız `flyout_hide` çağırır, tray de doğrudan
+// `show_flyout` kullanıyordu. Tek yol bırakıldı: komut ve FlyoutState kaldırıldı.
+
+/// duzeltme (md.3): flyout odak kaybıyla (otomatik) gizlendiğinde zaman
+/// damgası buraya yazılır. Tray sol tığı bu damgayla "kapatma" mı "açma" mı
+/// olduğuna karar verir: odak kaybı hide() ile Click handler arasında yarışır.
+static FLYOUT_AUTOHIDE_AT: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Flyout'un otomatik gizlenmesinden geçen süre (ms); hiç gizlenmediyse None.
+fn ms_since_flyout_autohide() -> Option<u64> {
+    FLYOUT_AUTOHIDE_AT
+        .lock()
+        .ok()
+        .and_then(|g| g.map(|at| at.elapsed().as_millis() as u64))
+}
+
+/// Flyout gizlendiğinde damgayı tazeler (odak kaybı ve tray ile kapatma).
+fn note_flyout_hidden() {
+    if let Ok(mut g) = FLYOUT_AUTOHIDE_AT.lock() {
+        *g = Some(Instant::now());
+    }
+}
+
+/// duzeltme (md.3): tray tıkının "flyout açsın mı" kararı (SAF). Görünürken
+/// hep kapatır (false). Kapalıyken son gizlenme 300 ms'den yakınsa bu tık,
+/// az önceki kapatmanın ta kendisi sayılır (odak kaybı zaten kapattı) ve
+/// pencere yeniden açılmaz; aksi halde açar.
+fn should_toggle_open(visible: bool, ms_since_autohide: Option<u64>) -> bool {
+    if visible {
+        return false;
+    }
+    match ms_since_autohide {
+        Some(ms) => ms >= 300,
+        None => true,
+    }
+}
+
+/// Tray menüsündeki işaretlenebilir ögeler (durum güncellemesi için).
+struct TrayChecks {
+    pause: CheckMenuItem<tauri::Wry>,
+    dayoff: CheckMenuItem<tauri::Wry>,
+}
+
+/// Flyout penceresinin boyutları (mantıksal piksel).
+const FLYOUT_W: f64 = 340.0;
+const FLYOUT_H: f64 = 420.0;
+/// Flyout ile görev çubuğu arasındaki boşluk (fiziksel piksel).
+const FLYOUT_GAP: i32 = 8;
+
+/// Tray dikdörtgenini (x, y, w, h) fiziksel piksele düzleştirir (SAF).
+fn rect_tuple(rect: &Rect) -> (i32, i32, i32, i32) {
+    let (x, y) = match &rect.position {
+        Position::Physical(p) => (p.x, p.y),
+        Position::Logical(p) => (p.x as i32, p.y as i32),
+    };
+    let (w, h) = match &rect.size {
+        Size::Physical(s) => (s.width as i32, s.height as i32),
+        Size::Logical(s) => (s.width as i32, s.height as i32),
+    };
+    (x, y, w, h)
+}
+
+/// Flyout'un sol-üst köşesini hesaplar: tray dikdörtgeninin merkezine
+/// hizalanır, çalışma alanının altına 8 piksel boşlukla oturur ve çalışma
+/// alanına kelepçelenir. Tüm birimler fiziksel pikseldir (SAF).
+fn flyout_pos(
+    tray: (i32, i32, i32, i32),
+    win: (i32, i32),
+    work: (i32, i32, i32, i32),
+) -> (i32, i32) {
+    let (tx, _ty, tw, _th) = tray;
+    let (wx, wy, ww, wh) = work;
+    let mut x = tx + tw / 2 - win.0 / 2;
+    let mut y = wy + wh - win.1 - FLYOUT_GAP;
+    // Pencere çalışma alanından genişse kenara yasla; aksi halde kelepçele
+    // (clamp min>max etmemeli: pencere alana sığmıyorsa kelepçe yok).
+    if win.0 >= ww {
+        x = wx;
+    } else {
+        x = x.clamp(wx, wx + ww - win.0);
+    }
+    if win.1 >= wh {
+        y = wy;
+    } else {
+        y = y.clamp(wy, wy + wh - win.1);
+    }
+    (x, y)
+}
+
+/// Noktanın bulunduğu monitörün çalışma alanını döndürür (fiziksel piksel:
+/// x, y, w, h). Win32 `MonitorFromPoint` + `GetMonitorInfoW` kullanılır —
+/// gizli bir pencerenin "bulunduğu monitör" yanlış olurdu.
+fn work_area_at(x: i32, y: i32) -> Option<(i32, i32, i32, i32)> {
+    use windows::Win32::Foundation::{POINT, RECT};
+    use windows::Win32::Graphics::Gdi::{
+        GetMonitorInfoW, MonitorFromPoint, HMONITOR, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    };
+    // Guvenli: HMONITOR yalnizca bu cagri icinde kullanilir.
+    let hmon: HMONITOR = unsafe { MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST) };
+    if hmon.is_invalid() {
+        return None;
+    }
+    let mut info = MONITORINFO {
+        cbSize: std::mem::size_of::<MONITORINFO>() as u32,
+        ..Default::default()
+    };
+    // Guvenli: cikti yerel degiskene bagli; cbSize yapi boyutuyla es.
+    if !unsafe { GetMonitorInfoW(hmon, &mut info as *mut _) }.as_bool() {
+        return None;
+    }
+    let RECT {
+        left,
+        top,
+        right,
+        bottom,
+    } = info.rcWork;
+    Some((left, top, right - left, bottom - top))
+}
+
+/// Flyout penceresini tray dikdörtgeninin üstüne konumlandırıp gösterir.
+/// Dikdörtgen yoksa (ilk açılış, klavyeyle çağrı) ekranın sağ alt köşesine
+/// yaslanır. Konum fiziksel pikseldir; pencere gerçek (ölçekli) boyutu
+/// hesaba katılır — DPI ölçek faktörü dolaylı olarak uygulanmış olur.
+fn show_flyout(app: &AppHandle, tray: Option<(i32, i32, i32, i32)>) {
+    let Some(win) = app.get_webview_window("flyout") else {
+        return;
+    };
+    let size = win.outer_size().map(|s| (s.width as i32, s.height as i32));
+    let (w, h) = size.unwrap_or((FLYOUT_W as i32, FLYOUT_H as i32));
+    let (cx, cy) = match tray {
+        Some((tx, ty, tw, th)) => (tx + tw / 2, ty + th / 2),
+        None => {
+            // Tray dikdörtgeni yoksa: fare imlecinin olduğu monitör.
+            let (mx, my) = cursor_pos().unwrap_or((0, 0));
+            (mx, my)
+        }
+    };
+    let work = work_area_at(cx, cy).unwrap_or((0, 0, w.max(1), h.max(1)));
+    let fallback_tray = tray.unwrap_or((cx - 1, cy - 1, 2, 2));
+    let (x, y) = flyout_pos(fallback_tray, (w, h), work);
+    let _ = win.set_position(Position::Physical(tauri::PhysicalPosition::new(x, y)));
+    let _ = win.show();
+    let _ = win.set_focus();
+}
+
+/// Fare imlecinin fiziksel ekran konumu (spawn gerektirmez, mikro saniyeler).
+fn cursor_pos() -> Option<(i32, i32)> {
+    use windows::Win32::Foundation::POINT;
+    use windows::Win32::UI::WindowsAndMessaging::GetCursorPos;
+    let mut pt = POINT::default();
+    // Guvenli: cikti yerel degiskene bagli.
+    if unsafe { GetCursorPos(&mut pt) }.is_err() {
+        return None;
+    }
+    Some((pt.x, pt.y))
+}
+
+/// Flyout'u gizler (pencere yoksa sessizce geçer).
+fn hide_flyout(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("flyout") {
+        let _ = w.hide();
+    }
+}
+
+/// Ana pencereyi gösterir ve öne getirir.
+fn show_main(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
 }
 
 #[tauri::command]
@@ -275,6 +457,46 @@ async fn license_deactivate() -> license::LicenseStatus {
         .unwrap_or_else(|_| license::no_license())
 }
 
+/// Uygulamanın sürümü (flyout ayak bilgisi).
+#[tauri::command]
+async fn app_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
+/// HDR kapısı: herhangi bir çıkışta HDR (gelişmiş renk) açıksa `true`.
+/// Flyout sözleşmesi tek boolean bekler; sorgu başarısızsa `false`.
+#[tauri::command]
+async fn hdr_status() -> bool {
+    run_blocking(|| hdr::list().iter().any(|h| h.hdr))
+        .await
+        .unwrap_or(false)
+}
+
+/// Cihaz bazlı HDR durumu (kimlik + açık mı).
+#[tauri::command]
+async fn hdr_status_all() -> Result<Vec<hdr::HdrInfo>, String> {
+    run_blocking(hdr::list).await
+}
+
+/// Flyout'u gizler.
+#[tauri::command]
+async fn flyout_hide(app: AppHandle) -> Result<(), String> {
+    hide_flyout(&app);
+    Ok(())
+}
+
+/// Bağlı monitörlerin DDC/CI renk sıcaklığı durumu (destek, anlık K, adım).
+#[tauri::command]
+async fn monitor_color_temp_info() -> Result<Vec<colortemp::ColorTempInfo>, String> {
+    run_blocking(colortemp::info).await?
+}
+
+/// Monitörün renk sıcaklığını DDC/CI VCP 0x0C ile yazar (kelvin).
+#[tauri::command]
+async fn monitor_set_color_temp(device: String, kelvin: i32) -> Result<(), String> {
+    run_blocking(move || colortemp::set_color_temp(&device, kelvin)).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -285,9 +507,17 @@ pub fn run() {
                 let _ = w.set_focus();
             }
         }))
-        .plugin(tauri_plugin_window_state::Builder::default().build())
+        // Flyout sabit konumda açılır (tray'e göre); window-state onu
+        // kaydetmesin ya da geri yüklemesin.
+        .plugin(
+            tauri_plugin_window_state::Builder::default()
+                .with_denylist(&["flyout"])
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Kendi goz konforu temalarimizi kur (eksikse), sonra onceki
             // oturumdan kalma sicak tonu temizle (crash sonrasi). Hatalar
@@ -298,32 +528,96 @@ pub fn run() {
             if let Err(e) = gamma::recover() {
                 log_setup_error("gamma kurtarma", &e);
             }
-            use tauri::menu::{Menu, MenuItem};
-            use tauri::tray::TrayIconBuilder;
-            let open = MenuItem::with_id(app, "open", "Ac", true, None::<&str>)?;
-            let quit = MenuItem::with_id(app, "quit", "Cikis", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &quit])?;
+            // Flyout penceresi burada (setup'ta) yaratilir; tray olay
+            // işleyicisi içinden pencere yaratmak Windows'ta kilitlenir.
+            // visible(false): yalnız tray sol tıkla gösterilir.
+            WebviewWindowBuilder::new(app, "flyout", WebviewUrl::App("flyout.html".into()))
+                .title("smart-screen — hızlı panel")
+                .inner_size(FLYOUT_W, FLYOUT_H)
+                .decorations(false)
+                .always_on_top(true)
+                .skip_taskbar(true)
+                .resizable(false)
+                .shadow(true)
+                .visible(false)
+                .build()
+                .map_err(|e| format!("flyout penceresi açılamadı: {e}"))?;
+            let open = MenuItem::with_id(app, "open", "Ayarlar", true, None::<&str>)?;
+            let pause =
+                CheckMenuItem::with_id(app, "pause", "1 saat duraklat", true, false, None::<&str>)?;
+            let dayoff =
+                CheckMenuItem::with_id(app, "dayoff", "Bugün kapat", true, false, None::<&str>)?;
+            let separator = PredefinedMenuItem::separator(app)?;
+            let quit = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open, &pause, &dayoff, &separator, &quit])?;
+            app.manage(TrayChecks { pause, dayoff });
             TrayIconBuilder::new()
                 .menu(&menu)
-                .show_menu_on_left_click(true)
+                // Sol tık flyout açar; menü yalnız sağ tıkla çıkar.
+                .show_menu_on_left_click(false)
                 .on_menu_event(|app, event| match event.id.as_ref() {
-                    "open" => {
-                        if let Some(w) = app.get_webview_window("main") {
-                            let _ = w.show();
-                            let _ = w.set_focus();
+                    "open" => show_main(app),
+                    "pause" => {
+                        if let Some(item) = app.try_state::<TrayChecks>() {
+                            let on = item.pause.is_checked().unwrap_or(false);
+                            let _ = item.pause.set_checked(!on);
                         }
+                        let _ = app.emit("ss:action", serde_json::json!({ "action": "pause-1h" }));
+                    }
+                    "dayoff" => {
+                        if let Some(item) = app.try_state::<TrayChecks>() {
+                            let on = item.dayoff.is_checked().unwrap_or(false);
+                            let _ = item.dayoff.set_checked(!on);
+                        }
+                        let _ = app.emit("ss:action", serde_json::json!({ "action": "day-off" }));
                     }
                     "quit" => app.exit(0),
                     _ => {}
                 })
+                .on_tray_icon_event(|tray, event| {
+                    if let TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        rect,
+                        ..
+                    } = event
+                    {
+                        let app = tray.app_handle().clone();
+                        let rect = rect_tuple(&rect);
+                        let visible = app
+                            .get_webview_window("flyout")
+                            .and_then(|w| w.is_visible().ok())
+                            .unwrap_or(false);
+                        if visible {
+                            // duzeltme (md.3): elle kapatma da damgalanır —
+                            // hemen ardından gelen odak-kaybı hide()'ı bu tığı
+                            // "kapatma" sayacak, pencereyi geri açmayacak.
+                            note_flyout_hidden();
+                            hide_flyout(&app);
+                        } else if should_toggle_open(visible, ms_since_flyout_autohide()) {
+                            show_flyout(&app, Some(rect));
+                        }
+                    }
+                })
                 .build(app)?;
             Ok(())
         })
-        .on_window_event(|w, e| {
-            if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+        .on_window_event(|w, e| match e {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                // Ana pencere ve flyout kapatma isteginde gizlenir; uygulama
+                // tray'de yasamaya devam eder.
                 api.prevent_close();
                 let _ = w.hide();
             }
+            tauri::WindowEvent::Focused(false) if w.label() == "flyout" => {
+                // Flyout odak kaybedince kapanir (hızlı panel davranışı);
+                // ana pencere odak kaybında gizlenmez. duzeltme (md.3):
+                // gizlenme damgalanır ki hemen ardından gelen tray tığı
+                // pencereyi hemen geri açmasın (toggle yarışı).
+                note_flyout_hidden();
+                let _ = w.hide();
+            }
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             brightness_get,
@@ -360,8 +654,103 @@ pub fn run() {
             brightness_set_monitor,
             license_status,
             license_activate,
-            license_deactivate
+            license_deactivate,
+            app_version,
+            hdr_status,
+            hdr_status_all,
+            flyout_hide,
+            monitor_color_temp_info,
+            monitor_set_color_temp
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn flyout_pos_centers_on_tray_and_sits_above_work_area() {
+        // Tray ekranın ortasında, 40 px genişlik.
+        let tray = (780, 1060, 40, 40);
+        let win = (340, 420);
+        let work = (0, 0, 1600, 1040); // görev çubuğu hariç
+        let (x, y) = flyout_pos(tray, win, work);
+        assert_eq!(x, 800 - 170, "tray merkezine hizalanmalı");
+        assert_eq!(y, 1040 - 420 - 8, "çalışma alanı altından 8 px yukarıda");
+    }
+
+    #[test]
+    fn flyout_pos_clamps_to_work_area() {
+        let tray = (10, 1060, 40, 40); // sol kenara yakın
+        let win = (340, 420);
+        let work = (0, 0, 1600, 1040);
+        let (x, y) = flyout_pos(tray, win, work);
+        assert_eq!(x, 0, "sol kenardan taşmamalı");
+        assert!(y >= 0 && y + 420 <= 1040, "çalışma alanı içinde kalmalı");
+        // Sağ kenara yakın tray.
+        let tray = (1560, 1060, 40, 40);
+        let (x, _) = flyout_pos(tray, win, work);
+        assert_eq!(x, 1600 - 340, "sağ kenardan taşmamalı");
+    }
+
+    #[test]
+    fn flyout_pos_survives_oversized_window() {
+        // Pencere çalışma alanından büyükse clamp min>max olmamalı.
+        let (x, y) = flyout_pos((780, 1060, 40, 40), (2000, 2000), (0, 0, 1600, 1040));
+        assert_eq!((x, y), (0, 0), "kenara yaslanmalı, paniklememeli");
+    }
+
+    #[test]
+    fn rect_tuple_flattens_physical() {
+        let rect = Rect {
+            position: Position::Physical(tauri::PhysicalPosition::new(10, 20)),
+            size: Size::Physical(tauri::PhysicalSize::new(30, 40)),
+        };
+        assert_eq!(rect_tuple(&rect), (10, 20, 30, 40));
+    }
+
+    #[test]
+    fn rect_tuple_flattens_logical() {
+        let rect = Rect {
+            position: Position::Logical(tauri::LogicalPosition::new(10.6, 20.2)),
+            size: Size::Logical(tauri::LogicalSize::new(30.0, 40.0)),
+        };
+        assert_eq!(rect_tuple(&rect), (10, 20, 30, 40));
+    }
+
+    // duzeltme (md.3): tray toggle yarışı — saf karar fonksiyonu.
+
+    #[test]
+    fn tray_toggle_opens_when_no_recent_autohide() {
+        assert!(should_toggle_open(false, None), "damga yoksa açmalı");
+        assert!(
+            should_toggle_open(false, Some(10_000)),
+            "eski gizlenme açmayı engellememeli"
+        );
+    }
+
+    #[test]
+    fn tray_toggle_treats_recent_autohide_as_close() {
+        assert!(
+            !should_toggle_open(false, Some(0)),
+            "0 ms: yeniden açmamalı"
+        );
+        assert!(
+            !should_toggle_open(false, Some(299)),
+            "299 ms: yeniden açmamalı"
+        );
+        assert!(
+            should_toggle_open(false, Some(300)),
+            "300 ms: sınırı geçince açmalı"
+        );
+        assert!(should_toggle_open(false, Some(301)), "301 ms: açmalı");
+    }
+
+    #[test]
+    fn tray_toggle_never_opens_while_visible() {
+        assert!(!should_toggle_open(true, None), "görünürken açma yok");
+        assert!(!should_toggle_open(true, Some(0)));
+    }
 }

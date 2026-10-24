@@ -6,9 +6,16 @@
   "permissions": [
     "core:default",
     "notification:default",
+    "updater:default",
+    "process:allow-restart",
+    "core:window:allow-show",
+    "core:window:allow-set-focus",
     {
       "identifier": "opener:allow-open-url",
-      "allow": [{ "url": "ms-settings:*" }]
+      "allow": [
+        { "url": "ms-settings:*" },
+        { "url": "https://github.com/TitanLion72/*" }
+      ]
     }
   ]
 }

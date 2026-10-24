@@ -27,4 +27,13 @@ export default defineConfig(() => ({
       ignored: ["**/src-tauri/**"],
     },
   },
+  // 4. çoklu giriş: ana pencere + tray flyout
+  build: {
+    rollupOptions: {
+      input: {
+        main: "index.html",
+        flyout: "flyout.html",
+      },
+    },
+  },
 }));

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Laptop ekran parlakligini WMI uzerinden okur/yazar.
 //!
 //! Dogrulanmis PowerShell komutlarini penceresiz calistirir (bak: AGENTS.md).

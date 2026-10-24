@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Ekranin renk sicakligini gamma rampasi ile kaydirir (gun batimi sicak tonu).
 //!
 //! Her ekran kendi GDI cihaz adiyla ("\\.\DISPLAY1" gibi) ele alinir: DC
@@ -166,13 +168,25 @@ pub fn set_warmth(warmth: u8) -> Result<(), String> {
     let ramp = build_ramp(warmth);
     validate(&ramp)?;
     let devices = target_devices();
+    // HDR kapısı: HDR açık cihaza sıcak ton YAZILMAZ; daha önce bizim
+    // ısıttığımız bir cihazsa saklanan orijinal rampasına geri döner.
+    // Sorgu yapılamazsa HDR kapalı kabul edilir (kapı kapatılmaz).
+    let hdr = crate::hdr::enabled_map();
+    let warm = crate::hdr::warm_allowed(&devices, &hdr);
     let mut errors = Vec::new();
-    for device in &devices {
+    for device in &warm {
         if let Err(e) = warm_device(device, &ramp, &ops) {
             errors.push(format!("{device}: {e}"));
         }
     }
-    if errors.len() == devices.len() {
+    for device in devices.iter().filter(|d| !warm.contains(d)) {
+        unwarm_device(device, &ops);
+    }
+    // duzeltme (md.5): hata kıyası DENENEN (warm) liste üzerinden yapılır.
+    // Eskiden devices uzunluğuyla kıyaslandığından HDR nedeniyle elenen
+    // cihaz olduğunda deneme yapılmadığı halde "hicbiri başarısız" hatası
+    // dönüyordu.
+    if all_warm_attempts_failed(warm.len(), errors.len()) {
         Err(format!(
             "sicak ton hicbir ekrana uygulanamadi — {}",
             errors.join("; ")
@@ -182,11 +196,42 @@ pub fn set_warmth(warmth: u8) -> Result<(), String> {
     }
 }
 
+/// duzeltme (md.5): denenen (HDR'den elenmemiş) cihaz sayısı ile hata sayısı
+/// eşitse tüm denemeler başarısız demektir (SAF). Denenecek cihaz yoksa
+/// (hepsi HDR) hata da yoktur.
+fn all_warm_attempts_failed(attempted: usize, errors: usize) -> bool {
+    attempted > 0 && errors == attempted
+}
+
 /// Tek cihaza sicak ton: once orijinali yakala, sonra uygula.
 /// `_ops` kanit parametresi: cagiran islemin tamami OPS kilidi altinda.
 fn warm_device(device: &str, ramp: &Ramp, ops: &MutexGuard<'static, ()>) -> Result<(), String> {
     capture_original_for(device, ops)?;
     apply_ramp(device, ramp)
+}
+
+/// HDR açılmış bir cihazda daha önce uyguladığımız sicak tonu geri alir:
+/// sakladigimiz orijinal (isitma oncesi) rampayi yazar ve kaydi siler.
+/// Hic isitilmemis cihaza DOKUNULMAZ — mevcut kalibrasyon ezilmez.
+/// `_ops` kanit parametresi: cagiran islemin tamami OPS kilidi altinda.
+fn unwarm_device(device: &str, _ops: &MutexGuard<'static, ()>) {
+    let stored = lock().ok().and_then(|mut g| g.remove(device));
+    let Some(ramp) = stored else {
+        return;
+    };
+    match apply_raw(device, &ramp) {
+        Ok(()) => {
+            if let Ok(p) = gamma_file_for(device) {
+                let _ = std::fs::remove_file(p);
+            }
+        }
+        Err(_) => {
+            // Cihaz su an erisilemiyorsa kayit kaybolmasin; geri koy.
+            if let Ok(mut g) = lock() {
+                g.insert(device.to_string(), ramp);
+            }
+        }
+    }
 }
 
 /// Saklanan orijinalleri geri yukler: once bellekteki kayitlar, sonra
@@ -532,6 +577,21 @@ mod tests {
     #[test]
     fn warmth_zero_is_identity() {
         assert_eq!(build_ramp(0), identity_ramp());
+    }
+
+    // duzeltme (md.5): hata kıyası denenen (warm) liste üzerinden.
+
+    #[test]
+    fn all_attempts_failed_only_when_attempted_nonempty() {
+        // Deneme yok (hepsi HDR elendi): hata da yok, "başarısız" değil.
+        assert!(!all_warm_attempts_failed(0, 0));
+        // Denenen 2, ikisi de hatalı: başarısız.
+        assert!(all_warm_attempts_failed(2, 2));
+        // Denenen 2, biri hatalı: kısmi başarı, hata dönmez.
+        assert!(!all_warm_attempts_failed(2, 1));
+        // HDR cihazlar elendiğinden denenen 1 < toplam 3 olsa da kıyas
+        // denenen üzerinden: 1 deneme 1 hata -> başarısız.
+        assert!(all_warm_attempts_failed(1, 1));
     }
 
     #[test]

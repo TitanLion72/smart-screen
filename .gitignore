@@ -32,5 +32,6 @@ qa/test-results
 
 # Lisans: ozel anahtarlar ASLA repoya
 *.pem
+*.key
 tools/.license-private.pem
 

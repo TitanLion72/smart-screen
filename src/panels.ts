@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 /**
  * panels.ts — render katmanı: DOM'a YALNIZ burası dokunur.
  *
@@ -250,10 +252,30 @@ interface MonitorEls {
   row: HTMLButtonElement;
   val: HTMLElement;
   err: HTMLElement;
+  ct: HTMLElement;
 }
 
 const monEls = new Map<string, MonitorEls>();
 let monSig = "";
+
+/** Monitör satırındaki sıcak ton rozeti: donanımsal / yazılımsal / HDR. */
+function paintCtBadge(ct: HTMLElement, m: (typeof S.monitors)[number]): void {
+  if (m.hdr) {
+    ct.textContent = "HDR";
+    ct.className = "ct-badge hdr";
+    ct.title = "HDR açık — sıcak ton bu monitörde kapalı";
+    return;
+  }
+  if (m.ctSupported === true) {
+    ct.textContent = "donanımsal";
+    ct.className = "ct-badge";
+    ct.title = "Sıcaklık bu monitörde donanımdan (MCCS) ayarlanıyor";
+  } else {
+    ct.textContent = "yazılımsal";
+    ct.className = "ct-badge";
+    ct.title = "Sıcak ton gamma rampasıyla yazılımlanıyor";
+  }
+}
 
 function rebuildMonitorRows(): void {
   const host = el("monitor-list");
@@ -280,15 +302,17 @@ function rebuildMonitorRows(): void {
     const api = document.createElement("span");
     api.className = "badge info";
     api.textContent = m.info.api;
+    const ct = document.createElement("span");
+    ct.className = "ct-badge";
     const val = document.createElement("span");
     val.className = "mon-val";
     val.textContent = "%-";
     const err = document.createElement("span");
     err.className = "mon-err";
-    row.append(name, kind, api, val, err);
+    row.append(name, kind, api, ct, val, err);
     row.addEventListener("click", () => void selectMonitor(m.info.id));
     host.append(row);
-    monEls.set(m.info.id, { row, val, err });
+    monEls.set(m.info.id, { row, val, err, ct });
   }
 }
 
@@ -303,9 +327,12 @@ function renderMonitors(): void {
     if (!els) continue;
     els.row.classList.toggle("active", m.info.id === S.monitorSel);
     els.row.classList.toggle("bad", m.error !== null);
+    // HDR açık monitör satırı soluk: otomasyon oraya sıcak ton yazamaz.
+    els.row.classList.toggle("hdr", m.hdr);
     els.row.title = m.error ?? m.info.id;
     els.val.textContent = m.value !== null ? `%${m.value}` : "%-";
     els.err.textContent = m.error ?? "";
+    paintCtBadge(els.ct, m);
   }
   const sel = S.monitors.find((m) => m.info.id === S.monitorSel) ?? null;
   const ctrl = el("monitor-ctrl");
@@ -469,6 +496,7 @@ function whyText(): string {
       : `${S.freezeReason} — donduruldu`;
   }
   if (S.boundName && S.boundExe) return `${S.boundExe} önde — ${S.boundName} devraldı`;
+  if (S.hdrOn && S.warmMode === "off") return "HDR açık — sıcak ton kapalı";
   return "ölçüme göre akıyor";
 }
 
@@ -602,6 +630,8 @@ function renderWarm(): void {
   el("warm-preview-note").textContent =
     `Canlı önizleme: %${S.warmPercent} — kip yalnız otomatikte saat + ışığa göre uygulanır.`;
   el("calib-hint").textContent = S.calibHint;
+  // HDR açık monitörde gamma tabanlı sıcak ton etkisiz: not görünür.
+  el("warm-hdr-note").hidden = !S.hdrOn;
   const now = new Date();
   const pct = ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100;
   el("day-now").style.left = `${pct.toFixed(2)}%`;

@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! Log dosyasini 12 saatlik kovalara boler; Geçmis sekmesinin grafigi bunu cizer.
 //!
 //! Log satiri (sabit format): `iso | source=.. | level=.. | tone=..

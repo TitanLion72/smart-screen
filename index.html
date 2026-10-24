@@ -64,6 +64,11 @@
   #break-done      | button     | "Baktım"                                | click → mola kabul, bandı gizle
   #break-snooze    | button     | "Ertele 5 dk"                           | click → mola 5 dk ertele, bandı gizle
 
+  #update-band     | div.band.info | güncelleme bandı (YENİ)             | hidden; role="status"; yeni sürüm varsa göster
+  #update-text     | span       | "v<x> hazır — şimdi kur?" (YENİ)        | text
+  #update-install  | button.btn-primary | "Şimdi kur" (YENİ)               | click → downloadAndInstall + relaunch; kurulurken disabled + "Kuruluyor…"
+  #update-later    | button.btn-toggle | "Daha sonra" (YENİ)              | click → bandı gizle + 24 saat ertele (localStorage ss:updateSnoozeUntil)
+
   #hero-status     | div.hero   | HERO durum kartı (YENİ)                 | aria-live="polite"; çocuklar aşağıda
   #st-bright       | span       | HERO dev yüzde: uygulanan parlaklık ("%42") | text + title (mevcut/hedef)
   #dot-bright      | span.dot   | HERO durum noktası                      | className "dot " + cls
@@ -120,6 +125,7 @@
   #warm-plus       | button     | şiddet +5                               | click → warmPercent artır (tavan warmPercent kuralı)
   #warm-range      | input range | şiddet kaydırıcısı (YENİ, stepper ile aynı değer) | input → warmPercent = value; warm-val ile senkron
   #warm-preview-note | div.hint | "Canlı önizleme: …" notu (YENİ)          | text
+  #warm-hdr-note   | div.hint   | YENİ: HDR notu ("HDR açık — sıcak ton bu monitörde kapalı") | hidden = HDR kapalı
   #calib-hint      | div.hint   | kalibrasyon özeti ("kalibrasyon: …")     | text
 
   #sleep-start     | input number | gece koruması başlangıç saati (0-23)  | change → prefs kaydet
@@ -150,6 +156,11 @@
   #lic-activate    | button.btn-primary | "Etkinleştir"                   | click → license_activate(key); boşsa #lic-err
   #lic-deactivate  | button.btn-danger | "Kaldır"                          | click → license_deactivate; hidden = !licensePro
   #lic-err         | div.lic-err | lisans hata metni                      | text + hidden
+  #about-box       | div.panel-box.inner | Hakkında kartı (YENİ)           | Gelişmiş'in en altı
+  #about-version   | span       | YENİ: sürüm (getVersion)                | text
+  #about-license   | span       | YENİ: "GPL-3.0-or-later"                | text (statik)
+  #about-source    | button     | YENİ: "Kaynak kodu"                     | click → opener ile GitHub sayfasını aç
+  #about-warranty  | div.hint   | YENİ: garanti yok satırı                | statik metin
 
   ─────────────────────────── 3. PROFİLLER (#page-profiles) ───────────────────────────
   #pf-add          | button.btn-primary | "Yeni"                          | click → yeni profil; disabled = limit dolu (FREE_MAX_PROFILES)
@@ -258,6 +269,15 @@
             <span class="spacer"></span>
             <button id="break-done" class="btn-primary" type="button">Baktım</button>
             <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
+          </div>
+
+          <!-- Güncelleme bandı: yeni sürüm varsa tek satır -->
+          <div id="update-band" class="band info" hidden role="status">
+            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span id="update-text">-</span>
+            <span class="spacer"></span>
+            <button id="update-install" class="btn-primary" type="button" aria-label="Güncellemeyi şimdi kur">Şimdi kur</button>
+            <button id="update-later" class="btn-toggle" type="button" aria-label="Güncellemeyi ertele">Daha sonra</button>
           </div>
 
           <!-- HERO: "şu an" durum kartı -->
@@ -396,6 +416,7 @@
               <strong>yalnız otomatikte</strong> saat + ışığa göre uygulanır.
             </div>
             <div class="hint" id="calib-hint">kalibrasyon: henüz gözlem yok</div>
+            <div class="hint warm-hdr" id="warm-hdr-note" hidden>HDR açık — sıcak ton bu monitörde kapalı</div>
           </div>
 
           <div class="panel-box">
@@ -498,6 +519,19 @@
                   <button id="lic-activate" class="btn-primary" type="button">Etkinleştir</button>
                 </div>
                 <div class="lic-err" id="lic-err" hidden></div>
+              </div>
+
+              <div class="panel-box inner" id="about-box">
+                <div class="box-title">Hakkında</div>
+                <div class="lic-row">
+                  <span class="hint">sürüm <span id="about-version">-</span></span>
+                  <span class="spacer"></span>
+                  <span class="hint">lisans: <span id="about-license">GPL-3.0-or-later</span></span>
+                </div>
+                <div class="hint" id="about-warranty">Bu program hiçbir garanti olmadan, "olduğu gibi" dağıtılır (GPL-3.0 §15–16).</div>
+                <div class="toolbar">
+                  <button id="about-source" class="btn-toggle" type="button" aria-label="Kaynak kodu sayfasını aç">Kaynak kodu</button>
+                </div>
               </div>
             </div>
           </details>

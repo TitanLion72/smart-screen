@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! PowerShell'i penceresiz calistirir: odak calmaz, pencere acip kapatmaz.
 //! Asilip kalmasin diye 15 saniye sonunda oldurulur (try_wait dongusu).
 

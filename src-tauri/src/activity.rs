@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (C) 2026 TitanLion72
 //! On plan pencere tam ekransa (oyun/video) otomasyonu dondur.
 //!
 //! Kural (AGENTS.md): oyun/video fullscreen veya kilit acikken
