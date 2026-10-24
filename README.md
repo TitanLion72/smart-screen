@@ -126,10 +126,16 @@ Sürümler GitHub Actions doğamationı yerine manuel olarak push + release komu
 
 ## Lisans
 
-Kaynak kodu **MIT** lisansıyladır (`LICENSE` dosyası). Uygulamanın kendisi
-freemium'dur: temel göz konforu özellikleri ücretsiz, Pro (harici monitör
-kontrolü, 6 profil, uygulama bağlı profiller) lisans anahtarı ile açılır.
-Pro, geliştirmeyi desteklemek isteyen kullanıcıların yoludur — kodu fork
-edip kapıyı açmak mümkün olsa da, ödeme yapan destekçidir.
+Kaynak kodu **GNU GPL v3** (veya sonrası) altındadır — tam metin `LICENSE`
+dosyasında. Bu, yazılımı özgürce çalıştırma, inceleme, değiştirme ve paylaşma
+hakkını garanti eder; değiştirilmiş sürümler de aynı lisansla paylaşılmalıdır
+(copyleft). v2.0.0 ve öncesi sürümler MIT lisansıyla yayınlanmıştı; bu değişiklik
+sonraki sürümler için geçerlidir.
+
+Uygulamanın kendisi freemium'dur: temel göz konforu özellikleri ücretsiz, Pro
+(harici monitör kontrolü, 6 profil, uygulama bağlı profiller) lisans anahtarıyla
+açılır. GPL, yazılımı satmayı yasaklamaz; Pro anahtarı geliştirmeyi desteklemenin
+yoludur. Kod açık olduğu için kapıyı kaldıran fork'lar mümkündür — bu lisansın
+bilinçli bir sonucudur.
 
 Bağımlılıklar: Tauri 2, serde, windows 0.62, nokhwa, chrono, ed25519-dalek.
