@@ -33,6 +33,7 @@ Kayıtlar: (aşağıya)
 - **CI:** `.github/workflows/ci.yml` — rust (fmt/clippy/test), audit (cargo-audit), frontend (npm build).
 - **Lisans:** MIT (`LICENSE`), README "freemium + Pro destekçi" çerçevesi.
 - **Sürüm:** **2.0.0** — bu bir dönüm noktası, *final değil*; geliştirme sürüyor.
+- **Release (2026-10-24):** https://github.com/TitanLion72/smart-screen/releases/tag/v2.0.0 · commit `e5724a0` · paketler: `smart-screen_2.0.0_x64-setup.exe` (1.72 MiB), `smart-screen_2.0.0_x64_en-US.msi` (2.52 MiB). `gh release create` ile yayınlandı, imzasız (SmartScreen uyarısı beklenir).
 - **Bilinçli ertelenen (v2.1+):** code signing (Azure Artifact Signing $9.99/ay kararı kullanıcıda), auto-updater, tray flyout hızlı panel, monitör-başına DDC sıcaklık (VCP 0x0C), "bütün uygulamaların teması" adaptör işi.
 
 
