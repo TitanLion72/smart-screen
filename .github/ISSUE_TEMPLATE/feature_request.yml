@@ -1,0 +1,44 @@
+name: Özellik isteği
+description: Yeni bir fikir veya iyileştirme önerisi
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Öneriler memnuniyetle karşılanır. Kapsam dışı olduğunu bilerek ertelediğimiz
+        konular README'deki "Bilinen sınırlar" bölümünde listeli — oraya bir göz at.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Hangi sorun çözülsün
+      description: Özellik değil, yaşadığın durumu anlat
+      placeholder: "Akşam ışığı kısınca tema çok hızlı değişiyor, gözümü alıyor"
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Aklındaki çözüm
+    validations:
+      required: false
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Denediğin alternatifler
+    validations:
+      required: false
+  - type: dropdown
+    id: area
+    attributes:
+      label: Hangi alan
+      options:
+        - Arayüz / hızlı panel
+        - Otomatik karar (ışık / saat / kip)
+        - Sıcak ton / renk
+        - Monitörler
+        - Profiller
+        - Geçmiş / istatistik
+        - Güncelleme / kurulum
+        - Diğer
+    validations:
+      required: true

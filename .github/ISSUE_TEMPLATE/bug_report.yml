@@ -1,0 +1,67 @@
+name: Hata bildirimi
+description: Bir şey beklendiği gibi çalışmıyor
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Bildirim için teşekkürler. Lütfen güvenlik açıklarını buradan **bildirme** —
+        [SECURITY.md](https://github.com/TitanLion72/smart-screen/blob/main/SECURITY.md)
+        yolunu izle.
+  - type: input
+    id: version
+    attributes:
+      label: smart-screen sürümü
+      description: Gelişmiş → Hakkında bölümünde yazar
+      placeholder: "2.1.0"
+    validations:
+      required: true
+  - type: input
+    id: windows
+    attributes:
+      label: Windows sürümü
+      placeholder: "Windows 11 24H2 (26100)"
+    validations:
+      required: true
+  - type: textarea
+    id: monitors
+    attributes:
+      label: Monitör düzeni
+      description: Kaç ekran, harici mi dahili mi, hangi bağlantı (HDMI/DP/USB-C)
+      placeholder: "Laptop dahili + 1 harici (DP), ölçek %125"
+    validations:
+      required: false
+  - type: textarea
+    id: what
+    attributes:
+      label: Ne oldu / ne bekliyordun
+      placeholder: "Bekledim ki... ama şu oldu..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Yeniden üretme adımları
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Günlük satırları
+      description: "`%USERPROFILE%\\.config\\opencode\\smart-screen.log` son 10 satır"
+      render: text
+    validations:
+      required: false
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Kontroller
+      options:
+        - label: En son sürümü kullanıyorum
+          required: true
+        - label: Açık issue'larda aynı sorunu aradım
+          required: true

@@ -17,6 +17,12 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 3. Pencere açılır → sağ üstte **«İzliyor»** yazar. "Şimdi Ölç" düğmesiyle ilk turu
    başlatabilirsin.
 
+> **SmartScreen uyarısı normaldir.** Kurulum dosyası kod imzalı değil (sertifika maliyeti
+> ve bölgesel kısıtlar nedeniyle), bu yüzden Windows "bilinmeyen yayıncı" diyebilir →
+> **Ek bilgi → Yine de çalıştır**. Dosyanın doğruluğunu release sayfasındaki `.sha256`
+> ile kontrol edebilirsin:
+> `Get-FileHash .\smart-screen_*_x64-setup.exe -Algorithm SHA256`
+
 OpenCode temasını değiştirirken `cli.json` (`~/.config/opencode/cli.json`) içine
 yazılan **yalnızca** `theme.name` ve `theme.mode` alanlarıdır; diğer ayarlar
 bozulmaz (sert bir test var).
@@ -25,10 +31,14 @@ bozulmaz (sert bir test var).
 
 | Bölüm | Ne işe yarar |
 |---|---|
-| **Bugün** | "Şu an" kartı: gerçek + hedef parlaklık, mod rozeti, sonraki değişim saati, **neden** satırı; monitör satırları; hızlı eylemler (**Şimdi Ölç / 1 saat duraklat / Bugün kapat**); son olaylar |
-| **Ritim** | Otomasyon kipi (Oto / Işığa göre / Saate göre / Sabit), 24 saatlik sıcak ton şeridi + şiddet, gece koruması, 20-20-20 mola, okuma profili; **Gelişmiş** altında tema seçimi + kontrast denetimi (WCAG), otostart, lisans |
+| **Bugün** | "Şu an" kartı: gerçek + hedef parlaklık, mod rozeti, sonraki değişim saati, **neden** satırı; monitör satırları; hızlı eylemler (**Şimdi Ölç / 1 saat duraklat / Bugün kapat**); son olaylar; güncelleme varsa tek satır band |
+| **Ritim** | Otomasyon kipi (Oto / Işığa göre / Saate göre / Sabit), 24 saatlik sıcak ton şeridi + şiddet, gece koruması, 20-20-20 mola, okuma profili; **Gelişmiş** altında tema seçimi + kontrast denetimi (WCAG), otostart, Hakkında (GPL) ve lisans |
 | **Profiller** | İş/Film gibi paketler; bir profil uygulama listesine bağlanabilir (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + kayıtlar + lisans durumu |
+
+**Tepsi (tray):** sol tık **hızlı panel**i açar (parlaklık, hızlı eylemler, Ayarlar);
+sağ tık menüsünde Ayarlar · 1 saat duraklat · Bugün kapat · Çıkış. Hızlı panel dışına
+tıklayınca veya ESC ile kapanır.
 
 Otomatik kurallar:
 
@@ -54,6 +64,18 @@ kaybolursa WMI son şans olarak denenir.
 > Bilinen sınır: harici monitörlerde **sıcak ton** DDC üzerinden değil yalnız
 > gamma rampasıyla uygulanır; DDC sıcaklık (VCP 0x0C) kontrolü sonraki sürüme
 > bırakılmıştır.
+
+**HDR:** HDR açık bir monitörde yazılımsal sıcak ton uygulanmaz (Windows rampaları
+HDR'da yok sayar). Uygulama bunu tespit eder, monitör satırında `HDR` rozeti gösterir
+ve neden uygulamadığını yazar. Parlaklık DDC üzerinden çalışmaya devam eder.
+
+## Otomatik güncelleme
+
+Uygulama açılıştan 10 sn sonra ve günde bir kez `latest.json` üzerinden yeni sürüm
+kontrol eder. Güncelleme varsa **Bugün** sekmesinde tek satır band çıkar: *"v2.1.1
+hazır — şimdi kur?"*. Kurulum yalnız senin onayınla başlar ve uygulamayı yeniden
+başlatır; "Ertele" 24 saat susturur. Güncelleme paketi ayrıca minisign ile imzalıdır
+(uygulama içi doğrulama), kurulum dosyasının Authenticode imzası yoktur.
 
 ## Lisans (freemium + Pro)
 
@@ -118,8 +140,22 @@ Her iki betik de WCAG karşılaştırmasını yapar; `PASS` almadan commit/paket
 ## Paketleme
 
 ```bash
-npm.cmd run tauri build           # src-tauri/target/release/bundle/nsis/*-setup.exe
+# Güncelleme imzası için anahtar şart (yoksa build hata verir):
+$env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\smart-screen-updater.key"
+$env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<anahtar şifresi>"
+
+npm.cmd run tauri build           # nsis/*-setup.exe + msi + *.sig (updater artefaktları)
+node tools/release-manifest.mjs --version 2.1.0 --notes "..." \
+  --base-url https://github.com/TitanLion72/smart-screen/releases/download/v2.1.0
 ```
+
+`release-manifest.mjs` kökte `latest.json` üretir (updater'ın okuduğu dosya) ve her
+installer için `.sha256` yazar. `latest.json` ve `.sig` dosyaları **release'e yüklenmeli**,
+yoksa otomatik güncelleme çalışmaz.
+
+> **Anahtar yedeği kritik:** `smart-screen-updater.key` kaybolursa mevcut kullanıcılara
+> güncelleme yayınlanamaz. İki kopya tut (biri çevrimdışı); anahtar ve şifresi repoya
+> girmez (`*.key` `.gitignore`'da).
 
 Sürümler GitHub Actions doğamationı yerine manuel olarak push + release komutlarıyla açılacak;
 `AGENTS.md`/`HANDOFF.md` güncellemeleri her sürüm notuna temel.
@@ -139,3 +175,18 @@ yoludur. Kod açık olduğu için kapıyı kaldıran fork'lar mümkündür — b
 bilinçli bir sonucudur.
 
 Bağımlılıklar: Tauri 2, serde, windows 0.62, nokhwa, chrono, ed25519-dalek.
+Tüm bağımlılıklar izin verici lisanslıdır (MIT / Apache-2.0 / BSD / ISC / Zlib /
+MPL-2.0) ve GPL-3.0 ile uyumludur.
+
+### Kaynak kodu (GPL uyumu)
+
+Yayınlanan her kurulum dosyası için **Corresponding Source**, aynı sürümün git
+etiketindedir:
+`https://github.com/TitanLion72/smart-screen/tree/v<sürüm>`
+
+Kurulum paketiyle birlikte kaynağı ayrıca göndermeye gerek yoktur; genel ağ
+üzerinden ücretsiz erişim GPLv3 §6(d) koşulunu karşılar. Kaynağı değiştirip
+dağıtırsan aynı yükümlülük senin için de geçerlidir.
+
+Katkı kuralları: [CONTRIBUTING.md](CONTRIBUTING.md) · Güvenlik:
+[SECURITY.md](SECURITY.md) · Davranış: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
