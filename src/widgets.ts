@@ -94,6 +94,7 @@ export function buildTagEditor(
       x.type = "button";
       x.className = "tag-x";
       x.textContent = "×";
+      x.setAttribute("aria-label", `${item} etiketini sil`);
       x.addEventListener("click", () => {
         current = current.filter((v) => v !== item);
         onChange(current.slice());

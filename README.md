@@ -5,8 +5,9 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 20-20-20 hatırlatması, gece parlaklık tavanı, okuma profili, sıcak ton.
 
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
-- Tek pencere: 800×600, dört sekme (Panel / Profiller / Ayarlar / Geçmiş)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v0.7.0)
+- Tek pencere, serbest boyutlandırılabilir (min 720×560): sol ray + dört bölüm
+  (**Bugün / Ritim / Profiller / Geçmiş**)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.0.0)
 
 ## Kurulum (kullanıcı)
 
@@ -22,12 +23,12 @@ bozulmaz (sert bir test var).
 
 ## Günlük kullanım (kısa)
 
-| Sekme | Ne işe yarar |
+| Bölüm | Ne işe yarar |
 |---|---|
-| **Panel** | Parlaklık, ışık, tema, durum kartları + "Şimdi Ölç / Kilit / Duraklat / Geri Al" |
+| **Bugün** | "Şu an" kartı: gerçek + hedef parlaklık, mod rozeti, sonraki değişim saati, **neden** satırı; monitör satırları; hızlı eylemler (**Şimdi Ölç / 1 saat duraklat / Bugün kapat**); son olaylar |
+| **Ritim** | Otomasyon kipi (Oto / Işığa göre / Saate göre / Sabit), 24 saatlik sıcak ton şeridi + şiddet, gece koruması, 20-20-20 mola, okuma profili; **Gelişmiş** altında tema seçimi + kontrast denetimi (WCAG), otostart, lisans |
 | **Profiller** | İş/Film gibi paketler; bir profil uygulama listesine bağlanabilir (`code.exe` gibi) |
-| **Ayarlar** | Tema seçimi + **kontrast denetimi** (WCAG), otomasyon modu, sıcak ton (`Oto/Sabit/Kapalı`), okuma profili, gece koruması, uygulama listeleri |
-| **Geçmiş** | Bugünün özeti + 12 saatlik grafik + kayıtlar |
+| **Geçmiş** | Bugünün özeti + 12 saatlik grafik + kayıtlar + lisans durumu |
 
 Otomatik kurallar:
 
@@ -125,4 +126,10 @@ Sürümler GitHub Actions doğamationı yerine manuel olarak push + release komu
 
 ## Lisans
 
-Tauri v2 topluluk şablonu. Bağımlılıklar: Tauri 2, serde, windows 0.62, nokhwa, chrono.
+Kaynak kodu **MIT** lisansıyladır (`LICENSE` dosyası). Uygulamanın kendisi
+freemium'dur: temel göz konforu özellikleri ücretsiz, Pro (harici monitör
+kontrolü, 6 profil, uygulama bağlı profiller) lisans anahtarı ile açılır.
+Pro, geliştirmeyi desteklemek isteyen kullanıcıların yoludur — kodu fork
+edip kapıyı açmak mümkün olsa da, ödeme yapan destekçidir.
+
+Bağımlılıklar: Tauri 2, serde, windows 0.62, nokhwa, chrono, ed25519-dalek.

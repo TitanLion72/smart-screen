@@ -1,4 +1,9 @@
 //! Tauri komutlari: on yuz (TUI/panel) <-> backend koprusu.
+//!
+//! TUM komutlar `async`tir: ana (UI) thread hic bloklanmaz. Uzun suren isler
+//! (PowerShell/WMI/DC/kamera/disk) `spawn_blocking` ile arka plan is
+//! parcaciginda calisir; `.await` noktasinda hicbir std::sync::Mutex gardi
+//! tutulmaz (kilidin al-birak'i tamamen senkron yardimcilarin icindedir).
 
 mod activity;
 mod autostart;
@@ -34,207 +39,240 @@ use prefs::{
 use tauri::Manager;
 use theme::{get_theme, set_theme};
 
-#[tauri::command]
-fn brightness_get() -> Result<u8, String> {
-    get_brightness()
+/// Bloklayici isi arka plan is parcaciginda calistirir; komutlar ana
+/// thread'i beklemez. Is parcacigi cokerse Turkce hata doner.
+async fn run_blocking<T, F>(work: F) -> Result<T, String>
+where
+    F: FnOnce() -> T + Send + 'static,
+    T: Send + 'static,
+{
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|_| "arka plan işi tamamlanamadı".to_string())
+}
+
+/// Kurulum hatasini smart-screen.log'a tek satir olarak dusurur; uygulama
+/// yine dusmez. Satir stats.rs'in bekledigi sabit formattadir.
+fn log_setup_error(what: &str, err: &str) {
+    let now = chrono::Utc::now().to_rfc3339();
+    write_disk_log(&format!(
+        "{now} | source=setup/setup | level=warn | tone=- | desired=- | \
+         applied=- | theme=- | note={what}: {err}"
+    ));
 }
 
 #[tauri::command]
-fn brightness_set(value: u8) -> Result<(), String> {
-    set_brightness(value)
+async fn brightness_get() -> Result<u8, String> {
+    run_blocking(get_brightness).await?
 }
 
 #[tauri::command]
-fn is_fullscreen() -> bool {
+async fn brightness_set(value: u8) -> Result<(), String> {
+    run_blocking(move || set_brightness(value)).await?
+}
+
+#[tauri::command]
+async fn is_fullscreen() -> bool {
+    // Win32 pencere sorgusu mikro saniyeler surer; dogrudan calisirilir.
     query_fullscreen()
 }
 
 #[tauri::command]
-fn foreground_exe() -> Option<String> {
+async fn foreground_exe() -> Option<String> {
     query_foreground_exe()
 }
 
 #[tauri::command]
-fn foreground_blocked(list: Vec<String>) -> Option<String> {
+async fn foreground_blocked(list: Vec<String>) -> Option<String> {
     let exe = query_foreground_exe()?;
     let refs: Vec<&str> = list.iter().map(|s| s.as_str()).collect();
     is_blocked(&exe, &refs).then_some(exe)
 }
 
 #[tauri::command]
-fn autostart_get() -> Result<bool, String> {
-    autostart_status()
+async fn autostart_get() -> Result<bool, String> {
+    run_blocking(autostart_status).await?
 }
 
 #[tauri::command]
-fn autostart_set(enabled: bool) -> Result<(), String> {
-    set_autostart(enabled)
+async fn autostart_set(enabled: bool) -> Result<(), String> {
+    run_blocking(move || set_autostart(enabled)).await?
 }
 
 #[tauri::command]
-fn theme_get() -> Result<(String, Option<String>), String> {
-    get_theme()
+async fn theme_get() -> Result<(String, Option<String>), String> {
+    run_blocking(get_theme).await?
 }
 
 #[tauri::command]
-fn theme_set(name: String, mode: Option<String>) -> Result<(), String> {
-    set_theme(&name, mode.as_deref())
+async fn theme_set(name: String, mode: Option<String>) -> Result<(), String> {
+    run_blocking(move || set_theme(&name, mode.as_deref())).await?
 }
 
 #[tauri::command]
-fn decide_target(hour: u8, source: String) -> (String, String, u8) {
+async fn decide_target(hour: u8, source: String) -> (String, String, u8) {
     let (name, mode, bright) = scene_target(Source::from_str(&source), hour % 24);
     (name.to_string(), mode.to_string(), bright)
 }
 
 #[tauri::command]
-fn decide_brightness(current: u8, desired: u8, hour: u8, minute: u8) -> u8 {
+async fn decide_brightness(current: u8, desired: u8, hour: u8, minute: u8) -> u8 {
     next_brightness(current, desired, hour % 24, minute % 60)
 }
 
 #[tauri::command]
-fn brightness_floor(hour: u8, minute: u8) -> u8 {
+async fn brightness_floor(hour: u8, minute: u8) -> u8 {
     decide::min_brightness(hour % 24, minute % 60)
 }
 
 #[tauri::command]
-fn light_sample() -> Result<(f32, f32, String, String), String> {
-    let s = sample_light()?;
-    let (level, tone) = classify(s.luminance, s.warm_ratio);
-    Ok((
-        s.luminance,
-        s.warm_ratio,
-        level.to_string(),
-        tone.to_string(),
-    ))
+async fn light_sample() -> Result<(f32, f32, String, String), String> {
+    run_blocking(move || -> Result<(f32, f32, String, String), String> {
+        let s = sample_light()?;
+        let (level, tone) = classify(s.luminance, s.warm_ratio);
+        Ok((
+            s.luminance,
+            s.warm_ratio,
+            level.to_string(),
+            tone.to_string(),
+        ))
+    })
+    .await?
 }
 
 #[tauri::command]
-fn log_tick(line: String) {
-    write_disk_log(&line);
+async fn log_tick(line: String) {
+    let _ = run_blocking(move || write_disk_log(&line)).await;
 }
 
 #[tauri::command]
-fn log_lines(max: usize) -> Result<Vec<String>, String> {
-    read_disk_log(max)
+async fn log_lines(max: usize) -> Result<Vec<String>, String> {
+    run_blocking(move || read_disk_log(max)).await?
 }
 
 #[tauri::command]
-fn log_clear() -> Result<(), String> {
-    clear_disk_log()
+async fn log_clear() -> Result<(), String> {
+    run_blocking(clear_disk_log).await?
 }
 
 #[tauri::command]
-fn pref_learn(hour: u8, light: String, name: String, mode: String) {
-    remember_pref(hour, &light, &name, &mode);
+async fn pref_learn(hour: u8, light: String, name: String, mode: String) {
+    let _ = run_blocking(move || remember_pref(hour, &light, &name, &mode)).await;
 }
 
 #[tauri::command]
-fn pref_get(hour: u8, light: String) -> Option<(String, String)> {
-    lookup_pref(hour, &light)
+async fn pref_get(hour: u8, light: String) -> Option<(String, String)> {
+    run_blocking(move || lookup_pref(hour, &light))
+        .await
+        .ok()
+        .flatten()
 }
 
 #[tauri::command]
-fn pref_list() -> Vec<(u8, String, String, String)> {
-    list_prefs()
+async fn pref_list() -> Vec<(u8, String, String, String)> {
+    run_blocking(list_prefs).await.unwrap_or_default()
 }
 
 #[tauri::command]
-fn pref_clear() {
-    wipe_prefs();
+async fn pref_clear() {
+    let _ = run_blocking(wipe_prefs).await;
 }
 
 #[tauri::command]
-fn battery_status() -> Result<(u8, bool), String> {
-    query_battery_status()
+async fn battery_status() -> Result<(u8, bool), String> {
+    run_blocking(query_battery_status).await?
 }
 
 #[tauri::command]
-fn stats_summary() -> Result<stats::Summary, String> {
-    stats::summarize_now()
+async fn stats_summary() -> Result<stats::Summary, String> {
+    run_blocking(stats::summarize_now).await?
 }
 
 #[tauri::command]
-fn gamma_set_warmth(percent: u8) -> Result<(), String> {
-    gamma::set_warmth(percent)
+async fn gamma_set_warmth(percent: u8) -> Result<(), String> {
+    run_blocking(move || gamma::set_warmth(percent)).await?
 }
 
 #[tauri::command]
-fn gamma_restore() -> Result<(), String> {
-    gamma::restore_original()
+async fn gamma_restore() -> Result<(), String> {
+    run_blocking(gamma::restore_original).await?
 }
 
 /// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=45).
 #[tauri::command]
-fn warmth_auto(hour: u8, minute: u8, light_level: String) -> Result<u8, String> {
+async fn warmth_auto(hour: u8, minute: u8, light_level: String) -> Result<u8, String> {
     Ok(decide::warmth_auto(hour % 24, minute % 60, &light_level))
 }
 
 #[tauri::command]
-fn pref_learn_bright(hour: u8, light: String, value: u8) {
-    prefs::learn_bright(hour, &light, value);
+async fn pref_learn_bright(hour: u8, light: String, value: u8) {
+    let _ = run_blocking(move || prefs::learn_bright(hour, &light, value)).await;
 }
 
 #[tauri::command]
-fn pref_get_bright(hour: u8, light: String) -> Option<(u8, u32)> {
-    prefs::get_bright(hour, &light)
+async fn pref_get_bright(hour: u8, light: String) -> Option<(u8, u32)> {
+    run_blocking(move || prefs::get_bright(hour, &light))
+        .await
+        .ok()
+        .flatten()
 }
 
 #[tauri::command]
-fn animations_set(enabled: bool) -> Result<(), String> {
-    theme::set_animations(enabled)
+async fn animations_set(enabled: bool) -> Result<(), String> {
+    run_blocking(move || theme::set_animations(enabled)).await?
 }
 
 /// Kurulu tema dosyalarinin WCAG kontrast denetimi.
 #[tauri::command]
-fn contrast_audit() -> Result<Vec<contrast::Report>, String> {
-    contrast::audit_all(&contrast::themes_dir()?)
+async fn contrast_audit() -> Result<Vec<contrast::Report>, String> {
+    run_blocking(move || -> Result<Vec<contrast::Report>, String> {
+        contrast::audit_all(&contrast::themes_dir()?)
+    })
+    .await?
 }
 
 /// Bagli monitorlerin listesi (kimlik, ad, dahili/harici, parlaklik API'si).
 #[tauri::command]
-fn monitor_list() -> Result<Vec<monitor::MonitorInfo>, String> {
-    monitor::list()
+async fn monitor_list() -> Result<Vec<monitor::MonitorInfo>, String> {
+    run_blocking(monitor::list).await?
 }
 
 /// Tek monitorun parlakligini okur (yuzde 0-100). Okuma bilincli olarak
 /// serbesttir: ucretsiz kullanici listeyi ve degerleri gorebilir (teaser),
 /// yalniz yazma kapilidir.
 #[tauri::command]
-fn brightness_get_monitor(id: String) -> Result<u8, String> {
-    monitor::get_brightness(&id)
+async fn brightness_get_monitor(id: String) -> Result<u8, String> {
+    run_blocking(move || monitor::get_brightness(&id)).await?
 }
 
 /// Tek monitorun parlakligini yazar (yuzde 0-100). Harici monitor (DDC)
-/// kontrolu Pro lisans ister; dahili panel her zaman serbesttir.
+/// kontrolu Pro lisans ister; dahili panel her zaman serbesttir. Pro kapisi
+/// tek monitor taramasiyla cozulur; lisans yalniz harici yazmada sorgulanir.
 #[tauri::command]
-fn brightness_set_monitor(id: String, value: u8) -> Result<(), String> {
-    let external = matches!(monitor::is_internal(&id), Ok(false));
-    // Siniflandirma kaybedildiyse (QueryDisplayConfig basarisiz) kapıyı
-    // uygulamayiz: dahili panel yanlislikla engellenmesin. Yazma yolu zaten
-    // tek monitörlü sistemde WMI'ya duser.
-    if external && !monitor::classification_failed() && !license::is_pro() {
-        return Err("harici monitör kontrolü Pro lisans gerektirir".to_string());
-    }
-    monitor::set_brightness(&id, value)
+async fn brightness_set_monitor(id: String, value: u8) -> Result<(), String> {
+    run_blocking(move || monitor::set_brightness_checked(&id, value, license::is_pro)).await?
 }
 
 /// Lisans durumu: Pro acik mi, kimde ve ne zaman verilmis.
 #[tauri::command]
-fn license_status() -> license::LicenseStatus {
-    license::status()
+async fn license_status() -> license::LicenseStatus {
+    run_blocking(license::status)
+        .await
+        .unwrap_or_else(|_| license::no_license())
 }
 
 /// Lisans anahtarini dogrular ve depoya yazar.
 #[tauri::command]
-fn license_activate(key: String) -> Result<license::LicenseStatus, String> {
-    license::activate(&key)
+async fn license_activate(key: String) -> Result<license::LicenseStatus, String> {
+    run_blocking(move || license::activate(&key)).await?
 }
 
 /// Lisans kaydini siler (Pro kapisi kapanir).
 #[tauri::command]
-fn license_deactivate() -> license::LicenseStatus {
-    license::deactivate()
+async fn license_deactivate() -> license::LicenseStatus {
+    run_blocking(license::deactivate)
+        .await
+        .unwrap_or_else(|_| license::no_license())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -252,9 +290,14 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
             // Kendi goz konforu temalarimizi kur (eksikse), sonra onceki
-            // oturumdan kalma sicak tonu temizle (crash sonrasi).
-            let _ = install::install_builtin_themes();
-            gamma::recover();
+            // oturumdan kalma sicak tonu temizle (crash sonrasi). Hatalar
+            // smart-screen.log'a tek satir duser; uygulama yine dusmez.
+            if let Err(e) = install::install_builtin_themes() {
+                log_setup_error("tema kurulumu", &e);
+            }
+            if let Err(e) = gamma::recover() {
+                log_setup_error("gamma kurtarma", &e);
+            }
             use tauri::menu::{Menu, MenuItem};
             use tauri::tray::TrayIconBuilder;
             let open = MenuItem::with_id(app, "open", "Ac", true, None::<&str>)?;

@@ -4,7 +4,24 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
+
+/// Yazma islemlerini (ok-degistir-yaz) kilitleyen kilit: ayni andaki iki
+/// tercih yazisi dosyayi cakistirmasin. Dosya semasi DEGISMEZ.
+static LOCK: Mutex<()> = Mutex::new(());
+
+fn guard() -> MutexGuard<'static, ()> {
+    match LOCK.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+/// Gecici yazma dosyasinin adi: PID ekli ki paralel yazismalar cakismasin.
+fn tmp_path(path: &Path) -> PathBuf {
+    path.with_extension(format!("json.tmp-{}", std::process::id()))
+}
 
 #[derive(Serialize, Deserialize, Clone)]
 struct Pref {
@@ -45,17 +62,20 @@ fn prefs_path() -> Result<PathBuf, String> {
 }
 
 pub fn learn_pref(hour: u8, light: &str, name: &str, mode: &str) {
+    let _guard = guard();
     if let Ok(p) = prefs_path() {
         let _ = learn_at(&p, hour, light, name, mode);
     }
 }
 
 pub fn get_pref(hour: u8, light: &str) -> Option<(String, String)> {
+    let _guard = guard();
     let p = prefs_path().ok()?;
     lookup_at(&p, hour, light)
 }
 
 pub fn list_prefs() -> Vec<(u8, String, String, String)> {
+    let _guard = guard();
     match prefs_path().ok() {
         Some(p) => load(&p)
             .prefs
@@ -67,6 +87,7 @@ pub fn list_prefs() -> Vec<(u8, String, String, String)> {
 }
 
 pub fn clear_prefs() {
+    let _guard = guard();
     if let Ok(p) = prefs_path() {
         let _ = save(&p, &Store::default());
     }
@@ -74,6 +95,7 @@ pub fn clear_prefs() {
 
 /// Kullanicinin el ile kullandigi parlakligi ogrenir; gozlem sayisini artirir.
 pub fn learn_bright(hour: u8, light: &str, value: u8) {
+    let _guard = guard();
     if let Ok(p) = prefs_path() {
         let _ = learn_bright_at(&p, hour, light, value);
     }
@@ -81,6 +103,7 @@ pub fn learn_bright(hour: u8, light: &str, value: u8) {
 
 /// Ogrenilmis ortalama parlaklik + gozlem sayisi (guven gostergesi).
 pub fn get_bright(hour: u8, light: &str) -> Option<(u8, u32)> {
+    let _guard = guard();
     let p = prefs_path().ok()?;
     lookup_bright_at(&p, hour, light)
 }
@@ -120,7 +143,7 @@ fn save(path: &PathBuf, store: &Store) -> Result<(), String> {
         return Err("prefs kok obje degil".to_string());
     }
     let text = serde_json::to_string_pretty(&doc).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("json.tmp");
+    let tmp = tmp_path(path);
     fs::write(&tmp, text + "\n").map_err(|e| format!("prefs temp yazilamadi: {e}"))?;
     fs::rename(&tmp, path).map_err(|e| format!("prefs yeniden adlandirilamadi: {e}"))?;
     Ok(())

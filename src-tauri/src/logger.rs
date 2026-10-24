@@ -4,9 +4,26 @@
 //! desired=.. | applied=.. | theme=.. | note=..`
 
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, MutexGuard};
 
 const MAX_LINES: usize = 500;
+
+/// Yazma islemlerini (ekle + yeniden yaz) kilitleyen kilit: ayni andaki iki
+/// log yazisi satiri kayip etmesin. Log semasi DEGISMEZ.
+static LOCK: Mutex<()> = Mutex::new(());
+
+fn guard() -> MutexGuard<'static, ()> {
+    match LOCK.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+/// Gecici yazma dosyasinin adi: PID ekli ki paralel yazismalar cakismasin.
+fn tmp_path(path: &Path) -> PathBuf {
+    path.with_extension(format!("log.tmp-{}", std::process::id()))
+}
 
 fn log_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
@@ -17,16 +34,19 @@ fn log_path() -> Result<PathBuf, String> {
 }
 
 pub fn log_tick(line: &str) {
+    let _guard = guard();
     if let Ok(path) = log_path() {
         let _ = append_line(&path, line);
     }
 }
 
 pub fn read_lines(max: usize) -> Result<Vec<String>, String> {
+    let _guard = guard();
     read_tail(&log_path()?, max)
 }
 
 pub fn clear_log() -> Result<(), String> {
+    let _guard = guard();
     let path = log_path()?;
     fs::write(&path, "").map_err(|e| format!("log silinemedi: {e}"))?;
     Ok(())
@@ -39,7 +59,7 @@ fn append_line(path: &PathBuf, line: &str) -> Result<(), String> {
         let cut = lines.len() - MAX_LINES;
         lines.drain(..cut);
     }
-    let tmp = path.with_extension("log.tmp");
+    let tmp = tmp_path(path);
     fs::write(&tmp, lines.join("\n") + "\n").map_err(|e| format!("log temp yazilamadi: {e}"))?;
     fs::rename(&tmp, path).map_err(|e| format!("log yeniden adlandirilamadi: {e}"))?;
     Ok(())

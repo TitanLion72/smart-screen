@@ -29,6 +29,13 @@ use windows::Win32::UI::ColorSystem::{GetDeviceGammaRamp, SetDeviceGammaRamp};
 static ORIGINAL: LazyLock<Mutex<HashMap<String, Ramp>>> =
     LazyLock::new(|| Mutex::new(HashMap::new()));
 
+/// Islem kilidi: set_warmth / restore_original / capture / recover basindan
+/// sona bu kilidi tutar. Boylece `capture_original_for`'un "kilidi birak, IO
+/// yap, tekrar al" araligi ile `restore_original` arasindaki yaris olusmaz.
+/// GDI cagrilari hizlidir; kilidi basindan sona tutmak guvenlidir. Ozgun
+/// ORIJINAL veri kilidi ayri kalir (veri korumasi OPS'ten bagimsizdir).
+static OPS: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
 /// Surucunun kabul ettigi identity'den maksimum sapma (Microsoft dokumu).
 const MAX_DEVIATION: i32 = 32768;
 
@@ -152,15 +159,16 @@ pub fn read_ramp(device: &str) -> Result<Ramp, String> {
 /// tek ekran hata diye hepsi geri alinmaz); hicbiri basarisiz olamazsa hata
 /// doner.
 pub fn set_warmth(warmth: u8) -> Result<(), String> {
+    let ops = ops_lock()?;
     if warmth == 0 {
-        return restore_original();
+        return restore_original_with(&ops);
     }
     let ramp = build_ramp(warmth);
     validate(&ramp)?;
     let devices = target_devices();
     let mut errors = Vec::new();
     for device in &devices {
-        if let Err(e) = warm_device(device, &ramp) {
+        if let Err(e) = warm_device(device, &ramp, &ops) {
             errors.push(format!("{device}: {e}"));
         }
     }
@@ -175,8 +183,9 @@ pub fn set_warmth(warmth: u8) -> Result<(), String> {
 }
 
 /// Tek cihaza sicak ton: once orijinali yakala, sonra uygula.
-fn warm_device(device: &str, ramp: &Ramp) -> Result<(), String> {
-    capture_original_for(device)?;
+/// `_ops` kanit parametresi: cagiran islemin tamami OPS kilidi altinda.
+fn warm_device(device: &str, ramp: &Ramp, ops: &MutexGuard<'static, ()>) -> Result<(), String> {
+    capture_original_for(device, ops)?;
     apply_ramp(device, ramp)
 }
 
@@ -185,6 +194,12 @@ fn warm_device(device: &str, ramp: &Ramp) -> Result<(), String> {
 /// dosya silinir. Sakli orijinali olmayan cihaza DOKUNULMAZ: mevcut
 /// (fabrika/ICC/f.lux) kalibrasyonu kimlik rampayla ezmemeliyiz.
 pub fn restore_original() -> Result<(), String> {
+    let ops = ops_lock()?;
+    restore_original_with(&ops)
+}
+
+/// Asil govde: cagiran OPS kilidini basindan sona tutuyor olmali.
+fn restore_original_with(_ops: &MutexGuard<'static, ()>) -> Result<(), String> {
     let stored: HashMap<String, Ramp> = {
         let mut guard = lock()?;
         std::mem::take(&mut *guard)
@@ -238,17 +253,21 @@ pub fn restore_original() -> Result<(), String> {
 
 /// Onceki oturumdan kalma sicak tonu temizler (crash sonrasi). Eski tek dosya
 /// once per-cihaz semasina tasinir/absorbe edilir, sonra diskteki tum
-/// kayitlar geri yuklenir. Hata olsa bile uygulamayi DUSURMEZ.
-pub fn recover() {
+/// kayitlar geri yuklenir. Hata dondurur ama cagiran uygulamayi DUSURMEZ
+/// (lib.rs hatayi smart-screen.log'a yazar).
+pub fn recover() -> Result<(), String> {
+    let ops = ops_lock()?;
     if let Ok(dir) = gamma_dir() {
         let _ = migrate_legacy_in(&dir, &primary_device());
     }
-    let _ = restore_original();
+    restore_original_with(&ops)
 }
 
 /// Cihazin rampasini ilk kez saklar (bellek + disk). Zaten sakliysa dokunmaz
-/// — en eski orijinal (sicak ton oncesi kalibrasyon) korunur.
-fn capture_original_for(device: &str) -> Result<(), String> {
+/// — en eski orijinal (sicak ton oncesi kalibrasyon) korunur. `_ops` kanit
+/// parametresi: cagiran islemin tamami OPS kilidi altinda oldugu icin
+/// asagidaki "kilidi birak, IO yap, tekrar al" araligina baskasi giremez.
+fn capture_original_for(device: &str, _ops: &MutexGuard<'static, ()>) -> Result<(), String> {
     {
         let guard = lock()?;
         if guard.contains_key(device) {
@@ -272,6 +291,12 @@ fn lock() -> Result<MutexGuard<'static, HashMap<String, Ramp>>, String> {
     ORIGINAL
         .lock()
         .map_err(|_| "gamma kilidi bozuk".to_string())
+}
+
+/// Islem kilidini (OPS) alir; kirik kilidin kilidi bozulmus sayilir.
+fn ops_lock() -> Result<MutexGuard<'static, ()>, String> {
+    OPS.lock()
+        .map_err(|_| "gamma işlem kilidi bozuk".to_string())
 }
 
 /// Sicak ton uygulanacak ekranlar: bagli tum cihazlar; liste bos kalirsa
@@ -721,6 +746,31 @@ mod tests {
         migrate_legacy_in(&dir, "\\\\.\\DISPLAY1").unwrap();
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0);
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// OPS kilidi gercekten dislayici mi? Bir is parcacigi kilidi tutarken
+    /// digeri alamamali; serbest birakinca alinabilmeli.
+    #[test]
+    fn ops_lock_is_exclusive_across_threads() {
+        use std::sync::mpsc;
+        let (hold_tx, hold_rx) = mpsc::channel();
+        let (release_tx, release_rx) = mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let _ops = ops_lock().expect("ops kilidi alinmali");
+            hold_tx.send(()).expect("sinyal gonderilemeli");
+            release_rx.recv().expect("serbest sinyali beklenmeli");
+        });
+        hold_rx.recv().expect("kilit sinyali beklenmeli");
+        assert!(
+            matches!(OPS.try_lock(), Err(std::sync::TryLockError::WouldBlock)),
+            "ikinci kilit ayni anda alinamamali"
+        );
+        release_tx.send(()).expect("serbest sinyali gonderilemeli");
+        worker.join().expect("is parcacigi bitmeli");
+        assert!(
+            OPS.try_lock().is_ok(),
+            "serbest birakildiktan sonra alinmali"
+        );
     }
 
     /// Gercek donanim testi: SetDeviceGammaRamp'i gercekten cagirir ve

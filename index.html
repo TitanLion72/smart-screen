@@ -1,4 +1,194 @@
 <!doctype html>
+<!--
+  ══════════════════════════════════════════════════════════════════════════
+  SÖZLEŞME — smart-screen DOM sözleşmesi (arayüz kabuğu v2)
+  ══════════════════════════════════════════════════════════════════════════
+  Bu blok, `src/main.ts`'i yazacak ajanın tek kaynağıdır. Aşağıdaki her id
+  bu dosyada TAM BİR KEZ bulunur; `el(id)` eksik id'de throw eder.
+  Biçim:  #id | tür | amaç | etkileşim / beklenti
+
+  GENEL KURALLAR
+  - Sekme geçişi: `.tab` düğmeleri `data-tab="panel|profiles|settings|history"`
+    taşır (DEĞİŞMEZ — switchTab bu değere göre `#page-<ad>` gösterir/gizler).
+    `switchTab(name)` `.tab` üzerinde `.active` + `aria-selected` tutar.
+  - Durum rozetleri header'da: `#profile-pill`, `#break-pill`, `#mode-badge`.
+  - `setDot(id, cls)` yalnız şunlara çağrılır: `dot-light`, `dot-frozen`
+    (eski sözleşmedeki gibi; `dot-bright`/`dot-theme` de serbest).
+  - Grafik: `#chart` bir SVG'dir, viewBox="0 0 720 180"; drawChart() innerHTML
+    ile `rect`/`polyline`/`text` basar. YERİNE canvas KOYMAYIN (QA `#chart rect`
+    sayar). (Not: brief'te "canvas #hist-canvas" deniyordu ama kod tabanında
+    böyle bir eleman yok — gerçek sözleşme SVG `#chart`.)
+  - JS ile üretilen iç yapıların sınıf sözleşmesi (CSS bunları stilliyor):
+      .log-row > .dot(.ok/.warn/.bad) + düz metin + .log-time      (#log içine)
+      .log-empty                                                  (#log içine)
+      .monitor-row(.active/.bad) > .mon-name + .badge.muted + .badge.info
+        + .mon-val + .mon-err                                     (#monitor-list)
+        (opsiyonel: satır içine .mon-slider gelebilir — CSS hazır)
+      .profile-card(.active) > .pc-strip(--a/--b/--c) + .pc-name + .pc-meta
+                                                            (#profile-cards)
+      .chip(.active)                                              (#profile-switch)
+      .chip.swatched(.active) > .chip-label + .swatch-strip(--a/--b/--c)
+                                                            (#theme-picker, #pf-theme-picker)
+      .seg-item(.active) + aria-pressed                           (tüm .seg host'ları)
+      .switch(.on) > .knob + aria-checked                         (tüm anahtarlar)
+      .tag-row > .tag-pill(> .tag-x) ... .tag-input               (tüm tag-editörler)
+      .audit-row > .audit-name + .audit-mode + .audit-ratio + .badge + .audit-muted
+                                                                  (#audit-list)
+      .swatch (aria-label + aria-pressed + data-accent)           (#accent-picker)
+      #hist-panel içine düz <div> satırları
+  - Anahtarlar role="switch" + aria-checked, segment düğmeleri aria-pressed,
+    slider'lar aria-label taşır. `#hero-status` aria-live="polite"dır.
+  - Yeni eklenen id'ler yorumda "YENİ" diye işaretlidir; main.ts bunları da
+    doldurmalıdır (boş bırakmak kabuğu kırar ama uygulamayı kırmez).
+
+  ─────────────────────────── ÇATI ───────────────────────────
+  #tab-panel       | button.tab | "Bugün" sekmesi (data-tab="panel")     | click → switchTab("panel"); .active + aria-selected
+  #tab-profiles    | button.tab | "Profiller" sekmesi (data-tab="profiles") | click → switchTab("profiles")
+  #tab-settings    | button.tab | "Ritim" sekmesi (data-tab="settings") | click → switchTab("settings") — id/settings adı KORUNUR
+  #tab-history     | button.tab | "Geçmiş" sekmesi (data-tab="history") | click → switchTab("history") → loadHistory()
+  #page-panel      | section    | Bugün paneli (tabpanel)               | hidden ile göster/gizle
+  #page-profiles   | section    | Profiller paneli (tabpanel)           | hidden ile göster/gizle
+  #page-settings   | section    | Ritim paneli (tabpanel)               | hidden ile göster/gizle
+  #page-history    | section    | Geçmiş paneli (tabpanel)              | hidden ile göster/gizle
+  #profile-pill    | span.badge | aktif profil adı ("İş" / "İş → vlc.exe") | text + title
+  #break-pill      | span.badge | 20-20-20 durum rozeti                  | text + className "badge warn|muted|info"
+  #mode-badge      | span.badge | çalışma durumu (İzliyor/Kilitli/Duraklatıldı) | text + className "badge " + (kilit/duraklatma ? warn)
+  #app-ver         | span       | sürüm numarası (rail altı)              | text (örn "1.4.0")
+
+  ─────────────────────────── 1. BUGÜN (#page-panel) ───────────────────────────
+  #risk-band       | div.band.danger | riskli tema uyarı bandı           | hidden (risk varsa göster); QA "panelde görünmemeli"
+  #risk-text       | span       | risk açıklaması                         | text
+  #risk-fix-btn    | button     | "Güvenli temaya dön" / "Dön: <tema>"    | click → güvenli temaya geç
+  #break-band      | div.band.warn | 20-20-20 uyarı bandı                | hidden; uyarıda göster
+  #break-text      | span       | "20 dakika doldu — 20 saniye uzaklara bak." | text
+  #break-done      | button     | "Baktım"                                | click → mola kabul, bandı gizle
+  #break-snooze    | button     | "Ertele 5 dk"                           | click → mola 5 dk ertele, bandı gizle
+
+  #hero-status     | div.hero   | HERO durum kartı (YENİ)                 | aria-live="polite"; çocuklar aşağıda
+  #st-bright       | span       | HERO dev yüzde: uygulanan parlaklık ("%42") | text + title (mevcut/hedef)
+  #dot-bright      | span.dot   | HERO durum noktası                      | className "dot " + cls
+  #sub-bright      | div        | hedef satırı ("hedef: %55 • pil • okuma") | text
+  #hero-target     | span       | YENİ: yalnız hedef yüzde ("%55")        | text
+  #mode-pill       | span.badge | YENİ: kip rozeti (Akıllı/Zaman/Işık/Sabit) | text (MODE_LABEL)
+  #next-change     | span       | YENİ: "sonraki değişim: 21:00"          | text
+  #why-line        | span       | YENİ: "neden" satırı ("ölçüme göre akıyor" / "kilitli — dokunmuyoruz" / "vlc.exe önde — donduruldu") | text
+
+  #dot-light       | span.dot   | ışık durum noktası                      | className "dot " + cls (setDot)
+  #st-light        | span       | ışık seviyesi ("zaman + dim/neutral")   | text + title
+  #sub-light       | div        | ışık alt satırı (saat • kaynak)         | text
+  #dot-theme       | span.dot   | tema durum noktası                      | className "dot " + cls
+  #st-theme        | span       | uygulanan tema adı                      | text + title
+  #sub-theme       | div        | tema alt satırı ("mod: dark • bekliyor (1/2)") | text
+  #dot-frozen      | span.dot   | dondurma noktası                        | className "dot " + cls (setDot)
+  #st-frozen       | span       | durum: İzliyor / Kilit / Duraklatıldı   | text
+  #sub-frozen      | div        | durum alt satırı ("serbest" / "manuel kilit" …) | text
+
+  #monitor-box     | div.panel-box | Monitörler kutusu                    | —
+  #monitor-list    | div        | monitör satırları (JS üretir)           | role="group" aria-live="polite"; satır click → monitör seç
+  #monitor-ctrl    | div        | seçili monitörün elle kontrol satırı    | hidden (seçim yokken/gizlenecekken)
+  #monitor-bright  | input range | seçili monitör parlaklığı (0-100)      | input → % yaz, invoke; Pro/hata durumunda disabled
+  #monitor-bright-val | span.monitor-val | slider değeri ("%42")          | text
+  #monitor-minus   | button     | −10 adım                                | click → azalt
+  #monitor-plus    | button     | +10 adım                                | click → artır
+  #monitor-pro-lock| div        | YENİ: Pro kilidi görünümü (kilit ikonu + "Pro" rozeti) | hidden: harici yazma Pro kapalıyken göster; slider soluk
+
+  #now-btn         | button.btn-primary | "Şimdi ölç"                     | click → tick("manuel")
+  #pause-btn       | button.btn-toggle | "1 saat duraklat"                | click → aç/kapa; .active sınıfı güncellenir
+  #day-off-btn     | button.btn-toggle | "Bugün kapat" (YENİ)             | click → bugünlük otomasyonu kapat
+  #lock-btn        | button.btn-toggle | "Kilit"                          | click → manuel kilit; .active güncellenir
+  #undo-btn        | button.btn-toggle | "Geri al"                        | click → undo(); disabled = undoStack boş
+  #break-countdown | span.hint | 20-20-20 geri sayımı ("mola: 12:30" / "kapalı") | text
+  #last-measure    | span       | son ölçüm saati                         | text
+  #clock           | span.clock | YENİ: canlı saat (dakikada bir)         | text ("21:04")
+
+  #profile-switch  | div.quick-row | hızlı profil çipleri (JS üretir)     | role="group"; çip click → profil seç
+
+  #log             | div.log    | olay akışı (JS üretir, en fazla 100 satır) | role="log"; son ~5 satır görünür (CSS kaydırır)
+  #log-all-link    | button.linklike | "Tümü → Geçmiş" (YENİ)            | click → switchTab("history")
+
+  ─────────────────────────── 2. RİTİM (#page-settings) ───────────────────────────
+  #mode-seg        | div.seg.seg-cards | Kip seçici: 4 büyük kart         | buildSeg(MODE_OPTIONS); .seg-item click → mode kaydet
+                     (kart başına tek cümle: Akıllı "ışığı ölçer, kendisi karar verir" /
+                      Zaman "saate göre" · Işık "ışığa göre" · Sabit "dokunma")
+  #source-seg      | div.seg    | Işık kaynağı (Otomatik/Gün/Sarı/Beyaz/Gece) | buildSeg(SOURCE_OPTIONS)
+
+  #warm-seg        | div.seg    | sıcak ton kipi (Otomatik/Sabit/Kapalı)  | buildSeg(WARM_OPTIONS)
+  #day-strip       | div        | 24 saat gün çizgisi (gradient şerit, YENİ) | dekoratif; aria-hidden
+  #day-now         | div        | şeritte "şimdi" imleci (YENİ)           | style.left = saat yüzdesi
+  #warm-minus      | button     | şiddet −5                               | click → warmPercent azalt (min 0)
+  #warm-val        | span       | şiddet değeri ("35")                     | text
+  #warm-plus       | button     | şiddet +5                               | click → warmPercent artır (tavan warmPercent kuralı)
+  #warm-range      | input range | şiddet kaydırıcısı (YENİ, stepper ile aynı değer) | input → warmPercent = value; warm-val ile senkron
+  #warm-preview-note | div.hint | "Canlı önizleme: …" notu (YENİ)          | text
+  #calib-hint      | div.hint   | kalibrasyon özeti ("kalibrasyon: …")     | text
+
+  #sleep-start     | input number | gece koruması başlangıç saati (0-23)  | change → prefs kaydet
+  #sleep-end       | input number | gece koruması bitiş saati (0-23)      | change → prefs kaydet
+  #sleep-cap       | input number | gece tavanı % (5-60)                  | change → prefs kaydet
+
+  #break-switch    | button.switch | 20-20-20 hatırlatıcı aç/kapa        | bindSwitch; .on + aria-checked
+  #break-next      | div        | sonraki mola geri sayımı (YENİ)         | text ("sonraki mola: 12:30")
+
+  #read-btn        | button.btn-toggle | "Aç / kapat" okuma profili       | click → readingMode; .active + aria-pressed güncellenir
+
+  #block-editor    | div.tag-editor | video/oyun/PDF listesi              | buildTagEditor; "ornek.exe + Enter", .tag-x siler
+  #allow-editor    | div.tag-editor | iş uygulamaları listesi             | buildTagEditor
+  #add-current-btn | button     | "Ön plandakini ekle"                    | click → ön plan exe'sini listeye ekle
+
+  #advanced        | details    | "Gelişmiş" katlı bölüm (YENİ, kapalı gelir) | açık/kapalı; içi aşağıda
+  #auto-switch     | button.switch | otomatik başlatma                    | bindSwitch
+  #anim-switch     | button.switch | animasyonlar (YENİ)                  | bindSwitch → <html data-anim="off|on">
+  #audit-list      | div        | WCAG kontrast sonuçları (JS üretir)     | role değil; .audit-row satırları
+  #audit-refresh   | button     | "Yeniden ölç"                           | click → loadAudit()
+  #gate-switch     | button.switch | "FAIL olanı otomatik seçimde engelle" | bindSwitch; aria-checked QA'da okunur
+  #theme-picker    | div.chips  | güvenli tema çipleri (JS üretir)        | çip click → pickTheme(); .active = appliedKey
+  #accent-picker   | div.accent-picker | vurgu rengi noktaları (JS üretir) | .swatch click → data-accent set; aria-pressed
+  #night-btn       | button     | "Windows gece ışığı"                    | click → Windows ayar sayfası açar
+  #lic-box         | div.panel-box | lisans kartı                        | —
+  #lic-status      | span.lic-status | lisans durumu metni               | text
+  #lic-key         | input      | "SS-… lisans anahtarı"                  | text; Enter veya butonla gönder
+  #lic-activate    | button.btn-primary | "Etkinleştir"                   | click → license_activate(key); boşsa #lic-err
+  #lic-deactivate  | button.btn-danger | "Kaldır"                          | click → license_deactivate; hidden = !licensePro
+  #lic-err         | div.lic-err | lisans hata metni                      | text + hidden
+
+  ─────────────────────────── 3. PROFİLLER (#page-profiles) ───────────────────────────
+  #pf-add          | button.btn-primary | "Yeni"                          | click → yeni profil; disabled = limit dolu (FREE_MAX_PROFILES)
+  #pf-restore      | button.btn-toggle | "Geri getir"                     | click → hazır profilleri geri getir
+  #profile-cards   | div.grid-profiles | profil kartları (JS üretir)      | kart click → profili aç; .active = aktif profil
+  #profile-editor  | div.panel-box | profil editörü                       | —
+  #pf-name         | input      | profil adı                              | input → draft.name
+  #pf-mode         | div.seg    | profil kipi                             | buildSeg(MODE_OPTIONS)
+  #pf-source       | div.seg    | profil kaynak                           | buildSeg(SOURCE_OPTIONS)
+  #pf-theme-picker | div.chips  | profil teması (JS üretir)               | çip click → draft.theme
+  #pf-off-minus    | button     | parlaklık düzeltme −                    | click → draft.offset azalt
+  #pf-off-val      | span       | düzeltme değeri ("+0")                   | text
+  #pf-off-plus     | button     | düzeltme +                              | click → draft.offset artır
+  #pf-apps-editor  | div.tag-editor | bağlı uygulamalar                    | buildTagEditor; Pro kapalıyken giriş kilitli
+  #pf-apps-pro     | div.hint   | "Pro gerekli — uygulama bağlama Pro özelliğidir." | hidden = licensePro
+  #pf-apps-count   | span.hint  | "0 uygulama"                            | text
+  #pf-bind-current | button     | "Ön plandakini bağla"                   | click → ön plan exe'sini ekle; disabled = !licensePro
+  #pf-autolock-label | span    | "Engelli uygulamada otomatik kilit"     | —
+  #pf-autolock     | button.switch | otomatik kilit anahtarı              | bindSwitch
+  #pf-save         | button.btn-primary | "Kaydet"                        | click → saveDraft()
+  #pf-duplicate    | button.btn-toggle | "Çoğalt"                         | click → profili kopyala
+  #pf-delete       | button.btn-danger | "Sil" (iki aşamalı)              | 1. click → onay metnine döner ("Emin misin? Sil"), 2. click → siler
+
+  ─────────────────────────── 4. GEÇMİŞ (#page-history) ───────────────────────────
+  #sum-changes     | span       | bugün tema değişimi sayısı              | text
+  #sum-avg         | span       | ortalama parlaklık ("%43")              | text
+  #sum-frozen      | span       | dondurulan tur sayısı                   | text
+  #chart           | svg        | 12 saatlik grafik (viewBox 0 0 720 180)  | drawChart() innerHTML; rect sayısı QA'da
+  #hist-panel      | div.hist   | disk kayıtları (JS: düz div satırları)  | scroll
+  #hist-refresh    | button     | "Yenile"                                | click → loadHistory()
+  #log-clear-btn   | button.btn-danger | "Kayıtları temizle"               | click → log_clear (onaylı)
+  #lic-mini        | div        | lisans mini satırı (YENİ)               | —
+  #lic-mini-status | span.hint  | lisans özeti ("ücretsiz sürüm" / "Pro") | text (YENİ; #lic-status ile senkron)
+
+  ETKİLEŞİM TÜRLERİ: button=click · input=change/input · div.seg=buildSeg ·
+  button.switch=bindSwitch · div.tag-editor=buildTagEditor · input range=input ·
+  "text"=yalnız JS textContent · "hidden"=JS .hidden toggler.
+  ══════════════════════════════════════════════════════════════════════════
+-->
 <html lang="tr">
   <head>
     <meta charset="UTF-8" />
@@ -9,298 +199,414 @@
   </head>
 
   <body>
-    <main class="app">
-      <header class="app-header">
-        <h1>smart-screen</h1>
-        <span class="eyebrow">ortam ışığı</span>
-        <span class="header-spacer"></span>
-        <span id="profile-pill" class="badge info">İş</span>
-        <span id="break-pill" class="badge muted">20-20-20</span>
-        <span id="mode-badge" class="badge">Hazırlanıyor</span>
-      </header>
+    <div class="app">
+      <!-- ═══ Sol dikey sekme rayı — 4+ bölüm, dar pencerede etiketler yerine
+           ikonlar kalır; üst satırı header'a (durum rozetleri) bırakır. ═══ -->
+      <nav class="rail" role="tablist" aria-orientation="vertical" aria-label="Bölümler">
+        <div class="brand">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span class="brand-text">
+            <span class="brand-name">smart-screen</span>
+            <span class="eyebrow">ortam ışığı</span>
+          </span>
+        </div>
 
-      <nav class="tabs" role="tablist" aria-label="Sekmeler">
-        <button type="button" class="tab active" data-tab="panel" role="tab" id="tab-panel" aria-selected="true" aria-controls="page-panel">Panel</button>
-        <button type="button" class="tab" data-tab="profiles" role="tab" id="tab-profiles" aria-selected="false" aria-controls="page-profiles">Profiller</button>
-        <button type="button" class="tab" data-tab="settings" role="tab" id="tab-settings" aria-selected="false" aria-controls="page-settings">Ayarlar</button>
-        <button type="button" class="tab" data-tab="history" role="tab" id="tab-history" aria-selected="false" aria-controls="page-history">Geçmiş</button>
+        <button type="button" class="tab active" data-tab="panel" id="tab-panel" role="tab" aria-selected="true" aria-controls="page-panel">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="tab-label">Bugün</span>
+        </button>
+        <button type="button" class="tab" data-tab="settings" id="tab-settings" role="tab" aria-selected="false" aria-controls="page-settings">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h2.5M7 11.5h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="4.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="11.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span class="tab-label">Ritim</span>
+        </button>
+        <button type="button" class="tab" data-tab="profiles" id="tab-profiles" role="tab" aria-selected="false" aria-controls="page-profiles">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6 3-6 3-6-3 6-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span class="tab-label">Profiller</span>
+        </button>
+        <button type="button" class="tab" data-tab="history" id="tab-history" role="tab" aria-selected="false" aria-controls="page-history">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="tab-label">Geçmiş</span>
+        </button>
+
+        <div class="rail-foot">
+          <span class="hint">v<span id="app-ver">-</span></span>
+        </div>
       </nav>
 
-      <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel">
-        <div class="cards">
-          <div class="card">
-            <div class="card-label">Parlaklık</div>
-            <div class="card-value"><span class="dot accent" id="dot-bright"></span><span id="st-bright">-</span></div>
-            <div class="card-sub" id="sub-bright">-</div>
-          </div>
-          <div class="card">
-            <div class="card-label">Işık</div>
-            <div class="card-value"><span class="dot" id="dot-light"></span><span id="st-light">-</span></div>
-            <div class="card-sub" id="sub-light">-</div>
-          </div>
-          <div class="card">
-            <div class="card-label">Tema</div>
-            <div class="card-value"><span class="dot accent" id="dot-theme"></span><span id="st-theme">-</span></div>
-            <div class="card-sub" id="sub-theme">-</div>
-          </div>
-          <div class="card">
-            <div class="card-label">Durum</div>
-            <div class="card-value"><span class="dot ok" id="dot-frozen"></span><span id="st-frozen">-</span></div>
-            <div class="card-sub" id="sub-frozen">-</div>
-          </div>
-        </div>
+      <div class="main">
+        <header class="app-header">
+          <span class="eyebrow">ortam ışığı</span>
+          <span class="header-spacer"></span>
+          <span id="profile-pill" class="badge info">İş</span>
+          <span id="break-pill" class="badge muted">20-20-20</span>
+          <span id="mode-badge" class="badge">Hazırlanıyor</span>
+        </header>
 
-        <div class="toolbar">
-          <button id="now-btn" class="btn-primary" type="button">Şimdi Ölç</button>
-          <button id="lock-btn" class="btn-toggle" type="button">Kilit</button>
-          <button id="pause-btn" class="btn-toggle" type="button">Duraklat</button>
-          <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
-          <span class="spacer"></span>
-          <span id="break-countdown" class="hint">-</span>
-          <span class="hint">son ölçüm <span id="last-measure">-</span></span>
-        </div>
+        <!-- ═══════════════ 1. BUGÜN ═══════════════ -->
+        <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel" tabindex="0">
+          <!-- Uyarı bantları: görünürse en tepede durur -->
+          <div id="risk-band" class="band danger" hidden>
+            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5l6 11H2l6-11z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.8" fill="currentColor"/></svg>
+            <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
+            <span class="spacer"></span>
+            <button id="risk-fix-btn" class="btn-toggle" type="button">Güvenli temaya dön</button>
+          </div>
 
-        <div class="quick-row" id="profile-switch" role="group" aria-label="Profil seçimi"></div>
+          <div id="break-band" class="band warn" hidden>
+            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+            <span id="break-text">20 dakika doldu — 20 saniye uzaklara bak.</span>
+            <span class="spacer"></span>
+            <button id="break-done" class="btn-primary" type="button">Baktım</button>
+            <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
+          </div>
 
-        <div class="panel-box" id="monitor-box">
-          <div class="box-title">Monitörler</div>
-          <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
-          <div class="monitor-ctrl" id="monitor-ctrl" hidden>
-            <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
-            <span id="monitor-bright-val" class="monitor-val">%-</span>
-            <div class="stepper">
-              <button id="monitor-minus" class="btn-toggle" type="button">−</button>
-              <button id="monitor-plus" class="btn-toggle" type="button">+</button>
+          <!-- HERO: "şu an" durum kartı -->
+          <div class="hero" id="hero-status" aria-live="polite">
+            <div class="hero-main">
+              <div class="card-label">Şu an parlaklık</div>
+              <div class="hero-value">
+                <span class="dot accent" id="dot-bright"></span>
+                <span id="st-bright">-</span>
+              </div>
+              <div class="card-sub" id="sub-bright">hedef: -</div>
             </div>
-          </div>
-        </div>
-
-        <div id="risk-band" class="band danger" hidden>
-          <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
-          <span class="spacer"></span>
-          <button id="risk-fix-btn" class="btn-toggle" type="button">Güvenli temaya dön</button>
-        </div>
-
-        <div id="break-band" class="band warn" hidden>
-          <span id="break-text">20 dakika doldu — 20 saniye uzaklara bak.</span>
-          <span class="spacer"></span>
-          <button id="break-done" class="btn-primary" type="button">Baktım</button>
-          <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
-        </div>
-
-        <div class="log-wrap">
-          <div id="log" class="log"></div>
-        </div>
-      </section>
-
-      <section class="page" id="page-profiles" hidden role="tabpanel" aria-labelledby="tab-profiles">
-        <div class="grid-profiles" id="profile-cards"></div>
-
-        <div class="panel-box" id="profile-editor">
-          <div class="box-title">Profili düzenle</div>
-          <label class="field">Ad
-            <input id="pf-name" type="text" spellcheck="false" />
-          </label>
-          <div class="field-row">
-            <div class="field">
-              <span class="field-label">Mod</span>
-              <div class="seg" id="pf-mode" role="group"></div>
-            </div>
-            <div class="field">
-              <span class="field-label">Kaynak</span>
-              <div class="seg" id="pf-source" role="group"></div>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <span class="field-label">Tema</span>
-              <div class="chips pf-theme-picker" id="pf-theme-picker" role="group" aria-label="Tema"></div>
-            </div>
-            <div class="field">
-              <span class="field-label">Parlaklık düzeltme</span>
-              <div class="stepper">
-                <button id="pf-off-minus" class="btn-toggle" type="button">−</button>
-                <span id="pf-off-val">+0</span>
-                <button id="pf-off-plus" class="btn-toggle" type="button">+</button>
+            <div class="hero-side">
+              <div class="hero-pills">
+                <span class="badge info" id="mode-pill">Oto</span>
+              </div>
+              <div class="hero-line">
+                <span class="hero-k">hedef</span>
+                <span class="hero-v" id="hero-target">-</span>
+              </div>
+              <div class="hero-line">
+                <span class="hero-k">sonraki değişim</span>
+                <span class="hero-v" id="next-change">-</span>
+              </div>
+              <div class="hero-line">
+                <span class="hero-k">neden</span>
+                <span class="hero-v" id="why-line">ölçüme göre akıyor</span>
               </div>
             </div>
           </div>
-          <label class="field">Bağlı uygulamalar — ön plana gelince bu profil devralır
-            <div class="tag-editor" id="pf-apps-editor"></div>
-          </label>
-          <div class="hint" id="pf-apps-pro" hidden>Pro gerekli — uygulama bağlama Pro özelliğidir.</div>
-          <div class="hint">Video / oyun / PDF öndeyse yine dokunulmaz; kural dondurmadır.</div>
-          <div class="toolbar">
-            <button id="pf-bind-current" class="btn-toggle" type="button">Ön plandakini bağla</button>
-            <span class="spacer"></span>
-            <span class="hint" id="pf-apps-count">0 uygulama</span>
+
+          <!-- Durum şeridi: ışık / tema / dondurma -->
+          <div class="cards">
+            <div class="card">
+              <div class="card-label">Işık</div>
+              <div class="card-value"><span class="dot" id="dot-light"></span><span id="st-light">-</span></div>
+              <div class="card-sub" id="sub-light">-</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Tema</div>
+              <div class="card-value"><span class="dot accent" id="dot-theme"></span><span id="st-theme">-</span></div>
+              <div class="card-sub" id="sub-theme">-</div>
+            </div>
+            <div class="card">
+              <div class="card-label">Durum</div>
+              <div class="card-value"><span class="dot ok" id="dot-frozen"></span><span id="st-frozen">-</span></div>
+              <div class="card-sub" id="sub-frozen">-</div>
+            </div>
           </div>
-          <div class="switch-row">
+
+          <!-- Monitörler: satır = ad + dahili/harici + api + yüzde -->
+          <div class="panel-box" id="monitor-box">
+            <div class="box-title">Monitörler</div>
+            <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
+            <div class="monitor-ctrl" id="monitor-ctrl" hidden>
+              <label class="sr-only" for="monitor-bright">Monitör parlaklığı</label>
+              <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
+              <span id="monitor-bright-val" class="monitor-val">%-</span>
+              <div class="stepper">
+                <button id="monitor-minus" class="btn-toggle" type="button" aria-label="Parlaklığı azalt">−</button>
+                <button id="monitor-plus" class="btn-toggle" type="button" aria-label="Parlaklığı artır">+</button>
+              </div>
+            </div>
+            <div class="pro-lock" id="monitor-pro-lock" hidden>
+              <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span class="badge pro">Pro</span>
+              <span class="hint">Harici monitör (DDC/CI) yazma Pro özelliğidir — kaydırıcı kilitli ve soluk.</span>
+            </div>
+          </div>
+
+          <!-- Hızlı eylem çubuğu -->
+          <div class="quickbar">
+            <button id="now-btn" class="btn-primary" type="button">Şimdi ölç</button>
+            <button id="pause-btn" class="btn-toggle" type="button">1 saat duraklat</button>
+            <button id="day-off-btn" class="btn-toggle" type="button">Bugün kapat</button>
+            <button id="lock-btn" class="btn-toggle" type="button">Kilit</button>
+            <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
+            <span class="spacer"></span>
+            <span class="hint" id="break-countdown">-</span>
+            <span class="hint">son ölçüm <span id="last-measure">-</span></span>
+            <span class="clock" id="clock">--:--</span>
+          </div>
+
+          <div class="quick-row" id="profile-switch" role="group" aria-label="Profil seçimi"></div>
+
+          <!-- Olay akışı: son ~5 satır görünür -->
+          <div class="panel-box">
+            <div class="box-title">Olay akışı</div>
+            <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
+            <div class="toolbar">
+              <span class="hint">en son 5 olay görünür — tam liste Geçmiş'te</span>
+              <span class="spacer"></span>
+              <button id="log-all-link" class="linklike" type="button">Tümü → Geçmiş</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- ═══════════════ 2. RİTİM ═══════════════ -->
+        <section class="page" id="page-settings" hidden role="tabpanel" aria-labelledby="tab-settings" tabindex="0">
+          <div class="panel-box">
+            <div class="box-title">Kip</div>
+            <div class="seg seg-cards" id="mode-seg" role="group" aria-label="Kip"></div>
+            <div class="hint">
+              Akıllı: ışığı ölçer, kendisi karar verir &bull; Işık: ışığa göre &bull;
+              Zaman: saate göre &bull; Sabit: dokunma
+            </div>
             <div class="switch-line">
-              <span id="pf-autolock-label">Engelli uygulamada otomatik kilit</span>
-              <button id="pf-autolock" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+              <span>Işık kaynağı</span>
+              <div class="seg" id="source-seg" role="group" aria-label="Işık kaynağı"></div>
             </div>
           </div>
-          <div class="toolbar">
-            <button id="pf-save" class="btn-primary" type="button">Kaydet</button>
-            <button id="pf-duplicate" class="btn-toggle" type="button">Çoğalt</button>
-            <button id="pf-delete" class="btn-toggle btn-danger" type="button">Sil</button>
-            <span class="spacer"></span>
-            <button id="pf-restore" class="btn-toggle" type="button">Hazır profilleri geri getir</button>
-            <button id="pf-add" class="btn-toggle" type="button">Yeni profil</button>
-          </div>
-        </div>
-      </section>
 
-      <section class="page" id="page-settings" hidden role="tabpanel" aria-labelledby="tab-settings">
-        <div class="panel-box">
-          <div class="box-title">Tema ve güvenlik</div>
-          <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
-          <div class="hint">Dışarıdan riskli tema seçilirse Panel'de uyarı çıkar.</div>
-        </div>
-
-        <div class="panel-box">
-          <div class="box-title">Kontrast denetimi (WCAG)</div>
-          <div class="hint">Metin, ikincil metin ve renk kodu oranları ölçülür: 7+ AAA, 4.5+ AA, 3+ AA-large, altı FAIL.</div>
-          <div id="audit-list" class="audit-list"></div>
-          <div class="toolbar">
-            <button id="audit-refresh" class="btn-toggle" type="button">Yeniden ölç</button>
-            <span class="spacer"></span>
-            <div class="switch-line">
-              <span>FAIL olanı otomatik seçimde engelle</span>
-              <button id="gate-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
-            </div>
-          </div>
-        </div>
-
-        <div class="panel-box">
-          <div class="box-title">Otomasyon</div>
-          <div class="field-row">
-            <div class="field">
-              <span class="field-label">Mod</span>
-              <div class="seg" id="mode-seg" role="group"></div>
-            </div>
-            <div class="field">
-              <span class="field-label">Işık kaynağı</span>
-              <div class="seg" id="source-seg" role="group"></div>
-            </div>
-          </div>
-          <div class="switch-line">
-            <span>Otomatik başlatma</span>
-            <button id="auto-switch" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
-          </div>
-          <div class="switch-line">
-            <span>20-20-20 hatırlatıcı</span>
-            <button id="break-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
-          </div>
-        </div>
-
-        <div class="panel-box">
-          <div class="box-title">Uygulamalar</div>
-          <label class="field">Video / oyun / PDF — dondurur
-            <div class="tag-editor" id="block-editor"></div>
-          </label>
-          <label class="field">İş uygulamaları — tam ekranda dokunulmaz
-            <div class="tag-editor" id="allow-editor"></div>
-          </label>
-          <div class="toolbar">
-            <button id="add-current-btn" class="btn-toggle" type="button">Ön plandakini ekle</button>
-          </div>
-        </div>
-
-        <div class="panel-box">
-          <div class="box-title">Zamanlama ve görünüm</div>
-          <div class="switch-line">
-            <span>Sıcak ton</span>
+          <div class="panel-box">
+            <div class="box-title">Sıcak ton</div>
             <div class="seg" id="warm-seg" role="group" aria-label="Sıcak ton modu"></div>
-          </div>
-          <div class="field-row">
+            <div class="day-strip" id="day-strip" aria-hidden="true">
+              <div class="day-now" id="day-now"></div>
+              <div class="day-ticks">
+                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+              </div>
+            </div>
             <div class="field">
               <span class="field-label">Şiddet (otomatikte tavan)</span>
-              <div class="stepper">
-                <button id="warm-minus" class="btn-toggle" type="button">−</button>
-                <span id="warm-val">35</span>
-                <button id="warm-plus" class="btn-toggle" type="button">+</button>
+              <div class="warm-ctrl">
+                <div class="stepper">
+                  <button id="warm-minus" class="btn-toggle" type="button" aria-label="Sıcak tonu azalt">−</button>
+                  <span id="warm-val">35</span>
+                  <button id="warm-plus" class="btn-toggle" type="button" aria-label="Sıcak tonu artır">+</button>
+                </div>
+                <label class="sr-only" for="warm-range">Sıcak ton şiddeti</label>
+                <input id="warm-range" type="range" min="0" max="60" step="5" value="35" aria-label="Sıcak ton şiddeti" />
               </div>
             </div>
-            <div class="field">
-              <span class="field-label">Okuma profili</span>
-              <div class="stepper">
-                <button id="read-btn" class="btn-toggle" type="button">Aç / kapat</button>
+            <div class="hint" id="warm-preview-note">
+              Canlı önizleme: şiddet değişince ekran anında sıcaklaşır/soğur — kip
+              <strong>yalnız otomatikte</strong> saat + ışığa göre uygulanır.
+            </div>
+            <div class="hint" id="calib-hint">kalibrasyon: henüz gözlem yok</div>
+          </div>
+
+          <div class="panel-box">
+            <div class="box-title">Gece koruması</div>
+            <div class="field-row">
+              <label class="field">Başlangıç saati
+                <input id="sleep-start" type="number" min="0" max="23" />
+              </label>
+              <label class="field">Bitiş saati
+                <input id="sleep-end" type="number" min="0" max="23" />
+              </label>
+              <label class="field">Gece tavanı %
+                <input id="sleep-cap" type="number" min="5" max="60" />
+              </label>
+            </div>
+            <div class="hint">Gece boyunca parlaklık bu tavanın altına inmez; 00:00–01:30 dışında %0 yazılmaz.</div>
+          </div>
+
+          <div class="panel-box">
+            <div class="box-title">20-20-20 mola</div>
+            <div class="switch-line">
+              <span>20-20-20 hatırlatıcı</span>
+              <button id="break-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+            </div>
+            <div class="countdown" id="break-next">sonraki mola: -</div>
+            <div class="hint">Uyarı bir kez çıkar; "Baktım" ya da "Ertele" diyene kadar tekrar etmez.</div>
+          </div>
+
+          <div class="panel-box">
+            <div class="box-title">Okuma profili</div>
+            <div class="switch-line">
+              <span>Sıcak, kısık okuma görünümü</span>
+              <button id="read-btn" class="btn-toggle" type="button" aria-pressed="false">Aç / kapat</button>
+            </div>
+            <div class="hint">Ekranı okuma için yumuşatır; ölçüm ve karar akışı devam eder.</div>
+          </div>
+
+          <div class="panel-box">
+            <div class="box-title">Uygulamalar</div>
+            <label class="field">Video / oyun / PDF — dondurur
+              <div class="tag-editor" id="block-editor"></div>
+            </label>
+            <label class="field">İş uygulamaları — tam ekranda dokunulmaz
+              <div class="tag-editor" id="allow-editor"></div>
+            </label>
+            <div class="toolbar">
+              <button id="add-current-btn" class="btn-toggle" type="button">Ön plandakini ekle</button>
+            </div>
+            <div class="hint">Ön planda bu uygulamalardan biri varken otomasyon dondurulur — kural dondurmadır.</div>
+          </div>
+
+          <details class="panel-box advanced" id="advanced">
+            <summary class="box-title">Gelişmiş</summary>
+            <div class="advanced-body">
+              <div class="switch-line">
+                <span>Otomatik başlatma</span>
+                <button id="auto-switch" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+              </div>
+              <div class="switch-line">
+                <span>Animasyonlar</span>
+                <button id="anim-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+              </div>
+
+              <div class="box-title sub">Kontrast denetimi (WCAG)</div>
+              <div class="hint">Metin, ikincil metin ve renk kodu oranları ölçülür: 7+ AAA, 4.5+ AA, 3+ AA-large, altı FAIL.</div>
+              <div id="audit-list" class="audit-list"></div>
+              <div class="toolbar">
+                <button id="audit-refresh" class="btn-toggle" type="button">Yeniden ölç</button>
+                <span class="spacer"></span>
+                <div class="switch-line">
+                  <span>FAIL olanı otomatik seçimde engelle</span>
+                  <button id="gate-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+                </div>
+              </div>
+
+              <div class="box-title sub">Tema ve güvenlik</div>
+              <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
+              <div class="hint">Dışarıdan riskli tema seçilirse Panel'de uyarı çıkar.</div>
+
+              <div class="field">
+                <span class="field-label">Vurgu rengi</span>
+                <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
+              </div>
+
+              <div class="toolbar">
+                <button id="night-btn" class="btn-toggle" type="button">Windows gece ışığı</button>
+                <span class="spacer"></span>
+                <span class="hint">Windows gece ışığı ayar sayfasını açar</span>
+              </div>
+
+              <div class="panel-box inner" id="lic-box">
+                <div class="box-title">Lisans</div>
+                <div class="lic-row">
+                  <span id="lic-status" class="lic-status">Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama</span>
+                  <span class="spacer"></span>
+                  <button id="lic-deactivate" class="btn-toggle btn-danger" type="button" hidden>Kaldır</button>
+                </div>
+                <div class="lic-row">
+                  <input id="lic-key" type="text" spellcheck="false" placeholder="SS-… lisans anahtarı" aria-label="Lisans anahtarı" />
+                  <button id="lic-activate" class="btn-primary" type="button">Etkinleştir</button>
+                </div>
+                <div class="lic-err" id="lic-err" hidden></div>
               </div>
             </div>
+          </details>
+        </section>
+
+        <!-- ═══════════════ 3. PROFİLLER ═══════════════ -->
+        <section class="page" id="page-profiles" hidden role="tabpanel" aria-labelledby="tab-profiles" tabindex="0">
+          <div class="toolbar">
+            <button id="pf-add" class="btn-primary" type="button">Yeni</button>
+            <button id="pf-restore" class="btn-toggle" type="button">Geri getir</button>
+            <span class="spacer"></span>
+            <span class="hint">kart: ad &bull; özet &bull; tema seridi &bull; aktif vurgu</span>
           </div>
-          <div class="hint" id="calib-hint">kalibrasyon: henüz gözlem yok</div>
-          <div class="field-row">
-            <label class="field">Gece koruması başlangıç
-              <input id="sleep-start" type="number" min="0" max="23" />
+
+          <div class="grid-profiles" id="profile-cards"></div>
+
+          <div class="panel-box" id="profile-editor">
+            <div class="box-title">Profili düzenle</div>
+            <label class="field">Ad
+              <input id="pf-name" type="text" spellcheck="false" />
             </label>
-            <label class="field">Bitiş
-              <input id="sleep-end" type="number" min="0" max="23" />
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Kip</span>
+                <div class="seg" id="pf-mode" role="group" aria-label="Profil kipi"></div>
+              </div>
+              <div class="field">
+                <span class="field-label">Kaynak</span>
+                <div class="seg" id="pf-source" role="group" aria-label="Profil kaynak"></div>
+              </div>
+            </div>
+            <div class="field-row">
+              <div class="field">
+                <span class="field-label">Tema</span>
+                <div class="chips pf-theme-picker" id="pf-theme-picker" role="group" aria-label="Tema"></div>
+              </div>
+              <div class="field">
+                <span class="field-label">Parlaklık düzeltme</span>
+                <div class="stepper">
+                  <button id="pf-off-minus" class="btn-toggle" type="button" aria-label="Düzeltmeyi azalt">−</button>
+                  <span id="pf-off-val">+0</span>
+                  <button id="pf-off-plus" class="btn-toggle" type="button" aria-label="Düzeltmeyi artır">+</button>
+                </div>
+              </div>
+            </div>
+            <label class="field">Bağlı uygulamalar — ön plana gelince bu profil devralır
+              <div class="tag-editor" id="pf-apps-editor"></div>
             </label>
-            <label class="field">Gece tavanı %
-              <input id="sleep-cap" type="number" min="5" max="60" />
-            </label>
-          </div>
-          <div class="field-row">
-            <div class="field">
-              <span class="field-label">Vurgu rengi</span>
-              <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
+            <div class="hint" id="pf-apps-pro" hidden>Pro gerekli — uygulama bağlama Pro özelliğidir.</div>
+            <div class="hint">Video / oyun / PDF öndeyse yine dokunulmaz; kural dondurmadır.</div>
+            <div class="toolbar">
+              <button id="pf-bind-current" class="btn-toggle" type="button">Ön plandakini bağla</button>
+              <span class="spacer"></span>
+              <span class="hint" id="pf-apps-count">0 uygulama</span>
+            </div>
+            <div class="switch-row">
+              <div class="switch-line">
+                <span id="pf-autolock-label">Engelli uygulamada otomatik kilit</span>
+                <button id="pf-autolock" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+              </div>
+            </div>
+            <div class="toolbar">
+              <button id="pf-save" class="btn-primary" type="button">Kaydet</button>
+              <button id="pf-duplicate" class="btn-toggle" type="button">Çoğalt</button>
+              <button id="pf-delete" class="btn-toggle btn-danger" type="button">Sil</button>
+              <span class="spacer"></span>
+              <span class="hint">Sil iki aşamalıdır: önce onay, sonra siler.</span>
             </div>
           </div>
-          <div class="toolbar">
-            <button id="night-btn" class="btn-toggle" type="button">Windows gece ışığı</button>
-            <span class="spacer"></span>
-            <span class="hint">v<span id="app-ver">-</span></span>
-          </div>
-        </div>
+        </section>
 
-        <div class="panel-box" id="lic-box">
-          <div class="box-title">Lisans</div>
-          <div class="lic-row">
-            <span id="lic-status" class="lic-status">Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama</span>
-            <span class="spacer"></span>
-            <button id="lic-deactivate" class="btn-toggle btn-danger" type="button" hidden>Kaldır</button>
+        <!-- ═══════════════ 4. GEÇMİŞ ═══════════════ -->
+        <section class="page" id="page-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
+          <div class="summary-row">
+            <div class="card summary-card">
+              <div class="card-label">Bugün tema değişimi</div>
+              <div class="card-value"><span id="sum-changes">0</span></div>
+            </div>
+            <div class="card summary-card">
+              <div class="card-label">Ortalama parlaklık</div>
+              <div class="card-value"><span id="sum-avg">-</span></div>
+            </div>
+            <div class="card summary-card">
+              <div class="card-label">Dondurulan tur</div>
+              <div class="card-value"><span id="sum-frozen">0</span></div>
+            </div>
           </div>
-          <div class="lic-row">
-            <input id="lic-key" type="text" spellcheck="false" placeholder="SS-… lisans anahtarı" aria-label="Lisans anahtarı" />
-            <button id="lic-activate" class="btn-primary" type="button">Etkinleştir</button>
-          </div>
-          <div class="lic-err" id="lic-err" hidden></div>
-        </div>
-      </section>
 
-      <section class="page" id="page-history" hidden role="tabpanel" aria-labelledby="tab-history">
-        <div class="summary-row">
-          <div class="card summary-card">
-            <div class="card-label">Bugün tema değişimi</div>
-            <div class="card-value"><span id="sum-changes">0</span></div>
+          <div class="panel-box chart-box">
+            <div class="box-title">Son 12 saat</div>
+            <svg id="chart" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-label="Parlaklık grafiği"></svg>
+            <div class="hint">Çubuk: uygulanan ortalama &bull; kesik çizgi: hedef ortalama &bull; soluk çubuk: o saatte kayıt yok</div>
           </div>
-          <div class="card summary-card">
-            <div class="card-label">Ortalama parlaklık</div>
-            <div class="card-value"><span id="sum-avg">-</span></div>
-          </div>
-          <div class="card summary-card">
-            <div class="card-label">Dondurulan tur</div>
-            <div class="card-value"><span id="sum-frozen">0</span></div>
-          </div>
-        </div>
 
-        <div class="panel-box chart-box">
-          <div class="box-title">Son 12 saat</div>
-          <svg id="chart" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-label="Parlaklık grafiği"></svg>
-          <div class="hint">Çubuk: uygulanan ortalama &bull; kesik çizgi: hedef ortalama &bull; soluk çubuk: o saatte kayıt yok</div>
-        </div>
-
-        <div class="panel-box log-history">
-          <div class="box-title">Kayıtlar</div>
-          <div id="hist-panel" class="hist"></div>
-          <div class="toolbar">
-            <button id="hist-refresh" class="btn-toggle" type="button">Yenile</button>
-            <button id="log-clear-btn" class="btn-toggle btn-danger" type="button">Kayıtları temizle</button>
+          <div class="panel-box log-history">
+            <div class="box-title">Kayıtlar</div>
+            <div id="hist-panel" class="hist"></div>
+            <div class="toolbar">
+              <button id="hist-refresh" class="btn-toggle" type="button">Yenile</button>
+              <button id="log-clear-btn" class="btn-toggle btn-danger" type="button">Kayıtları temizle</button>
+            </div>
           </div>
-        </div>
-      </section>
-    </main>
+
+          <div class="lic-mini" id="lic-mini">
+            <span class="hint">Lisans</span>
+            <span class="hint" id="lic-mini-status">ücretsiz sürüm</span>
+          </div>
+        </section>
+      </div>
+    </div>
   </body>
 </html>

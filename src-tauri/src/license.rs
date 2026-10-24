@@ -15,6 +15,7 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::{LazyLock, Mutex, MutexGuard};
 
 use ed25519_dalek::{Signature, VerifyingKey};
 use serde::{Deserialize, Serialize};
@@ -56,34 +57,75 @@ fn store_path() -> Result<PathBuf, String> {
         .join("smart-screen-license.json"))
 }
 
+/// Lisans durumu onbellegi: ilk sorguda dosya + Ed25519 dogrulamasi calisir,
+/// sonraki sorgular bellekten doner. `activate`/`deactivate` onbellegi
+/// tazeler. (Pro kapi sorgusu her yazista dosya + imza dogrulamasin diye.)
+static CACHED: LazyLock<Mutex<Option<LicenseStatus>>> = LazyLock::new(|| Mutex::new(None));
+
 /// Depodaki anahtari okur + yeniden dogrular. Gecersizse pro=false.
+/// Sonuc onbelleklenir: dosyaya yalniz ilk sorguda gidilir.
 pub fn status() -> LicenseStatus {
     match store_path() {
-        Ok(path) => status_with(&path, &PROD_PUBLIC_KEY),
+        Ok(path) => cached(&CACHED, move || status_with(&path, &PROD_PUBLIC_KEY)),
         Err(_) => no_license(),
     }
 }
 
 /// Anahtari dogrular; gecerliyse depoya yazar (atomik temp+rename).
+/// Basarili sonuc onbellege de yazilir.
 pub fn activate(key: &str) -> Result<LicenseStatus, String> {
     let path = store_path()?;
-    activate_with(&path, key, &PROD_PUBLIC_KEY)
+    let st = activate_with(&path, key, &PROD_PUBLIC_KEY)?;
+    Ok(refresh(&CACHED, st))
 }
 
-/// Depoyu siler (yoksa sessiz) ve guncel durumu dondurur.
+/// Depoyu siler (yoksa sessiz) ve guncel durumu dondurur. Onbellek tazelenir.
 pub fn deactivate() -> LicenseStatus {
     match store_path() {
-        Ok(path) => deactivate_with(&path, &PROD_PUBLIC_KEY),
+        Ok(path) => refresh(&CACHED, deactivate_with(&path, &PROD_PUBLIC_KEY)),
         Err(_) => no_license(),
     }
 }
 
-/// Pro kapilari icin ucuz sorgu (dogrulama her cagrida tazelenir).
+/// Pro kapilari icin ucuz sorgu: durum onbellekten gelir.
 pub fn is_pro() -> bool {
     status().pro
 }
 
-fn no_license() -> LicenseStatus {
+/// Onbellekten durum dondurur; bosken `load` ile yukler (tek seferlik maliyet).
+/// Kilidi hicbir yerde `.await` boyunca tutulmaz (senkron yardimci).
+fn cached(
+    cache: &Mutex<Option<LicenseStatus>>,
+    load: impl FnOnce() -> LicenseStatus,
+) -> LicenseStatus {
+    let mut guard = lock_cache(cache);
+    if let Some(st) = guard.as_ref() {
+        return st.clone();
+    }
+    let st = load();
+    *guard = Some(st.clone());
+    st
+}
+
+/// Onbellegi tazeler (activate/deactivate sonrasi) ve yeni durumu dondurur.
+fn refresh(cache: &Mutex<Option<LicenseStatus>>, st: LicenseStatus) -> LicenseStatus {
+    let mut guard = lock_cache(cache);
+    *guard = Some(st.clone());
+    st
+}
+
+/// Onbellek kilidi; kiriksa da calismaya devam eder (panic yok).
+fn lock_cache<'a>(
+    cache: &'a Mutex<Option<LicenseStatus>>,
+) -> MutexGuard<'a, Option<LicenseStatus>> {
+    match cache.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+/// Lisansiz durum: Pro kapali, kimse yok (is parcacigi cokmesi yedegi).
+pub fn no_license() -> LicenseStatus {
     LicenseStatus {
         pro: false,
         email: None,
@@ -175,8 +217,10 @@ fn read_store(path: &Path) -> Option<String> {
     (!store.key.is_empty()).then_some(store.key)
 }
 
-/// Anahtari atomik yazar (temp + rename, prefs.rs ev stili).
+/// Anahtari atomik yazar (temp + rename, prefs.rs ev stili). Temp adina PID
+/// eklenir ki ayni andaki iki yazisma cakismasin; yazma LOCK ile korunur.
 fn write_store(path: &Path, key: &str) -> Result<(), String> {
+    let _guard = write_lock();
     let text = serde_json::to_string_pretty(&Store {
         key: key.to_string(),
     })
@@ -184,10 +228,20 @@ fn write_store(path: &Path, key: &str) -> Result<(), String> {
     if let Some(dir) = path.parent() {
         fs::create_dir_all(dir).map_err(|e| format!("lisans dizini oluşturulamadı: {e}"))?;
     }
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
     fs::write(&tmp, text + "\n").map_err(|e| format!("lisans dosyası yazılamadı: {e}"))?;
     fs::rename(&tmp, path).map_err(|e| format!("lisans dosyası yazılamadı: {e}"))?;
     Ok(())
+}
+
+/// Yazma islemlerini kilitleyen kilit (ok-degistir-yaz donguleri cakismasin).
+static WRITE_LOCK: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
+
+fn write_lock() -> MutexGuard<'static, ()> {
+    match WRITE_LOCK.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
 }
 
 fn status_with(path: &Path, public: &[u8; 32]) -> LicenseStatus {
@@ -430,6 +484,44 @@ mod tests {
             verify_with(&key, &PROD_PUBLIC_KEY).expect("uretici anahtari gecerli olmali");
         assert!(!email.is_empty());
         assert!(!issued.is_empty());
+    }
+
+    #[test]
+    fn cache_loads_once_then_serves_from_memory() {
+        let cache = Mutex::new(None);
+        let loads = std::cell::Cell::new(0);
+        let st = cached(&cache, || {
+            loads.set(loads.get() + 1);
+            LicenseStatus {
+                pro: true,
+                email: Some("a@b.c".to_string()),
+                issued: Some("2026-10-23".to_string()),
+            }
+        });
+        assert!(st.pro);
+        // Dosya silinse bile ikinci sorgu onbellekten gelir.
+        let st2 = cached(&cache, || {
+            loads.set(loads.get() + 1);
+            no_license()
+        });
+        assert!(st2.pro, "ikinci sorgu onbellekten gelmeli");
+        assert_eq!(loads.get(), 1, "load bir kez calismali");
+    }
+
+    #[test]
+    fn cache_refresh_replaces_stale_status() {
+        let cache = Mutex::new(None);
+        assert!(!cached(&cache, no_license).pro);
+        let st = refresh(
+            &cache,
+            LicenseStatus {
+                pro: true,
+                email: Some("a@b.c".to_string()),
+                issued: Some("2026-10-23".to_string()),
+            },
+        );
+        assert!(st.pro, "tazeleme yeni durumu dondurur");
+        assert!(cached(&cache, no_license).pro, "tazelenen deger okunmali");
     }
 
     // --- test yardimcilari ---

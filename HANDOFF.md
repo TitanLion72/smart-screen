@@ -1,5 +1,68 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## V2.0 TURU (2026-10-23) — repo PUBLIC: UI/UX sıfırdan + stabilite
+
+Kullanıcı talimatı: arayüz hiç anlaşılır değil → **yepyeni, yaratıcı UI/UX (sıfırdan)**;
+sistem stabil değil → **sağlamlaştır, kapsamlı yap**; bol araştırma.
+KURAL: yalnız smart-screen reposuna dokunulur.
+
+Dalga haritası:
+- [K1] paralel keşif (3 ajan): (a) kod/stabilite denetimi, (b) rakip UX araştırması
+  (f.lux/Twinkle Tray/Monitorian/Lunar/LightBulb vb.), (c) Tauri v2 güvenlik — repo public
+  (CSP şu an null!, withGlobalTauri, secrets taraması, code signing/SmartScreen).
+- [K2] şef tasarımı: yeni bilgi mimarisi (ekran akışı, kartlar, kopya) + tasarım dili.
+- [K3] uygulama: (a) backend stabilite src-tauri ∥ (b) UI kabuk index.html+styles.css →
+  (c) main.ts bağlama + QA senaryoları yeniden. UI zinciri sıralı (DOM sözleşmesi).
+- [K4] şef doğrulama + reviewer + release v2.0.0.
+
+Kayıtlar: (aşağıya)
+
+### [K1] keşif sonuçları (2026-10-23)
+- **UX araştırması (PASS):** altın kalıplar — (1) "şu an" kartı: mod + hedef/gerçek % + sonraki geçiş saati (Monitorian/Lunar); (2) "neden" satırı (f.lux/ön plan uygulaması); (3) geçici duraklat "1 saat kapat" (f.lux); (4) sağlık ayrı sekme (CareUEyes); (5) monitör-başına satır/slider (Twinkle Tray, linked-slider kafa karışıklığından kaçın); (6) ileri ayarlar ikincil (NN/g progressive disclosure: "Initially, show users only a few of the most important options"); (7) tray sol tık = flyout, en sık ayar (MS UX guide); (8) f.lux ihlalleri: ilk ekranda konum+saat+ışık+renk boğması — biz yapmayacağız.
+- **Tauri güvenlik (FAIL — kamu için hazır değil):** (1) `csp: null` → Tauri önerisi: `default-src 'self' customprotocol: asset:`, `connect-src ipc: http://ipc.localhost`, img-src 'self' asset: blob: data:; (2) `withGlobalTauri: true` gereksiz (main.ts npm import kullanıyor, `window.__TAURI__` yok) → kapat; (3) capabilities fazla geniş: `core:default` (9 modül) + `opener:default` → daralt (yalnız gerekli `core:window:allow-*`, `opener:allow-open-url` + URL allowlist); (4) imzasız installer = SmartScreen uyarısı; EV bile SmartScreen'i bypass etmiyor artık; Azure Artifact Signing $9.99/ay — kararı kullanıcıya bırak (bütçe); (5) updater minisign pubkey public repoda GÜVENLİ, private env'de; (6) CI: `rustsec/audit-check@v2.0.0` + cargo test/build — ekleyeceğiz; (7) webview2 `downloadBootstrapper` varsayılan kalabilir.
+- **Kod/stabilite denetimi (REVISE, 15 bulgu):** CRITICAL: (1) tick yeniden giriş koruması yok (main.ts:526; 9 çağrı noktası, çift yazma/pendingCount bozulması); (2) TÜM komutlar senkron → ana thread'de 5 PowerShell süreci/tur (lib.rs:37-238; pencere donması). MAJOR: ps.rs timeout yok; DDC+lisans her yazışta yeniden enumerasyon/imza; prefs/logger/theme kilitsiz RMW + sabit .tmp; sessiz hata yutma (autoWarmth→0, kamera, lib.rs setup `let _`); tema tıklaması kalibrasyonu kirletiyor (main.ts:286); erken dönüşte pendingCount sıfırlanmıyor; gamma kilit bırak-al yarışı; QA stub'ı backend'i taklit ediyor (gerçek regresyon yeşil geçebilir); main.ts 1777 satır monolit (kesim noktaları belli); monitor.rs tanıtıcı sızıntısı; crash log üzerine yazma; pil hatası sessiz [100,true]. Gizli anahtar repoda YOK.
+- **Lisans:** kullanıcı MIT onayladı → `LICENSE` eklendi, README güncellendi.
+
+
+### [K3] UYGULAMA (2026-10-23/24)
+- **K3a backend (PASS, şef doğruladı):** 36 `async fn` komut (imzalar aynı), uzun işler `spawn_blocking`; `ps.rs` 15 sn timeout (spawn+try_wait+kill, pipe'lar ayrı thread); `monitor.rs` `snapshot()` tek tarama + `set_brightness_checked` (3-4 tarama → 1) + tanıtıcı sızıntısı kapandı; `license.rs` bellek önbelleği; prefs/logger/theme `Mutex` + `.tmp-<pid>`; `gamma.rs` `OPS` kilidi; `main.rs` crash log append + 64 KB rollover; `tauri.conf.json` CSP dolu + `withGlobalTauri:false` + `resizable:true` (min 720x560); capabilities daraltıldı (`opener:allow-open-url` + ms-settings scope).
+- **K3b UI kabuğu (PASS):** `index.html` + `styles.css` sıfırdan — sol dikey ray, 4 bölüm, **119 id** (eski 101 aynı isimle + 18 yeni), başında `<!-- SÖZLEŞME -->` bloğu (tür+amaç+etkileşim). 720x560/800x600/1200x800'de taşma yok.
+- **K3c bağlama + QA (PASS):** `main.ts` 123 satır (boot), `orchestr.ts` 1512 (durum+tick, DOM'suz), `panels.ts` 797 (render); bağımlılık tek yönlü `panels → orchestr ← main`. Stabilite (a-g) `"stabilite:"` yorumlu: tick re-entry, `resetPending`, pickTheme kalibrasyonu kirletmez, autoWarmth hatada son şiddet, tek kamera uyarısı, pil bilinmiyor + muhafazakar, `pauseUntil` zamana bağlı duraklatma. `qa/run.mjs` 11 senaryo baştan; bilinmeyen invoke → **throw** (sessiz null yok), taşma assert'i yatay kırpma + `scrollWidth` ölçer.
+- **K4 reviewer turu (REVISE → düzeltildi):** (1) MAJOR: `#risk-band`/`#risk-text` hiç render edilmiyordu → `renderRisk()` eklendi (FAIL temada bant + "Güvenli temaya dön" erişilebilir); (2) taşma assert'i etkisizdi → gerçek ölçüm; (3) dondurulan tur sayacı şişiyordu (bağlı profil notu `uygulama` önekliydi) → `bağlı profil`; (4) `#warm-range` max 100 ama durum 60'a kelepçeli → max 60; (5) `#day-off-btn` active durumu `pausedNow()` ile; (6) ölü `if (!S.editorDirty)` koşulu; (7) QA gece koruması assert'i `localStorage ss:sleepStart` ile kalıcılık; (8) `pushUndo` soğuk açılışta anlamsız kayıt yazmıyor; (9) etiket sil düğmesine `aria-label`; (10) `renderAudit` imza ile gereksiz yeniden kurulum yok; (11) sözleşmede ±10 adım; (12) CSP `connect-src`'e dev HMR (`localhost:1420`, `ws://localhost:1420`).
+- **K4 doğrulama (şef eliyle):** `npm.cmd run build` temiz · `node qa/run.mjs` **PASS ×2** · `cargo test` **137 + 2** yeşil (6 ignored) · `clippy --all-targets -D warnings` **0** · `fmt --check` temiz.
+- **CI:** `.github/workflows/ci.yml` — rust (fmt/clippy/test), audit (cargo-audit), frontend (npm build).
+- **Lisans:** MIT (`LICENSE`), README "freemium + Pro destekçi" çerçevesi.
+- **Sürüm:** **2.0.0** — bu bir dönüm noktası, *final değil*; geliştirme sürüyor.
+- **Bilinçli ertelenen (v2.1+):** code signing (Azure Artifact Signing $9.99/ay kararı kullanıcıda), auto-updater, tray flyout hızlı panel, monitör-başına DDC sıcaklık (VCP 0x0C), "bütün uygulamaların teması" adaptör işi.
+
+
+
+**Tasarım ilkeleri:** (1) ilk ekranda üç şey: durum, monitörler, hızlı eylem; (2) her
+otomatik kararın görünür "neden"i; (3) canlı önizleme (sıcak ton kaydırıcısı ekranı
+anında değiştirir); (4) jargon temizliği: "mod/kaynak/ton" yerine insan dili; (5) pencere
+serbest boyutlandırılır (min 720x560) + konum hatırlanır (window-state zaten var;
+`resizable: false` kalkacak); (6) CSS değişken sözleşmesi (`--accent` vb.) KORUNUR —
+accent seçici sistemi buna bağlı.
+
+**Bilgi mimarisi (4 sekme):**
+1. **Bugün** — hero durum kartı: büyük yüzde (gerçek + hedef), mod rozeti, "sonraki
+   değişim: 21:00", "neden" satırı (kilit/ön plan uygulama/pil); altında monitör
+   satırları (satır başına ad+rozet+slider+%, Pro kilidi); hızlı eylem çubuğu:
+   [Şimdi ölç] [1 saat duraklat] [Bugün kapat]; son 5 olay akışı.
+2. **Ritim** — otomasyon: kip seçici (Oto/Işığa göre/Saate göre/Sabit) büyük
+   segmented; sıcak ton: gün çizgisi önizlemesi (gradient, 24s) + şiddet kaydırıcısı
+   (canlı); gece koruması (saat aralığı + taban); 20-20-20 mola; okuma profili.
+   Altta "Gelişmiş" detay kartı (eski Ayarlar'ın kalanı: otostart, kontrast kapısı,
+   tema seçici önizlemeli çipler, lisans kartı).
+3. **Profiller** — kart listesi (önek rozetleri, aktif vurgusu), uygulama bağlama
+   (Pro), yeni/çiftle/sil; profil başına özet satırı.
+4. **Geçmiş** — özet kartları (bugün: değişim/ortalama/dondurulan tur), 12 saatlik
+   grafik, kayıt listesi, lisans durumu altta.
+- Tray sol tık = pencere (flyout benzeri hızlı panel ileride; v2 kapsamı değil).
+- `el()` id sözleşmesi yeniden kurulacak; QA senaryoları yeni id'lerle baştan yazılacak.
+
+
+
 ## ORKESTRASYON GÜNÜĞÜ — v1.0 satışa yönelik "Ekran Katmanı" turu (2026-10-18)
 
 **Plan (onaylı):** Windows derin → freemium+Pro → önce ekran katmanı.

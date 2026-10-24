@@ -6,6 +6,18 @@
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
+use std::sync::{Mutex, MutexGuard};
+
+/// cli.json yazmalarini kilitleyen kilit: ok-degistir-yaz dongusu baskasiyla
+/// cakismasin. Dosya semasi DEGISMEZ; yalniz `theme` alanina dokunulur.
+static LOCK: Mutex<()> = Mutex::new(());
+
+fn guard() -> MutexGuard<'static, ()> {
+    match LOCK.lock() {
+        Ok(g) => g,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
 
 fn cli_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE okunamadi: {e}"))?;
@@ -22,6 +34,7 @@ fn read_doc(path: &PathBuf) -> Result<Value, String> {
 
 /// (name, mode) dondurur; mode dosyada yoksa None.
 pub fn get_theme() -> Result<(String, Option<String>), String> {
+    let _guard = guard();
     let path = cli_path()?;
     let doc = read_doc(&path)?;
     let (name, mode) = read_theme(&doc);
@@ -32,6 +45,7 @@ pub fn get_theme() -> Result<(String, Option<String>), String> {
 /// name yazar; mode verildiyse onu da yazar, verilmediyse korur.
 /// OpenCode tema adini ve modunu degistirir; diger anahtarlari korur.
 pub fn set_theme(name: &str, mode: Option<&str>) -> Result<(), String> {
+    let _guard = guard();
     let path = cli_path()?;
     let mut doc = read_doc(&path)?;
     apply_theme(&mut doc, name, mode)?;
@@ -82,6 +96,7 @@ fn apply_flag(doc: &mut Value, key: &str, value: bool) -> Result<(), String> {
 
 /// `animations` alanini ac/kapatir (okuma profili icin); diger anahtarlari korur.
 pub fn set_animations(enabled: bool) -> Result<(), String> {
+    let _guard = guard();
     let path = cli_path()?;
     let mut doc = read_doc(&path)?;
     apply_flag(&mut doc, "animations", enabled)?;
@@ -91,9 +106,10 @@ pub fn set_animations(enabled: bool) -> Result<(), String> {
 }
 
 /// Atomik yazma: once gecici dosyaya, sonra rename. Crash ortasinda
-/// cli.json yarim kalmaz.
+/// cli.json yarim kalmaz. Temp adina PID eklenir ki paralel yazismalar
+/// cakismasin.
 fn atomic_write(path: &PathBuf, text: &str) -> Result<(), String> {
-    let tmp = path.with_extension("json.tmp");
+    let tmp = path.with_extension(format!("json.tmp-{}", std::process::id()));
     fs::write(&tmp, text.to_string() + "\n").map_err(|e| format!("temp yazilamadi: {e}"))?;
     fs::rename(&tmp, path).map_err(|e| format!("cli.json yeniden adlandirilamadi: {e}"))?;
     Ok(())

@@ -39,23 +39,35 @@ pub struct MonitorInfo {
     pub api: String,
 }
 
-/// Enumerasyon sirasinda tasinan ham kayit.
+/// Enumerasyon sirasinda tasinan ham kayit. Dost adi (DDC taniticisi acan
+/// `friendly_name`) burada DEGIL yalnizca `list()` yolunda okunur.
 struct RawMonitor {
     hmon: HMONITOR,
     device: String,
-    name: String,
     is_internal: bool,
 }
 
-/// Bagli monitorlerin listesi.
+/// Tek turdan cikan enumerasyon sonucu: monitorlar + siniflandirma durumu.
+/// Boylece yazma yolu tek taramayla isini bitirir (3-4 tarama degil).
+struct Snapshot {
+    monitors: Vec<RawMonitor>,
+    /// QueryDisplayConfig siniflandirmasi alinabildi mi? (false = bilinmiyor)
+    classified: bool,
+}
+
+/// Bagli monitorlerin listesi (dost adlar dahil; DDC taniticisi acar/kapatir).
 pub fn list() -> Result<Vec<MonitorInfo>, String> {
-    Ok(enumerate()?
+    Ok(snapshot()?
+        .monitors
         .into_iter()
-        .map(|m| MonitorInfo {
-            id: m.device,
-            name: m.name,
-            is_internal: m.is_internal,
-            api: api_name(m.is_internal).to_string(),
+        .map(|m| {
+            let name = friendly_name(m.hmon).unwrap_or_else(|| m.device.clone());
+            MonitorInfo {
+                id: m.device,
+                name,
+                is_internal: m.is_internal,
+                api: api_name(m.is_internal).to_string(),
+            }
         })
         .collect())
 }
@@ -63,31 +75,25 @@ pub fn list() -> Result<Vec<MonitorInfo>, String> {
 /// Bagli monitorlerin GDI cihaz adlari (szDevice, or. "\\.\DISPLAY1").
 /// Enumerasyon basarisizsa bos doner; sirasi EnumDisplayMonitors'in sirasidir.
 pub fn device_ids() -> Vec<String> {
-    enumerate()
-        .map(|ms| ms.into_iter().map(|m| m.device).collect())
+    snapshot()
+        .map(|s| s.monitors.into_iter().map(|m| m.device).collect())
         .unwrap_or_default()
-}
-
-/// Monitor dahili panel mi? (Pro kapisi: harici DDC kontrolu lisanslidir.)
-/// Bulunamayan kimlik hata dondurur; cagri yolu "monitör bulunamadı"ya dusmez,
-/// set_brightness ayni hatayi uretir.
-pub fn is_internal(id: &str) -> Result<bool, String> {
-    find_monitor(id).map(|m| m.is_internal)
 }
 
 /// Tek monitorun parlakligini okur (yuzde 0-100).
 pub fn get_brightness(id: &str) -> Result<u8, String> {
-    let m = find_monitor(id)?;
+    let snap = snapshot()?;
+    let m = find_monitor(&snap, id)?;
     if m.is_internal {
         return crate::brightness::get_brightness();
     }
-    match ddc_get_brightness(&m) {
+    match ddc_get_brightness(m) {
         Ok(v) => Ok(v),
         Err(e) => {
             // Siniflandirma kaybolmus olabilir (QueryDisplayConfig basarisiz):
             // tek monitorlu kurulumda WMI yolu son sans. Cok monitorluyse
             // sessizce baska yola dusmeyiz.
-            if single_monitor() {
+            if snap.monitors.len() == 1 {
                 crate::brightness::get_brightness().map_err(|_| e)
             } else {
                 Err(e)
@@ -96,16 +102,38 @@ pub fn get_brightness(id: &str) -> Result<u8, String> {
     }
 }
 
-/// Tek monitorun parlakligini yazar (yuzde 0-100).
-pub fn set_brightness(id: &str, value: u8) -> Result<(), String> {
-    let m = find_monitor(id)?;
+/// Tek monitorun parlakligini yazar (yuzde 0-100). Harici monitor (DDC)
+/// kontrolu Pro lisans ister; dahili panel her zaman serbesttir.
+///
+/// Tek tarama (snapshot) ile hem Pro kapisi hem yazma cozulur; `is_pro`
+/// yalniz gercekten harici yazma gerekiyorsa cagrilir (lisans maliyeti
+/// bosuna odenmez).
+pub fn set_brightness_checked(
+    id: &str,
+    value: u8,
+    is_pro: impl FnOnce() -> bool,
+) -> Result<(), String> {
+    let snap = snapshot()?;
+    let m = find_monitor(&snap, id)?;
+    // Siniflandirma kaybedildiyse (QueryDisplayConfig basarisiz) kapıyı
+    // uygulamayiz: dahili panel yanlislikla engellenmesin. Yazma yolu zaten
+    // tek monitörlü sistemde WMI'ya duser.
+    if !m.is_internal && snap.classified && !is_pro() {
+        return Err("harici monitör kontrolü Pro lisans gerektirir".to_string());
+    }
+    write_value(m, value, snap.monitors.len() == 1)
+}
+
+/// Dahili panel WMI'ya, harici monitor DDC'ye yazar; DDC hatasinda tek
+/// monitörlü kurulumda son sans olarak WMI'ya duser.
+fn write_value(m: &RawMonitor, value: u8, single: bool) -> Result<(), String> {
     if m.is_internal {
         return crate::brightness::set_brightness(value);
     }
-    match ddc_set_brightness(&m, value) {
+    match ddc_set_brightness(m, value) {
         Ok(()) => Ok(()),
         Err(e) => {
-            if single_monitor() {
+            if single {
                 crate::brightness::set_brightness(value).map_err(|_| e)
             } else {
                 Err(e)
@@ -122,16 +150,18 @@ fn api_name(is_internal: bool) -> &'static str {
     }
 }
 
-fn find_monitor(id: &str) -> Result<RawMonitor, String> {
-    enumerate()?
-        .into_iter()
+fn find_monitor<'a>(snap: &'a Snapshot, id: &str) -> Result<&'a RawMonitor, String> {
+    snap.monitors
+        .iter()
         .find(|m| m.device == id)
         .ok_or_else(|| format!("monitör bulunamadı: {id}"))
 }
 
-fn enumerate() -> Result<Vec<RawMonitor>, String> {
+/// Tek EnumDisplayMonitors + QueryDisplayConfig turu: monitorlar ve
+/// siniflandirma durumu birlikte cikar (yazma yolu tekrar tekrar taramaz).
+fn snapshot() -> Result<Snapshot, String> {
     let internals = internal_sources();
-    let mut out = Vec::new();
+    let mut monitors = Vec::new();
     for hmon in monitor_handles()? {
         // Tek bir monitorun adi okunamazsa tum listeyi dusurmeyelim.
         let Ok(device) = device_name(hmon) else {
@@ -141,27 +171,16 @@ fn enumerate() -> Result<Vec<RawMonitor>, String> {
             .as_ref()
             .and_then(|m| m.get(&device).copied())
             .unwrap_or(false);
-        let name = friendly_name(hmon).unwrap_or_else(|| device.clone());
-        out.push(RawMonitor {
+        monitors.push(RawMonitor {
             hmon,
             device,
-            name,
             is_internal,
         });
     }
-    Ok(out)
-}
-
-/// Dahili/harici siniflandirmasi kullanilabilir mi? QueryDisplayConfig
-/// basarisizsa true: Pro kapisinin dahili paneli yanlis engellemesini onler.
-pub fn classification_failed() -> bool {
-    internal_sources().is_none()
-}
-
-/// Tek monitorlu kurulum mu? QueryDisplayConfig siniflandirmayi kaybettiginde
-/// (tek ekranli laptop/masaustu) WMI'ya bir kez dusmek icin kullanilir.
-fn single_monitor() -> bool {
-    enumerate().map(|v| v.len() == 1).unwrap_or(false)
+    Ok(Snapshot {
+        monitors,
+        classified: internals.is_some(),
+    })
 }
 
 /// EnumDisplayMonitors ile HMONITOR listesini toplar.
@@ -298,8 +317,20 @@ fn physical_monitors(hmon: HMONITOR) -> Result<Vec<PHYSICAL_MONITOR>, String> {
     let mut buf = vec![PHYSICAL_MONITOR::default(); count as usize];
     // Guvenli: dilim uzunlugu GetNumberOfPhysicalMonitorsFromHMONITOR'in
     // bildirdigi sayiya esit (API sozlesmesi).
-    unsafe { GetPhysicalMonitorsFromHMONITOR(hmon, &mut buf) }
-        .map_err(|e| format!("fiziksel monitör açılamadı: {e}"))?;
+    let call = unsafe { GetPhysicalMonitorsFromHMONITOR(hmon, &mut buf) };
+    // Kismin basarisizlikta API yine de bazi taniticilari yazabilir; bunlar
+    // yok edilmezse sizar. Supheli durumda yazilanlari temizle, sonra hata don.
+    let missing = buf.iter().any(|m| {
+        let h = m.hPhysicalMonitor;
+        h.0.is_null()
+    });
+    if call.is_err() || missing {
+        destroy_monitors(&buf);
+        return Err(match call {
+            Err(e) => format!("fiziksel monitör açılamadı: {e}"),
+            Ok(()) => "fiziksel monitör tanıtıcısı eksik döndü".to_string(),
+        });
+    }
     Ok(buf)
 }
 
