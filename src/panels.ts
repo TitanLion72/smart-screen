@@ -12,7 +12,8 @@
 
 import { ACCENTS, MODE_LABEL, MODE_OPTIONS, SOURCE_OPTIONS, THEMES } from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
-import { FREE_MAX_PROFILES, MAX_PROFILES } from "./store";
+import { FREE_MAX_PROFILES, MAX_PROFILES, getSetting, setSetting } from "./store";
+import { toast } from "./toast";
 import { bindSwitch, buildSeg, buildTagEditor } from "./widgets";
 import type { SwitchHandle, TagHandle } from "./widgets";
 import {
@@ -21,6 +22,7 @@ import {
   ackBreak,
   activateLicense,
   addProfile,
+  applyKelvin,
   applyMonitorBrightness,
   applyProfile,
   applyWarmth,
@@ -179,6 +181,8 @@ function syncThemeChips(): void {
 
 function setAccent(id: string): void {
   document.documentElement.dataset.accent = id;
+  // duzeltme v2.2 (madde 1): seçim kalıcı — açılışta geri okunur.
+  setSetting("accent", id);
   el("accent-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
     b.setAttribute("aria-pressed", b.dataset.accent === id ? "true" : "false");
   });
@@ -198,6 +202,9 @@ function renderAccents(): void {
     b.addEventListener("click", () => setAccent(a.id));
     host.append(b);
   }
+  // duzeltme v2.2 (madde 1): kayıtlı vurgu rengi açılışta uygulanır.
+  const saved = getSetting("accent", "");
+  if (ACCENTS.some((a) => a.id === saved)) setAccent(saved);
 }
 
 // ---------- kontrast denetimi ----------
@@ -205,6 +212,15 @@ function renderAccents(): void {
 function badgeClass(verdict: string): string {
   return verdict === "FAIL" ? "bad" : verdict === "AAA" || verdict === "AA" ? "ok" : "warn";
 }
+
+/** duzeltme v2.2 (B): WCAG rozetleri insan dilinde — AAA/FAIL görünmez. */
+const VERDICT_LABEL: Record<string, string> = {
+  AAA: "çok iyi",
+  AA: "iyi",
+  "AA-large": "sınır",
+  FAIL: "okunaksız",
+  UNKNOWN: "bilinmiyor",
+};
 
 let auditSignature = "";
 
@@ -237,7 +253,7 @@ export function renderAudit(): void {
     ratio.title = `metin/zemin ${r.text_on_bg}:1 • ikincil metin ${r.muted_on_bg}:1 • renk kodu ${r.syntax_min}:1`;
     const verdict = document.createElement("span");
     verdict.className = "badge " + badgeClass(r.verdict);
-    verdict.textContent = r.verdict;
+    verdict.textContent = VERDICT_LABEL[r.verdict] ?? r.verdict;
     const colors = document.createElement("span");
     colors.className = "audit-muted";
     colors.textContent = `renk ${r.syntax_min ?? 0}`;
@@ -258,22 +274,22 @@ interface MonitorEls {
 const monEls = new Map<string, MonitorEls>();
 let monSig = "";
 
-/** Monitör satırındaki sıcak ton rozeti: donanımsal / yazılımsal / HDR. */
+/** Monitör satırındaki sıcaklık rozeti: monitörün kendi ayarı / programla / HDR. */
 function paintCtBadge(ct: HTMLElement, m: (typeof S.monitors)[number]): void {
   if (m.hdr) {
-    ct.textContent = "HDR";
+    ct.textContent = "HDR açık";
     ct.className = "ct-badge hdr";
-    ct.title = "HDR açık — sıcak ton bu monitörde kapalı";
+    ct.title = "HDR açıkken ekran sarılaştırılamıyor";
     return;
   }
   if (m.ctSupported === true) {
-    ct.textContent = "donanımsal";
+    ct.textContent = "monitörün kendi ayarı";
     ct.className = "ct-badge";
-    ct.title = "Sıcaklık bu monitörde donanımdan (MCCS) ayarlanıyor";
+    ct.title = "Renk sıcaklığı bu ekranda monitörün kendi ayarıyla değişir";
   } else {
-    ct.textContent = "yazılımsal";
+    ct.textContent = "programla yapılıyor";
     ct.className = "ct-badge";
-    ct.title = "Sıcak ton gamma rampasıyla yazılımlanıyor";
+    ct.title = "Renk sıcaklığı programla ayarlanır";
   }
 }
 
@@ -301,7 +317,8 @@ function rebuildMonitorRows(): void {
     kind.textContent = m.info.is_internal ? "dahili" : "harici";
     const api = document.createElement("span");
     api.className = "badge info";
-    api.textContent = m.info.api;
+    // duzeltme v2.2 (B): wmi/ddc yerine insan dilinde etiket.
+    api.textContent = m.info.api === "wmi" ? "dahili panel" : "harici";
     const ct = document.createElement("span");
     ct.className = "ct-badge";
     const val = document.createElement("span");
@@ -354,18 +371,29 @@ function renderMonitors(): void {
   }
 }
 
-// ---------- profil kartları / hızlı çipler ----------
+// ---------- profil kartları ----------
 
 let pfCardsSig = "";
-let pfSwitchSig = "";
 
 function renderProfileCards(): void {
   const host = el("profile-cards");
   host.replaceChildren();
   for (const p of S.profiles) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "profile-card" + (p.id === S.activeId ? " active" : "");
+    // duzeltme v2.2 (madde 7): kart tıklaması YALNIZ düzenlemeye seçer;
+    // uygulamak için kart üzerinde ayrı "Uygula" düğmesi var — yanlışlıkla
+    // uygulama bitti.
+    const card = document.createElement("div");
+    card.className = "profile-card" + (p.id === S.activeId ? " active" : "");
+    card.setAttribute("role", "button");
+    card.tabIndex = 0;
+    card.addEventListener("click", () => selectForEdit(p.id));
+    card.addEventListener("keydown", (e) => {
+      const key = (e as KeyboardEvent).key;
+      if (key === "Enter" || key === " ") {
+        e.preventDefault();
+        selectForEdit(p.id);
+      }
+    });
     const name = document.createElement("div");
     name.className = "pc-name";
     name.textContent = p.name;
@@ -386,29 +414,20 @@ function renderProfileCards(): void {
       strip.style.setProperty("--b", t.swatch.text);
       strip.style.setProperty("--c", t.swatch.accent);
       strip.title = `${p.theme} — ${p.themeMode}`;
-      b.append(strip);
+      card.append(strip);
     }
-    b.append(name, meta, meta2);
-    b.addEventListener("click", () => {
-      selectForEdit(p.id);
-      // Kart tıklaması profili uygular (eski davranış); selectForEdit
-      // editorDirty'yi sıfırladığı için koşulsuz uygula.
+    card.append(name, meta, meta2);
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "chip pc-apply";
+    apply.textContent = "Uygula";
+    apply.title = `${p.name} profilini uygula`;
+    apply.addEventListener("click", (e) => {
+      e.stopPropagation();
       applyProfile(p);
     });
-    host.append(b);
-  }
-}
-
-function renderProfileSwitch(): void {
-  const host = el("profile-switch");
-  host.replaceChildren();
-  for (const p of S.profiles) {
-    const b = document.createElement("button");
-    b.type = "button";
-    b.className = "chip" + (p.id === S.activeId ? " active" : "");
-    b.textContent = p.name;
-    b.addEventListener("click", () => applyProfile(p));
-    host.append(b);
+    card.append(apply);
+    host.append(card);
   }
 }
 
@@ -417,11 +436,6 @@ function renderProfiles(): void {
   if (sig !== pfCardsSig) {
     pfCardsSig = sig;
     renderProfileCards();
-  }
-  const switchSig = `${S.profiles.map((p) => p.id).join("|")}@${S.activeId}`;
-  if (switchSig !== pfSwitchSig) {
-    pfSwitchSig = switchSig;
-    renderProfileSwitch();
   }
 }
 
@@ -446,8 +460,12 @@ export function paintEditor(): void {
   });
   if (pfAutolock) pfAutolock.set(S.draft.autoLock);
   tagApps = buildTagEditor(el("pf-apps-editor"), S.draft.apps ?? [], (items) => {
+    const prevCount = (S.draft.apps ?? []).length;
     updateDraft({ apps: items });
     el("pf-apps-count").textContent = `${items.length} uygulama`;
+    // duzeltme v2.2 (D): uygulama bağlama/kaldırma toast ile görünür.
+    if (items.length < prevCount) toast.info("Uygulama bağlantısı kaldırıldı");
+    else if (items.length > prevCount) toast.ok("Uygulama profili bağlandı");
   });
   el("pf-apps-count").textContent = `${(S.draft.apps ?? []).length} uygulama`;
   btnEl("pf-delete").disabled = S.profiles.length <= 1;
@@ -469,13 +487,30 @@ function buildPfThemePicker(): void {
   }
 }
 
+/** duzeltme v2.2 (madde 5): sınır dolunca küçük yan metin düğmenin yanında. */
+let pfAddHintEl: HTMLElement | null = null;
+
+function pfAddHint(): HTMLElement {
+  if (!pfAddHintEl || !pfAddHintEl.isConnected) {
+    pfAddHintEl = document.createElement("span");
+    pfAddHintEl.className = "hint";
+    pfAddHintEl.textContent = "Ücretsiz sürümde 3 profil — Pro ile 6";
+    el("pf-add").after(pfAddHintEl);
+  }
+  return pfAddHintEl;
+}
+
 /**
  * Pro kapıları: ücretsizde en fazla `FREE_MAX_PROFILES` profil ve uygulama
  * bağlama kapalı. Mevcut kayıtlara dokunulmaz; yalnız yeni ekleme engellenir.
  */
 export function applyProGates(): void {
   const limit = S.licensePro ? MAX_PROFILES : FREE_MAX_PROFILES;
-  btnEl("pf-add").disabled = S.profiles.length >= limit;
+  const add = btnEl("pf-add");
+  const full = S.profiles.length >= limit;
+  add.disabled = full;
+  add.title = full ? "Ücretsiz sürümde 3 profil — Pro ile 6" : "";
+  pfAddHint().hidden = !(full && !S.licensePro);
   const input = el("pf-apps-editor").querySelector<HTMLInputElement>(".tag-input");
   if (input) {
     input.disabled = !S.licensePro;
@@ -488,22 +523,16 @@ export function applyProGates(): void {
 // ---------- Hero + kartlar ----------
 
 function whyText(): string {
-  if (S.locked) return "kilitli — dokunmuyoruz";
+  if (S.locked) return "kilitli — ayar yapılmıyor";
   if (pausedNow()) return `duraklatıldı — ${pauseRemainingText()} kaldı`;
   if (S.freezeReason) {
     return S.freezeReason.startsWith("uygulama: ")
-      ? `${S.freezeReason.slice("uygulama: ".length)} önde — donduruldu`
-      : `${S.freezeReason} — donduruldu`;
+      ? `${S.freezeReason.slice("uygulama: ".length)} önde — ayar yapılmıyor`
+      : `${S.freezeReason} — ayar yapılmıyor`;
   }
   if (S.boundName && S.boundExe) return `${S.boundExe} önde — ${S.boundName} devraldı`;
-  if (S.hdrOn && S.warmMode === "off") return "HDR açık — sıcak ton kapalı";
-  return "ölçüme göre akıyor";
-}
-
-function nextChangeText(): string {
-  if (S.warmMode !== "auto") return "ölçüme göre";
-  const at = nextWarmthChange();
-  return at ? `sonraki değişim: ${hhmm(at)}` : "ölçüme göre";
+  if (S.hdrOn && S.warmMode === "off") return "HDR açıkken ekran sarılaştırılamıyor";
+  return "otomatik çalışıyor";
 }
 
 function effMode(): Mode {
@@ -513,15 +542,25 @@ function effMode(): Mode {
 
 function renderHero(): void {
   const bright = `%${S.lastAppliedBright}`;
+  const target = S.targetPct !== null ? `%${S.targetPct}` : "-";
   el("st-bright").textContent = bright;
-  el("st-bright").title = `mevcut: ${bright}, hedef düzeltmesi dahil`;
+  el("st-bright").title = `şu an ${bright} • ulaşmak istenen ${target}`;
+  // GERİYE UYUM: #sub-bright DOM'da hidden gelir; bilgi #hero-sub'ta birleşti.
   el("sub-bright").textContent =
-    `hedef: ${S.targetPct !== null ? `%${S.targetPct}` : "-"}` +
-    (S.lowPower ? " • pil" : "") +
-    (S.readingMode ? " • okuma" : "");
-  el("hero-target").textContent = S.targetPct !== null ? `%${S.targetPct}` : "-";
+    `Ulaşılmak istenen ${target}` +
+    (S.lowPower ? " • pil modu" : "") +
+    (S.readingMode ? " • okuma profili" : "");
+  // duzeltme v2.2: #hero-target ve #next-change SİLİNDİ — hedef + sonraki
+  // değişim saati tek satırda #hero-sub'a birleşir.
+  const parts: string[] = [`Ulaşılmak istenen ${target}`];
+  if (S.warmMode === "auto") {
+    const at = nextWarmthChange();
+    if (at) parts.push(`${hhmm(at)}'da değişecek`);
+  }
+  if (S.lowPower) parts.push("pil modu");
+  if (S.readingMode) parts.push("okuma profili");
+  el("hero-sub").textContent = parts.join(" · ");
   el("mode-pill").textContent = MODE_LABEL[effMode()];
-  el("next-change").textContent = nextChangeText();
   el("why-line").textContent = whyText();
   setDot("dot-bright", S.freezeReason || S.locked || pausedNow() ? "warn" : "accent");
 }
@@ -536,24 +575,27 @@ function renderCards(): void {
   el("st-theme").textContent = themeName;
   el("st-theme").title = `${themeName} (${themeMode ?? "-"})`;
   el("sub-theme").textContent =
-    `mod: ${themeMode ?? "-"}` + (S.pendingKey ? ` • bekliyor (${S.pendingCount}/2)` : "");
+    `biçim: ${themeMode ?? "-"}` +
+    (S.pendingKey ? " • değişecek (ikinci ölçüm bekleniyor)" : "");
   setDot("dot-theme", S.risk ? "bad" : S.pendingKey ? "warn" : "accent");
 
   const frozen = S.freezeReason;
   el("st-frozen").textContent = frozen
-    ? frozen
+    ? "Ayar yapılmıyor"
     : S.locked
-      ? "Kilit"
+      ? "Kilitli"
       : pausedNow()
         ? "Duraklatıldı"
-        : "İzliyor";
+        : "Otomatik çalışıyor";
   el("sub-frozen").textContent = frozen
-    ? "donduruldu"
+    ? frozen.startsWith("uygulama: ")
+      ? `${frozen.slice("uygulama: ".length)} önde`
+      : frozen
     : S.locked
-      ? "manuel kilit"
+      ? "otomatik ayar kilitlendi"
       : pausedNow()
         ? `duraklatıldı • ${pauseRemainingText()} kaldı`
-        : "serbest";
+        : "ölçümlere göre akıyor";
   setDot("dot-frozen", frozen || S.locked || pausedNow() ? "warn" : "ok");
 }
 
@@ -568,7 +610,7 @@ function renderHeader(): void {
   const parts: string[] = [];
   if (S.locked) parts.push("Kilitli");
   else if (pausedNow()) parts.push("Duraklatıldı");
-  if (parts.length === 0) parts.push("İzliyor");
+  if (parts.length === 0) parts.push("Otomatik çalışıyor");
   badge.textContent = parts.join(" • ");
   badge.className = "badge " + (S.locked || pausedNow() ? "warn" : "");
   const prof = S.profiles.find((p) => p.id === S.activeId) ?? null;
@@ -586,13 +628,19 @@ function renderHeader(): void {
 
 function renderBreak(): void {
   el("break-band").hidden = !S.breakVisible;
+  // duzeltme v2.2 (madde 4): mola bandının metni duruma göre güncellenir
+  // (eskiden hiç yazılmıyordu, statik HTML kalıyordu).
+  el("break-text").textContent =
+    S.breakState === "alerting"
+      ? "20 dakika doldu — 20 saniye uzaklara bak."
+      : "Mola zamanı geldi.";
   const leftMin = Math.max(0, Math.ceil((S.breakDueAt - Date.now()) / 60000));
   const leftSec = Math.max(0, Math.ceil((S.breakDueAt - Date.now()) / 1000));
   el("break-countdown").textContent = !S.breakEnabled
-    ? "20-20-20 kapalı"
+    ? "mola hatırlatıcısı kapalı"
     : S.breakState === "alerting"
-      ? "20-20-20: bakış molası"
-      : `20-20-20: ${leftMin} dk`;
+      ? "Mola zamanı"
+      : `mola: ${leftMin} dk`;
   el("break-pill").textContent = !S.breakEnabled
     ? "kapalı"
     : S.breakState === "alerting"
@@ -602,14 +650,28 @@ function renderBreak(): void {
   el("break-next").textContent = !S.breakEnabled
     ? "sonraki mola: kapalı"
     : S.breakState === "alerting"
-      ? "sonraki mola: bakış molası"
+      ? "mola zamanı şimdi"
       : `sonraki mola: ${pad2(Math.floor(leftSec / 60))}:${pad2(leftSec % 60)}`;
 }
 
 function renderQuickbar(): void {
-  btnEl("pause-btn").classList.toggle("active", pausedNow());
-  btnEl("day-off-btn").classList.toggle("active", pausedNow() && S.pauseKind === "day");
-  btnEl("lock-btn").classList.toggle("active", S.locked);
+  // duzeltme v2.2 (madde 11): "1 saat" ve "Bugün" ayrı durumlardır; her düğme
+  // yalnız kendi durumunu gösterir (aria-pressed + .active).
+  const hourPaused = S.pauseKind === "hour" && pausedNow();
+  const dayPaused = S.pauseKind === "day" && pausedNow();
+  const autoOn = !pausedNow() && !S.locked;
+  const onBtn = btnEl("auto-on");
+  onBtn.classList.toggle("active", autoOn);
+  onBtn.setAttribute("aria-pressed", autoOn ? "true" : "false");
+  const hourBtn = btnEl("pause-btn");
+  hourBtn.classList.toggle("active", hourPaused);
+  hourBtn.setAttribute("aria-pressed", hourPaused ? "true" : "false");
+  const dayBtn = btnEl("day-off-btn");
+  dayBtn.classList.toggle("active", dayPaused);
+  dayBtn.setAttribute("aria-pressed", dayPaused ? "true" : "false");
+  const lockBtn = btnEl("lock-btn");
+  lockBtn.classList.toggle("active", S.locked);
+  lockBtn.setAttribute("aria-pressed", S.locked ? "true" : "false");
   btnEl("undo-btn").disabled = S.undoStack.length === 0;
   btnEl("read-btn").classList.toggle("active", S.readingMode);
   btnEl("read-btn").setAttribute("aria-pressed", S.readingMode ? "true" : "false");
@@ -627,11 +689,29 @@ function renderWarm(): void {
   el("warm-val").textContent = String(S.warmPercent);
   const range = inputEl("warm-range");
   if (document.activeElement !== range) range.value = String(S.warmPercent);
+  // duzeltme v2.2 (E): yüzde kaydırıcısı "hızlı sarılık" olarak kaldı —
+  // not gerçek davranışı anlatır (canlı önizleme değil).
   el("warm-preview-note").textContent =
-    `Canlı önizleme: %${S.warmPercent} — kip yalnız otomatikte saat + ışığa göre uygulanır.`;
+    `Hızlı sarılık düzeyi: %${S.warmPercent} — otomatik kipte üst sınırdır, sabit kipte doğrudan uygulanır; kapalı kipte etkisizdir.`;
   el("calib-hint").textContent = S.calibHint;
-  // HDR açık monitörde gamma tabanlı sıcak ton etkisiz: not görünür.
-  el("warm-hdr-note").hidden = !S.hdrOn;
+  // HDR açık monitörde sıcak ton etkisiz: not görünür, kontrol soluk kalır.
+  const hdr = S.hdrOn;
+  el("warm-hdr-note").hidden = !hdr;
+  // duzeltme v2.2 (E): HDR açıkken kontrol disabled ama görünür (soluk).
+  inputEl("warm-kelvin").disabled = hdr;
+  el("warm-presets").querySelectorAll<HTMLButtonElement>(".chip").forEach((c) => {
+    c.disabled = hdr;
+  });
+  // duzeltme v2.2 (E): teknik not — harici monitör kendi ayarını destekliyor mu?
+  const ext = S.monitors.find((m) => !m.info.is_internal) ?? null;
+  const hw = ext?.ctSupported === true;
+  const note = el("warm-tech-note");
+  const noteText = note.lastChild;
+  if (noteText) {
+    noteText.textContent = hw
+      ? " Monitörün kendi ayarı kullanılıyor."
+      : " Programla yapılıyor.";
+  }
   const now = new Date();
   const pct = ((now.getHours() * 60 + now.getMinutes()) / 1440) * 100;
   el("day-now").style.left = `${pct.toFixed(2)}%`;
@@ -678,7 +758,7 @@ function renderLicense(): void {
   el("lic-status").textContent = S.licensePro
     ? `Pro — ${st?.email ?? "?"} (${st?.issued ?? "?"})`
     : "Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama";
-  el("lic-mini-status").textContent = S.licensePro ? `Pro — ${st?.email ?? "?"}` : "ücretsiz sürüm";
+  // duzeltme v2.2: #lic-mini-status SİLİNDİ — lisans yalnız Ayarlar'da (#lic-status).
   btnEl("lic-deactivate").hidden = !S.licensePro;
   el("lic-err").textContent = S.licenseError ?? "";
   el("lic-err").hidden = !S.licenseError;
@@ -712,7 +792,7 @@ function drawChart(stats: StatsSummary | null): void {
     );
     pts.push(`${cx},${top(b.desiredAvg)}`);
     if (i % 3 === 0) {
-      const label = b.hoursAgo === 0 ? "şimdi" : `-${b.hoursAgo}s`;
+      const label = b.hoursAgo === 0 ? "şimdi" : `-${b.hoursAgo} sa`;
       parts.push(
         `<text x="${cx}" y="${H - 8}" fill="#5B6480" font-size="10" text-anchor="middle" font-family="ui-monospace, monospace">${label}</text>`,
       );
@@ -726,6 +806,100 @@ function drawChart(stats: StatsSummary | null): void {
 
 let histSig = "";
 
+// ---------- geçmiş: ham log satırı → insan dili (duzeltme v2.2, madde 9 + B) ----------
+
+interface ParsedTick {
+  at: Date;
+  note: string;
+  theme: string;
+  applied: number;
+}
+
+/** Göz konforu temalarının insan dilindeki adları (diğerleri "<ad> teması"). */
+const THEME_TR: Record<string, string> = {
+  "ss-paper": "gündüz teması",
+  "ss-dusk": "akşam teması",
+  "ss-night": "gece teması",
+};
+
+function themeTr(name: string): string {
+  return THEME_TR[name] ?? `${name} teması`;
+}
+
+/**
+ * `orchestr.ts`'in diskLog biçimi:
+ * `<ISO> | source=… | level=… | tone=… | desired=… | applied=… | theme=… | note=…`
+ * Çözülemeyen satır null döner ve gösterilmez (ham basılmaz).
+ */
+function parseTickLine(line: string): ParsedTick | null {
+  const parts = line.split(" | ");
+  if (parts.length < 2) return null;
+  const at = new Date(parts[0].trim());
+  if (Number.isNaN(at.getTime())) return null;
+  const fields = new Map<string, string>();
+  for (const p of parts.slice(1)) {
+    const eq = p.indexOf("=");
+    if (eq > 0) fields.set(p.slice(0, eq).trim(), p.slice(eq + 1).trim());
+  }
+  const note = fields.get("note");
+  if (note === undefined) return null;
+  const applied = Number(fields.get("applied"));
+  return {
+    at,
+    note,
+    theme: fields.get("theme") ?? "",
+    applied: Number.isFinite(applied) ? Math.round(applied) : Number.NaN,
+  };
+}
+
+/** Tek satırın insan dilindeki karşılığı; null = satır atlanır. */
+function humanizeTick(f: ParsedTick, prev: ParsedTick | null): string | null {
+  const note = f.note;
+  const pct = Number.isFinite(f.applied) ? `%${f.applied}` : "";
+  if (note.startsWith("donduruldu uygulama ")) {
+    return `${note.slice("donduruldu uygulama ".length)} açık — ayar yapılmadı`;
+  }
+  if (note.startsWith("donduruldu tam ekran")) {
+    return "tam ekran açık — ayar yapılmadı";
+  }
+  if (note.startsWith("film otomatik kilit ")) {
+    return `otomatik ayar kilitlendi (${note.slice("film otomatik kilit ".length)})`;
+  }
+  if (note.startsWith("kilitli/sabit")) {
+    return "kilitli ya da sabit kipte — ayar yapılmadı";
+  }
+  if (note.startsWith("bağlı profil ")) {
+    // "bağlı profil vlc.exe -> Film"
+    const m = note.match(/^bağlı profil (.+) -> (.+)$/);
+    return m ? `${m[2]} profili devraldı (${m[1]})` : "bağlı profil devraldı";
+  }
+  if (note.startsWith("reddedildi")) {
+    return "tema otomatik seçimde uygulanmadı — okunaksız";
+  }
+  if (note.startsWith("bekliyor")) {
+    return "tema değişecek (ikinci ölçüm bekleniyor)";
+  }
+  if (note === "pil modu") {
+    return "pil modunda ayar kısıldı";
+  }
+  if (note === "ogrenilmis parlaklik" || note === "ogrenilmis tercih") {
+    return "öğrenilen tercihe göre ayarlandı";
+  }
+  if (note.startsWith("profil ")) {
+    return `${note.slice("profil ".length)} profili uygulandı`;
+  }
+  // Normal tur: önceki satıra göre ne değiştiyse onu anlat.
+  const themeChanged = prev !== null && f.theme !== "" && f.theme !== prev.theme;
+  if (themeChanged) {
+    return `${themeTr(f.theme.split("/")[0])}na geçildi${pct ? ` · ${pct}` : ""}`;
+  }
+  const brightChanged = prev !== null && Number.isFinite(f.applied) && f.applied !== prev.applied;
+  if (brightChanged) {
+    return `parlaklık %${prev.applied} → ${pct}`;
+  }
+  return Number.isFinite(f.applied) ? `ölçüm yapıldı · ${pct}` : null;
+}
+
 function renderHistory(): void {
   const sig = `${S.histLines.length}|${S.histLines[0] ?? ""}|${S.stats ? S.stats.ticksToday : "-"}`;
   if (sig !== histSig) {
@@ -734,12 +908,23 @@ function renderHistory(): void {
     host.replaceChildren();
     if (S.histLines.length === 0) {
       const row = document.createElement("div");
-      row.textContent = "Henüz kayıt yok — ilk ölçüm birkaç dakika içinde düşer.";
+      row.textContent = "Henüz kayıt yok — birkaç dakika içinde ilk ölçüm gelir.";
       host.append(row);
     } else {
-      for (const line of S.histLines) {
+      // Değişim algılama kronolojik akış ister; satırlar yeniden eskiye gelir.
+      const chrono = S.histLines.slice().reverse();
+      const out: string[] = [];
+      let prev: ParsedTick | null = null;
+      for (const line of chrono) {
+        const f = parseTickLine(line);
+        if (!f) continue;
+        const msg = humanizeTick(f, prev);
+        if (msg !== null) out.push(`${hhmm(f.at)} · ${msg}`);
+        prev = f;
+      }
+      for (const text of out.reverse()) {
         const row = document.createElement("div");
-        row.textContent = line;
+        row.textContent = text;
         host.append(row);
       }
     }
@@ -770,6 +955,8 @@ export function renderAll(): void {
   // Editörün yalnız metin etiketleri güncellenir; input değeri çizilmez.
   el("pf-off-val").textContent = (S.draft.offset >= 0 ? "+" : "") + S.draft.offset;
   el("pf-apps-count").textContent = `${(S.draft.apps ?? []).length} uygulama`;
+  // duzeltme v2.2 (madde 8): taslak kirliyse "Kaydedilmedi" görünür.
+  el("pf-dirty").hidden = !S.editorDirty;
   applyProGates();
 }
 
@@ -798,7 +985,11 @@ export function bootWidgets(): void {
 
   pfAutolock = bindSwitch(btnEl("pf-autolock"), S.draft.autoLock, (v) => updateDraft({ autoLock: v }));
   bindSwitch(btnEl("anim-switch"), S.animations, (v) => void setAnimations(v));
-  bindSwitch(btnEl("break-switch"), S.breakEnabled, (v) => setBreakEnabled(v));
+  // duzeltme v2.2 (madde 6): mola hatırlatıcısı aç/kapa artık toast ile de görünür.
+  bindSwitch(btnEl("break-switch"), S.breakEnabled, (v) => {
+    setBreakEnabled(v);
+    toast.info(v ? "Mola hatırlatıcısı açıldı" : "Mola hatırlatıcısı kapatıldı");
+  });
   bindSwitch(btnEl("gate-switch"), S.auditGate, (v) => setGate(v));
   void autostartEnabled().then((on) => {
     bindSwitch(btnEl("auto-switch"), on, (v) => void setAutostart(v));
@@ -923,5 +1114,91 @@ export function wireButtons(): void {
   });
   btnEl("monitor-plus").addEventListener("click", () => {
     void applyMonitorBrightness(Number(monSlider.value) + 10);
+  });
+
+  wireKelvin();
+}
+
+// ---------- Kelvin arayüzü (duzeltme v2.2, madde E) ----------
+
+function kelvinName(k: number): string {
+  if (k <= 2650) return "Mum";
+  if (k <= 3050) return "Ampul";
+  if (k <= 3800) return "Halojen";
+  if (k <= 4800) return "Florasan";
+  if (k <= 5800) return "Gündüz";
+  return "Berrak";
+}
+
+function paintKelvin(k: number): void {
+  inputEl("warm-kelvin").value = String(k);
+  el("warm-kelvin-val").textContent = `${k} K`;
+  el("warm-kelvin-name").textContent = kelvinName(k);
+  el("warm-presets").querySelectorAll<HTMLButtonElement>(".chip").forEach((c) => {
+    c.classList.toggle("active", c.dataset.k === String(k));
+  });
+}
+
+let kelvinTimer = 0;
+/** Sürükleme/ok tuşu oturumunun başlangıç değeri (Esc geri dönüşü için). */
+let kelvinDragStart: number | null = null;
+
+function commitKelvin(k: number): void {
+  paintKelvin(k);
+  void applyKelvin(k);
+}
+
+function wireKelvin(): void {
+  const slider = inputEl("warm-kelvin");
+  paintKelvin(S.warmKelvin);
+  slider.addEventListener("pointerdown", () => {
+    kelvinDragStart = Number(slider.value);
+  });
+  slider.addEventListener("keydown", (e) => {
+    if (!(e as KeyboardEvent).key.startsWith("Arrow")) return;
+    if (kelvinDragStart === null) kelvinDragStart = Number(slider.value);
+  });
+  slider.addEventListener("blur", () => {
+    kelvinDragStart = null;
+  });
+  // input: etiket anında, uygulama 150 ms debounce ile.
+  slider.addEventListener("input", () => {
+    const k = Number(slider.value);
+    paintKelvin(k);
+    if (kelvinTimer) window.clearTimeout(kelvinTimer);
+    kelvinTimer = window.setTimeout(() => {
+      kelvinTimer = 0;
+      void applyKelvin(k);
+    }, 150);
+  });
+  // change: debounce beklenmeden kesinleşir.
+  slider.addEventListener("change", () => {
+    if (kelvinTimer) {
+      window.clearTimeout(kelvinTimer);
+      kelvinTimer = 0;
+    }
+    commitKelvin(Number(slider.value));
+  });
+  el("warm-presets").querySelectorAll<HTMLButtonElement>(".chip").forEach((c) => {
+    c.addEventListener("click", () => {
+      kelvinDragStart = null;
+      commitKelvin(Number(c.dataset.k));
+    });
+  });
+  el("warm-reset").addEventListener("click", () => {
+    kelvinDragStart = null;
+    commitKelvin(6500);
+  });
+  // Esc: sıcaklık kaydırıcısı odaktayken oturum başındaki değere döner.
+  document.addEventListener("keydown", (e) => {
+    if ((e as KeyboardEvent).key !== "Escape") return;
+    if (document.activeElement !== slider || kelvinDragStart === null) return;
+    const k = kelvinDragStart;
+    kelvinDragStart = null;
+    if (kelvinTimer) {
+      window.clearTimeout(kelvinTimer);
+      kelvinTimer = 0;
+    }
+    commitKelvin(k);
   });
 }

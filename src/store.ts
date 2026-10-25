@@ -82,7 +82,9 @@ export function seedProfiles(): Profile[] {
       theme: "vesper",
       themeMode: "dark",
       offset: -10,
-      autoLock: true,
+      // duzeltme v2.2 (madde 13): tohumda autoLock kapalı — öntanımlı olarak
+      // kilit atmasın, isteyen profilden açar.
+      autoLock: false,
       apps: [],
     },
   ];

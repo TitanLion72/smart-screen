@@ -1,0 +1,53 @@
+# GitHub otomatik release-notu kategorileri (smart-screen)
+# Etiketler PR'lara konur; eşleşmeyen her şey "Diğer" altına düşer.
+# Biçim: https://docs.github.com/en/repositories/releasing-projects-on-github/automatically-generated-release-notes
+#
+# Not: kullanıcıya dönük sürüm notu elle yazılır (CHANGELOG.md + tools/release-notes.mjs).
+# Bu dosya yalnız GitHub'ın otomatik oluşturduğu taslağı düzenler.
+
+changelog:
+  exclude:
+    labels:
+      - ignore-for-release
+      - skip-changelog
+    authors:
+      - dependabot
+      - dependabot[bot]
+      - github-actions
+      - github-actions[bot]
+
+  categories:
+    - title: Yeni özellikler
+      labels:
+        - feat
+        - feature
+        - enhancement
+
+    - title: Düzeltmeler
+      labels:
+        - fix
+        - bug
+        - bugfix
+
+    - title: Belgeler
+      labels:
+        - docs
+        - documentation
+
+    - title: Bakım
+      labels:
+        - chore
+        - refactor
+        - test
+        - ci
+        - build
+        - dependencies
+
+    - title: Güvenlik
+      labels:
+        - security
+
+    # Yakalayıcı: yukarıdakilerin hiçbirine uymayan PR'lar. Her zaman en sonda kalmalı.
+    - title: Diğer
+      labels:
+        - "*"

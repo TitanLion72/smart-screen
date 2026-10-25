@@ -21,7 +21,9 @@
    ════════════════════════════════════════════════════════════════════ */
 
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { emit, listen } from "@tauri-apps/api/event";
+import { toast } from "./toast";
 
 type SsState = {
   brightness?: number | null;
@@ -51,11 +53,11 @@ const pauseBtn = el<HTMLButtonElement>("fx-pause");
 const dayOffBtn = el<HTMLButtonElement>("fx-dayoff");
 const lockBtn = el<HTMLButtonElement>("fx-lock");
 const hdrEl = el<HTMLElement>("fx-hdr");
-const errEl = el<HTMLElement>("fx-error");
 const versionEl = el<HTMLElement>("fx-version");
 
 let committed = 0; // son BAŞARILI brightness_set değeri (geri dönüş tabanı)
 let pausedUntil = 0; // epoch ms; 0 = duraklatma yok
+let lastErr = "";
 let errTimer = 0;
 
 const clamp = (v: number, lo: number, hi: number): number =>
@@ -67,14 +69,16 @@ function setBrightText(v: number): void {
   brightEl.textContent = pctText(v);
 }
 
+/** duzeltme v2.2 (F): yazma hataları artık toast.err ile görünür; aynı hata
+ *  3 sn içinde tekrar toast olmaz (spam koruması). */
 function showError(msg: string): void {
-  errEl.textContent = msg;
-  errEl.hidden = false;
+  if (msg === lastErr && errTimer) return;
+  lastErr = msg;
   if (errTimer) window.clearTimeout(errTimer);
   errTimer = window.setTimeout(() => {
-    errEl.hidden = true;
     errTimer = 0;
   }, 3000);
+  toast.err("Ayar yazılamadı", { detail: msg });
 }
 
 function modeLabel(mode: string | null | undefined): string {
@@ -105,10 +109,11 @@ function updatePauseButton(): void {
   const leftMs = pausedUntil - Date.now();
   if (leftMs > 0) {
     const mins = Math.max(1, Math.ceil(leftMs / 60000));
-    pauseBtn.textContent = `Duraklatıldı ${mins} dk`;
+    // duzeltme v2.2 (F): etkinken "Devam et", değilken "Duraklat (1 saat)".
+    pauseBtn.textContent = `Devam et (${mins} dk)`;
     setToggle(pauseBtn, true);
   } else {
-    pauseBtn.textContent = "1 saat duraklat";
+    pauseBtn.textContent = "Duraklat (1 saat)";
     setToggle(pauseBtn, false);
   }
 }
@@ -173,7 +178,7 @@ function applyState(s: SsState): void {
         ? s.targetPct
         : null;
   brightSub.textContent =
-    target === null ? "hedef yok" : `hedef ${pctText(target)}`;
+    target === null ? "ulaşılmak istenen değer yok" : `ulaşılmak istenen ${pctText(target)}`;
 
   if (typeof s.licensed === "boolean") {
     document.documentElement.dataset.licensed = s.licensed ? "1" : "0";
@@ -238,20 +243,20 @@ void invoke<boolean>("hdr_status")
   });
 
 // Sürüm: app_version yoksa "v2.1"
-void invoke<string>("app_version")
+void getVersion()
   .then((v) => {
     const s = String(v ?? "").trim();
-    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.1";
+    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.2.0";
   })
   .catch(() => {
-    versionEl.textContent = "v2.1";
+    versionEl.textContent = "v2.2.0";
   });
 
 void listen<SsState>("ss:state", (ev) => applyState(ev.payload)).catch((err) =>
   showError(String(err)),
 );
 
-brightSub.textContent = "hedef yok";
+brightSub.textContent = "ulaşılmak istenen değer yok";
 updatePauseButton();
 void boot();
 window.setInterval(updatePauseButton, 30_000); // kalan dakika etiketi tazelenir

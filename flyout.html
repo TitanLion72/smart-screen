@@ -13,12 +13,12 @@
   #fx-minus      | button     | −10 (aria-label "Parlaklığı 10 azalt")     | click → brightness_set yolu, 0-100 kelepçe
   #fx-slider     | input range| parlaklık 0-100 (aria-label "Parlaklık")   | input → anlık yüzde metni; change → invoke("brightness_set", { value: Math.round })
   #fx-plus       | button     | +10 (aria-label "Parlaklığı 10 artır")     | click → aynı yazma yolu
-  #fx-measure    | button     | "Şimdi ölç"                                | click → emit("ss:action", { action: "measure" }) + invoke("flyout_hide")
-  #fx-pause      | button     | "1 saat duraklat" / "Duraklatıldı 47 dk"   | click → emit("ss:action", { action: "pause-1h" }); aria-pressed + .active
-  #fx-dayoff     | button     | "Bugün kapat"                              | click → emit("ss:action", { action: "day-off" }); aria-pressed + .active
-  #fx-lock       | button     | "Kilitle"                                  | click → emit("ss:action", { action: "lock" }); aria-pressed + .active
+  #fx-measure    | button     | "Şimdi yeniden ayarla"                     | click → emit("ss:action", { action: "measure" }) + invoke("flyout_hide")
+  #fx-pause      | button     | "Duraklat (1 saat)" / "Devam et (47 dk)"    | click → emit("ss:action", { action: "pause-1h" }); aria-pressed + .active
+  #fx-dayoff     | button     | "Bugün"                                     | click → emit("ss:action", { action: "day-off" }); aria-pressed + .active
+  #fx-lock       | button     | "Kilitle"                                   | click → emit("ss:action", { action: "lock" }); aria-pressed + .active
   #fx-error      | div        | tek satır hata (3 sn sonra gizlenir)       | text + hidden; role="status"
-  #fx-hdr        | div        | "HDR açık — sıcak ton kapalı"              | hidden = !hdr; hata olursa kalıcı gizli
+  #fx-hdr        | div        | "HDR açıkken ekran sarılaştırılamıyor"      | hidden = !hdr; hata olursa kalıcı gizli
   #fx-settings   | button     | "Ayarlar →"                                | click → emit("ss:action", { action: "open-main" }) + invoke("flyout_hide")
   #fx-version    | div        | "v2.1.0"                                   | text; invoke("app_version") yoksa "v2.1"
 
@@ -39,6 +39,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>smart-screen — hızlı panel</title>
     <link rel="stylesheet" href="/src/flyout.css" />
+    <link rel="stylesheet" href="/src/toast.css" />
     <script type="module" src="/src/flyout.ts" defer></script>
   </head>
 
@@ -72,9 +73,9 @@
 
       <!-- 3. Hızlı eylemler (2×2) -->
       <div class="fx-actions" role="group" aria-label="Hızlı eylemler">
-        <button type="button" id="fx-measure" class="btn-primary">Şimdi ölç</button>
-        <button type="button" id="fx-pause" class="btn-toggle" aria-pressed="false">1 saat duraklat</button>
-        <button type="button" id="fx-dayoff" class="btn-toggle" aria-pressed="false">Bugün kapat</button>
+        <button type="button" id="fx-measure" class="btn-primary">Şimdi yeniden ayarla</button>
+        <button type="button" id="fx-pause" class="btn-toggle" aria-pressed="false">Duraklat (1 saat)</button>
+        <button type="button" id="fx-dayoff" class="btn-toggle" aria-pressed="false">Bugün</button>
         <button type="button" id="fx-lock" class="btn-toggle" aria-pressed="false">Kilitle</button>
       </div>
 
@@ -83,13 +84,13 @@
 
       <!-- 4. Alt satır -->
       <div class="fx-foot">
-        <div class="fx-hdr" id="fx-hdr" hidden>HDR açık — sıcak ton kapalı</div>
+        <div class="fx-hdr" id="fx-hdr" hidden>HDR açıkken ekran sarılaştırılamıyor</div>
         <span class="spacer"></span>
         <button type="button" id="fx-settings" class="linklike">Ayarlar →</button>
       </div>
 
       <!-- 5. Sürüm -->
-      <div class="fx-version" id="fx-version">v2.1</div>
+      <div class="fx-version" id="fx-version">v2.2.0</div>
     </div>
   </body>
 </html>

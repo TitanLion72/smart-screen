@@ -20,6 +20,7 @@ import { emit } from "@tauri-apps/api/event";
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import { MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
+import { toast } from "./toast";
 import {
   FREE_MAX_PROFILES,
   MAX_PROFILES,
@@ -186,6 +187,9 @@ export interface AppState {
   pauseUntil: number | null;
   /** Hangi düğme duraklattı (durum kartı + .active için). */
   pauseKind: "hour" | "day" | null;
+  /** duzeltme v2.2 (madde 12): otomatik kilidi tetikleyen engelli exe; kilit
+   *  yalnız bu exe önden gitince kendiliğinden çözülür (manuel kilidi etkilemez). */
+  autoLockExe: string | null;
   offset: number;
   breakEnabled: boolean;
   breakDueAt: number;
@@ -198,10 +202,15 @@ export interface AppState {
   allowItems: string[];
   warmMode: WarmMode;
   warmPercent: number;
+  /** duzeltme v2.2 (E): Kelvin arayüzünün son değeri (2500–6500). */
+  warmKelvin: number;
+  /** Son Kelvin uygulaması monitörün kendi ayarıyla mı yapıldı? */
+  warmKelvinHw: boolean;
   /** Son uygulanan sıcak ton şiddeti (stabilite d). */
   lastWarmApplied: number | null;
   readingMode: boolean;
-  readingPrevWarm: WarmMode | null;
+  /** Okuma profili açılmadan önceki tema/sarılık/animasyon (geri yükleme için). */
+  readingPrev: { warm: WarmMode; themeKey: string | null; animations: boolean } | null;
   animations: boolean;
   profiles: Profile[];
   activeId: string;
@@ -281,6 +290,7 @@ export const S: AppState = {
   locked: getSetting("locked", "0") === "1",
   pauseUntil: null,
   pauseKind: null,
+  autoLockExe: null,
   offset: Math.round(Number(getSetting("brightOffset", "0")) || 0),
   breakEnabled: getSetting("breakEnabled", "1") === "1",
   breakDueAt: Date.now() + BREAK_MS,
@@ -293,9 +303,11 @@ export const S: AppState = {
   allowItems: splitList(getSetting("allowlist", DEFAULT_ALLOWLIST)),
   warmMode: loadWarmMode(),
   warmPercent: Math.round(loadNumber("warmPercent", 35)),
+  warmKelvin: Math.max(2500, Math.min(6500, Math.round(loadNumber("warmKelvin", 6500)))),
+  warmKelvinHw: false,
   lastWarmApplied: null,
   readingMode: getSetting("readingMode", "0") === "1",
-  readingPrevWarm: null,
+  readingPrev: null,
   animations: getSetting("animations", "1") === "1",
   profiles: initialProfiles,
   activeId: initialActive,
@@ -332,7 +344,7 @@ export const S: AppState = {
   targetPct: null,
   desiredBase: null,
   lowPower: false,
-  calibHint: "kalibrasyon: henüz gözlem yok",
+  calibHint: "Öğrenilen tercih: henüz gözlem yok",
   histLines: [],
   stats: null,
   notifyReady: false,
@@ -405,6 +417,48 @@ function scheduleStateEmit(): void {
 
 // ---------- küçük yardımcılar ----------
 
+// duzeltme v2.2 (D): toast'a düşen hatalar 3 sn içinde aynı mesajla
+// tekrar gelmez (spam koruması). Yalnız hata toast'larında kullanılır.
+const errToastAt = new Map<string, number>();
+
+function toastErrOnce(msg: string, detail?: string): void {
+  const now = Date.now();
+  const last = errToastAt.get(msg) ?? 0;
+  if (now - last < 3000) return;
+  errToastAt.set(msg, now);
+  toast.err(msg, detail ? { detail } : undefined);
+}
+
+/**
+ * duzeltme v2.2: busy toast'u hata durumunda "ok" görünmeden kapatmak için
+ * toast.ts'in Esc sözleşmesini kullanır (Esc en üstteki görünür toast'u
+ * kapatır). toast.ts değiştirilmeden tek yol bu.
+ */
+function closeTopToast(): void {
+  document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+}
+
+/** Kamera seviyesi/ton etiketleri → insan dilinde (sözlük: bright/cool…). */
+const LEVEL_TR: Record<string, string> = {
+  bright: "parlak",
+  dim: "loş",
+  dark: "karanlık",
+  unknown: "bilinmiyor",
+};
+const TONE_TR: Record<string, string> = {
+  cool: "soğuk",
+  warm: "sıcak",
+  unknown: "bilinmiyor",
+};
+
+function levelTr(level: string): string {
+  return LEVEL_TR[level] ?? level;
+}
+
+function toneTr(tone: string): string {
+  return TONE_TR[tone] ?? tone;
+}
+
 export function activeProfile(): Profile | null {
   return S.profiles.find((p) => p.id === S.activeId) ?? null;
 }
@@ -452,9 +506,17 @@ export function pauseRemainingText(): string {
   return m === 0 ? `${h} sa` : `${h} sa ${m} dk`;
 }
 
-/** "1 saat duraklat": açıkken tekrar basmak duraklatmayı bitirir. */
+/**
+ * "1 saat" düğmesi: yalnız saatlik duraklatmayı açar/kapar.
+ * duzeltme v2.2 (madde 11): "Bugün" duraklatması etkinken bu düğme onu
+ * iptal ETMEZ — ikisi ayrı durumlardır, yalnız kendi durumunu değiştirir.
+ */
 export function togglePauseHour(): void {
-  if (S.pauseUntil !== null) {
+  if (S.pauseKind === "day" && S.pauseUntil !== null && Date.now() < S.pauseUntil) {
+    log("bugün kapatma etkin — saatlik duraklatma yok sayıldı", "warn");
+    return;
+  }
+  if (S.pauseKind === "hour" && S.pauseUntil !== null) {
     clearPause("duraklatma bitti");
     return;
   }
@@ -464,9 +526,17 @@ export function togglePauseHour(): void {
   render();
 }
 
-/** "Bugün kapat": gece yarısına kadar duraklatır. */
+/**
+ * "Bugün" düğmesi: gece yarısına kadar duraklatır.
+ * duzeltme v2.2 (madde 11): saatlik duraklatma etkinken bu düğme onu
+ * iptal ETMEZ; kendi durumunu değiştirir.
+ */
 export function toggleDayOff(): void {
-  if (S.pauseUntil !== null) {
+  if (S.pauseKind === "hour" && S.pauseUntil !== null && Date.now() < S.pauseUntil) {
+    log("saatlik duraklatma etkin — bugün kapatma yok sayıldı", "warn");
+    return;
+  }
+  if (S.pauseKind === "day" && S.pauseUntil !== null) {
     clearPause("bugün kapatma iptal edildi");
     return;
   }
@@ -540,7 +610,7 @@ async function autoWarmth(): Promise<number | null> {
     const msg = String(e);
     if (warmWarned !== msg) {
       warmWarned = msg;
-      log("sıcak ton hesaplanamadı, mevcut şiddet korunuyor: " + msg, "warn");
+      log("sarılaştırma düzeyi hesaplanamadı, mevcut düzey korunuyor: " + msg, "warn");
     }
     return null;
   }
@@ -560,14 +630,49 @@ export async function applyWarmth(): Promise<void> {
     await invoke("gamma_set_warmth", { percent: value });
     S.lastWarmApplied = value;
   } catch (e) {
-    log("sıcak ton uygulanamadı: " + String(e), "bad");
+    log("ekran sarılaştırılamadı: " + String(e), "bad");
+    // duzeltme v2.2 (D): sıcaklık uygulanamadıysa hata toast'u — tek sefer.
+    toastErrOnce("Ekran sarılaştırılamadı", String(e));
   }
+}
+
+/** Kelvin → hızlı sarılık yüzdesi (6500 K = %0, 2500 K = %60). */
+function kelvinToPercent(kelvin: number): number {
+  return Math.max(0, Math.min(60, Math.round(((6500 - kelvin) / 4000) * 60)));
+}
+
+/**
+ * duzeltme v2.2 (E): Kelvin uygula. Yalnız harici + destekli monitörde
+ * monitörün kendi ayarıyla yazılır; hata/desteksizlikte sessizce yazılımsal
+ * yola (hızlı sarılık) düşer.
+ */
+export async function applyKelvin(kelvin: number): Promise<void> {
+  const k = Math.max(2500, Math.min(6500, Math.round(kelvin / 100) * 100));
+  S.warmKelvin = k;
+  setSetting("warmKelvin", String(k));
+  const sel = S.monitorSel ? S.monitors.find((m) => m.info.id === S.monitorSel) : null;
+  const target =
+    (sel && !sel.info.is_internal && sel.ctSupported === true ? sel : null) ??
+    S.monitors.find((m) => !m.info.is_internal && m.ctSupported === true) ??
+    null;
+  if (target && !S.hdrOn) {
+    try {
+      await invoke("monitor_set_color_temp", { device: target.info.id, kelvin: k });
+      S.warmKelvinHw = true;
+      render();
+      return;
+    } catch {
+      /* sessizce yazılımsal yola düş */
+    }
+  }
+  S.warmKelvinHw = false;
+  setWarmPercent(kelvinToPercent(k));
 }
 
 export function setWarmMode(v: WarmMode): void {
   S.warmMode = v;
   setSetting("warmMode", v);
-  log("sıcak ton: " + WARM_MODE_LABEL[v]);
+  log("ekranı sarılaştırma: " + WARM_MODE_LABEL[v]);
   void applyWarmth();
   render();
 }
@@ -586,20 +691,37 @@ export async function toggleReading(): Promise<void> {
   S.readingMode = !S.readingMode;
   setSetting("readingMode", S.readingMode ? "1" : "0");
   try {
-    await setAnimations(!S.readingMode, true);
     if (S.readingMode) {
-      S.readingPrevWarm = S.warmMode;
+      // duzeltme v2.2 (madde 2): önceki tema/sarılık/animasyon saklanır;
+      // kapanışta hepsi geri yüklenir (eskiden yalnız sarılık kipi dönüyordu).
+      S.readingPrev = {
+        warm: S.warmMode,
+        themeKey: S.appliedKey,
+        animations: S.animations,
+      };
       S.warmMode = "fixed";
       setSetting("warmMode", "fixed");
       await applyWarmth();
       await pickTheme("ss-dusk", "dark");
+      await setAnimations(false, true);
       log("okuma profili: sıcak sakin tema, düşük tavan, animasyon kapalı", "ok");
+      toast.info("Okuma profili açıldı");
     } else {
-      S.warmMode = S.readingPrevWarm ?? "auto";
-      S.readingPrevWarm = null;
+      const prev = S.readingPrev;
+      S.readingPrev = null;
+      S.warmMode = prev?.warm ?? "auto";
       setSetting("warmMode", S.warmMode);
       await applyWarmth();
+      if (prev?.themeKey) {
+        const [name, mode] = prev.themeKey.split("|");
+        if (name) {
+          await invoke("theme_set", { name, mode: mode || null });
+          S.appliedKey = prev.themeKey;
+        }
+      }
+      if (prev) await setAnimations(prev.animations, true);
       log("okuma profili kapandı", "ok");
+      toast.info("Okuma profili kapandı");
     }
   } catch (e) {
     log("okuma profili değişmedi: " + String(e), "bad");
@@ -683,11 +805,11 @@ function findAudit(name: string, themeMode: string | null): AuditReport | null {
   return mine.find((r) => r.mode === want) ?? mine[0];
 }
 
-/** FAIL cikan tema otomatik secimde uygulanmaz (anahtar acikken). */
+/** Okunaksız çıkan tema otomatik seçimde uygulanmaz (anahtar açıkken). */
 function gateReason(name: string, themeMode: string): string | null {
   if (!S.auditGate) return null;
   const rep = findAudit(name, themeMode);
-  return rep && rep.verdict === "FAIL" ? `kontrast ${rep.text_on_bg}:1 (WCAG FAIL)` : null;
+  return rep && rep.verdict === "FAIL" ? `metin/zemin oranı ${rep.text_on_bg}:1 — okunaksız` : null;
 }
 
 export async function loadAudit(): Promise<void> {
@@ -707,7 +829,12 @@ export function setGate(v: boolean): void {
   S.auditGate = v;
   setSetting("auditGate", v ? "1" : "0");
   S.lastGateWarn = "";
-  log(v ? "kontrast kapısı açık: FAIL olan temalar uygulanmaz" : "kontrast kapısı kapalı", "ok");
+  log(
+    v
+      ? "okunaksız temalar otomatik seçimde uygulanmaz"
+      : "okunaksız temalar da otomatik seçime girebilir",
+    "ok",
+  );
   render();
 }
 
@@ -732,7 +859,7 @@ export async function updateRisk(name: string, themeMode: string | null): Promis
   S.risk = {
     name,
     text: rep
-      ? `${name}: ${rep.text_on_bg}:1 — WCAG ${rep.verdict} (${rep.mode}), gözü yorar.`
+      ? `${name}: metin/zemin oranı ${rep.text_on_bg}:1 — okunaksız, gözü yorar.`
       : `${name} yüksek kontrastlı — gece göz yorar.`,
     fixLabel,
   };
@@ -773,6 +900,8 @@ export async function learnBrightness(): Promise<void> {
     const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
     await invoke("pref_learn_bright", { hour, light, value: current });
     await showCalibration();
+    // duzeltme v2.2 (D): kalibrasyon artık sessiz değil.
+    toast.ok("Parlaklık tercihi öğrenildi");
   } catch {
     /* öğrenme sessizce atlanabilir */
   }
@@ -784,8 +913,8 @@ export async function showCalibration(): Promise<void> {
     const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
     const got = await invoke<[number, number] | null>("pref_get_bright", { hour, light });
     S.calibHint = got
-      ? `kalibrasyon: %${got[0]} (${got[1]} gözlem) — bu saatte tercihin`
-      : "kalibrasyon: henüz gözlem yok";
+      ? `Öğrenilen tercih: %${got[0]} (${got[1]} gözlem) — bu saat ve ışıkta tercihin bu`
+      : "Öğrenilen tercih: henüz gözlem yok";
   } catch {
     /* gösterim atlanabilir */
   }
@@ -800,6 +929,8 @@ function inSleepWindow(hour: number): boolean {
     : hour >= S.sleepStart || hour < S.sleepEnd;
 }
 
+// duzeltme v2.2 (madde 3): sleepCap gece TAVANIDIR (üst sınır) — istenen
+// değer gece penceresinde bu sayının ÜSTÜNE çıkmaz, alt sınır değildir.
 function applySleepCap(desired: number, hour: number): number {
   return inSleepWindow(hour) ? Math.min(desired, S.sleepCap) : desired;
 }
@@ -931,10 +1062,21 @@ async function runTick(reason: string): Promise<void> {
   } else if (!bound) {
     S.lastBoundExe = null;
   }
+  // duzeltme v2.2 (madde 12): otomatik kilit iki yönlü — kilit, engelli bir
+  // uygulama yüzünden atıldıysa ve o uygulama önden gittiyse kendiliğinden
+  // çözülür. Manuel kilit (autoLockExe === null) buradan etkilenmez.
+  if (S.autoLockExe !== null && exe !== S.autoLockExe) {
+    S.autoLockExe = null;
+    if (S.locked) {
+      S.locked = false;
+      setSetting("locked", "0");
+      log("engelli uygulama kapandı — otomatik ayarın kilidi çözüldü", "ok");
+    }
+  }
   if (S.locked || (S.mode === "fixed" && !bound)) {
     resetPending();
     await diskLog(`kilitli/sabit ${reason}`, 0, S.lastAppliedBright, S.appliedKey ?? "-");
-    log(`kilitli/sabit (${reason}), atlandı`, "warn");
+    log("kilitli ya da sabit kipte — ayar yapılmadı", "warn");
     await refresh();
     return;
   }
@@ -943,12 +1085,13 @@ async function runTick(reason: string): Promise<void> {
     if (exe && S.blockItems.includes(exe)) {
       if (prof?.autoLock) {
         S.locked = true;
+        S.autoLockExe = exe;
         setSetting("locked", "1");
         await diskLog(`film otomatik kilit ${exe}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
-        log("otomatik kilit (" + exe + ")", "warn");
+        log("otomatik ayar kilitlendi (" + exe + ")", "warn");
       } else {
         await diskLog(`donduruldu uygulama ${exe}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
-        log("donduruldu: video/oyun uygulaması (" + exe + ")", "warn");
+        log("ayar yapılmadı: video/oyun uygulaması önde (" + exe + ")", "warn");
       }
       S.freezeReason = "uygulama: " + exe;
       resetPending();
@@ -959,7 +1102,7 @@ async function runTick(reason: string): Promise<void> {
       if (!exe || !S.allowItems.includes(exe)) {
         const why = "tam ekran" + (exe ? " (" + exe + ")" : "");
         await diskLog(`donduruldu ${why}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
-        log("donduruldu: " + why, "warn");
+        log("ayar yapılmadı: " + why, "warn");
         S.freezeReason = why;
         resetPending();
         await refresh();
@@ -1004,9 +1147,9 @@ async function runTick(reason: string): Promise<void> {
         return;
       }
       S.light = {
-        text: `${cam.level} / ${cam.tone}`,
-        title: `ışık: ${cam.level}/${cam.tone} (parlaklık ${cam.lum.toFixed(0)})`,
-        sub: `parlaklık: ${cam.lum.toFixed(0)}`,
+        text: `${levelTr(cam.level)} / ${toneTr(cam.tone)}`,
+        title: `ışık: ${levelTr(cam.level)}/${toneTr(cam.tone)} (ölçüm ${cam.lum.toFixed(0)})`,
+        sub: `ölçüm değeri: ${cam.lum.toFixed(0)}`,
         dot: cam.level === "dark" ? "" : cam.level === "dim" ? "warn" : "ok",
       };
       if (cam.level === "dark") {
@@ -1032,9 +1175,9 @@ async function runTick(reason: string): Promise<void> {
       desired = base;
       if (effSource === "auto" && cam) {
         S.light = {
-          text: `zaman + ${cam.level}/${cam.tone}`,
-          title: `zaman + ışık: ${cam.level}/${cam.tone} (parlaklık ${cam.lum.toFixed(0)})`,
-          sub: `${hour}:${String(minute).padStart(2, "0")} • kaynak: ${SOURCE_LABEL[effSource]}`,
+          text: `zaman + ${levelTr(cam.level)}/${toneTr(cam.tone)}`,
+          title: `zaman + ışık: ${levelTr(cam.level)}/${toneTr(cam.tone)} (ölçüm ${cam.lum.toFixed(0)})`,
+          sub: `${hour}:${String(minute).padStart(2, "0")} • ışık varsayımı: ${SOURCE_LABEL[effSource]}`,
           dot: "accent",
         };
         if (cam.level === "dark") {
@@ -1052,7 +1195,7 @@ async function runTick(reason: string): Promise<void> {
         S.light = {
           text: effSource === "auto" ? "zaman" : SOURCE_LABEL[effSource],
           title: `${SOURCE_LABEL[effSource]} • ${hour}:${String(minute).padStart(2, "0")}`,
-          sub: `${hour}:${String(minute).padStart(2, "0")} • kaynak: ${SOURCE_LABEL[effSource]}`,
+          sub: `${hour}:${String(minute).padStart(2, "0")} • ışık varsayımı: ${SOURCE_LABEL[effSource]}`,
           dot: "accent",
         };
       }
@@ -1103,7 +1246,7 @@ async function runTick(reason: string): Promise<void> {
     const gated = bound ? null : gateReason(name, themeMode);
     if (key !== appliedKeySafe() && gated) {
       if (S.lastGateWarn !== name) {
-        log(`otomatik seçimde reddedildi: ${name} — ${gated}`, "warn");
+        log(`otomatik seçimde uygulanmadı: ${name} — ${gated}`, "warn");
         S.lastGateWarn = name;
       }
       resetPending();
@@ -1128,10 +1271,10 @@ async function runTick(reason: string): Promise<void> {
       S.pendingKey = null;
       S.pendingCount = 0;
       S.lastGateWarn = "";
-      log(`tema: ${name} (${themeMode})`, "ok");
+      log(`tema değişti: ${name}`, "ok");
       if (!effFixed && target !== cur0) {
         await invoke("brightness_set", { value: Math.round(target) });
-        log(`parlaklık atlama: ${cur0} -> ${target}`, "ok");
+        log(`parlaklık %${cur0} → %${target}`, "ok");
       }
       // Karar uygulanınca harici monitörlere de aynı hedef yazılır; kilit /
       // duraklat / sabit kipte (effFixed) dahili gibi onlara da dokunulmaz.
@@ -1139,7 +1282,7 @@ async function runTick(reason: string): Promise<void> {
       appliedNow = effFixed ? cur0 : target;
       snapped = true;
     } else if (key !== appliedKeySafe() && !gated) {
-      log(`tema bekliyor: ${name} (${S.pendingCount}/2)`);
+      log(`tema değişecek: ${name} (ikinci ölçüm bekleniyor)`);
     }
 
     if (!snapped && !effFixed) {
@@ -1153,7 +1296,7 @@ async function runTick(reason: string): Promise<void> {
       if (lowPower) next = Math.round(current + (next - current) / 2);
       if (next !== current) {
         await invoke("brightness_set", { value: Math.round(next) });
-        log(`parlaklık: ${current} -> ${next}`, "ok");
+        log(`parlaklık %${current} → %${next}`, "ok");
       }
       appliedNow = next;
     }
@@ -1482,6 +1625,8 @@ export async function applyMonitorBrightness(value: number): Promise<void> {
       const r = monitorRow(id);
       if (r) r.error = msg;
       log(`${row ? row.info.name : id}: parlaklık yazılamadı — ${msg}`, "bad");
+      // duzeltme v2.2 (D): monitör yazma hatası artık toast ile de görünür.
+      toastErrOnce(`${row ? row.info.name : id}: parlaklık yazılamadı`, msg);
       render();
     });
   await monWriteChain;
@@ -1527,6 +1672,8 @@ export async function applyAutoMonitors(target: number): Promise<void> {
         if (!S.monitorFailed.includes(id)) {
           S.monitorFailed = [...S.monitorFailed, id];
           log(`${name}: otomatik parlaklık yazılamadı — ${msg}`, "bad");
+          // duzeltme v2.2 (D): otomatik yazma hatası da toast'a düşer (tek sefer).
+          toastErrOnce(`${name}: parlaklık yazılamadı`, msg);
         }
         render();
       });
@@ -1558,13 +1705,23 @@ export async function activateLicense(key: string): Promise<void> {
     render();
     return;
   }
+  // duzeltme v2.2 (D): etkinleştirme busy → ok; hata yalnız #lic-err'de (inline).
+  const busy = toast.busy("Lisans doğrulanıyor…");
   try {
     const st = await invoke<LicenseStatus>("license_activate", { key: trimmed });
     S.licenseStatus = st;
     S.licensePro = st?.pro === true;
     S.licenseError = null;
-    log(S.licensePro ? "Pro lisans etkinleştirildi" : "lisans geçerli değil", S.licensePro ? "ok" : "warn");
+    if (S.licensePro) {
+      busy.done("Lisans etkinleştirildi");
+      log("Pro lisans etkinleştirildi", "ok");
+    } else {
+      closeTopToast();
+      S.licenseError = "lisans geçerli değil";
+      log("lisans geçerli değil", "warn");
+    }
   } catch (e) {
+    closeTopToast();
     S.licenseError = String(e);
     log("lisans etkinleştirilemedi: " + String(e), "bad");
   }
@@ -1578,6 +1735,7 @@ export async function deactivateLicense(): Promise<void> {
     S.licensePro = st?.pro === true;
     S.licenseError = null;
     log("lisans kaldırıldı", "warn");
+    toast.info("Lisans kaldırıldı");
   } catch (e) {
     S.licenseError = String(e);
     render();
@@ -1615,7 +1773,7 @@ export function setMode(v: Mode): void {
   S.mode = v;
   setSetting("mode", v);
   resetPending();
-  log("mod: " + MODE_LABEL[v]);
+  log("çalışma biçimi: " + MODE_LABEL[v]);
   render();
   void tick("mod değişti");
 }
@@ -1624,7 +1782,7 @@ export function setSource(v: Source): void {
   S.source = v;
   setSetting("source", v);
   resetPending();
-  log("kaynak: " + SOURCE_LABEL[v]);
+  log("ışık varsayımı: " + SOURCE_LABEL[v]);
   render();
   void tick("kaynak değişti");
 }
@@ -1647,14 +1805,21 @@ export function setSleep(key: "sleepStart" | "sleepEnd" | "sleepCap", value: num
   else if (key === "sleepEnd") S.sleepEnd = v;
   else S.sleepCap = v;
   setSetting(key, String(v));
-  log("zamanlama güncellendi");
+  log("gece saatleri kaydedildi");
+  // duzeltme v2.2 (D): gece koruması kaydı artık toast ile de görünür.
+  toast.info("Gece saatleri kaydedildi");
   render();
 }
 
 export function toggleLock(): void {
   S.locked = !S.locked;
   setSetting("locked", S.locked ? "1" : "0");
-  log(S.locked ? "manuel kilit açıldı" : "manuel kilit kapandı", "warn");
+  // duzeltme v2.2: manuel kilit çözülürken otomatik kilit kaydı da temizlenir.
+  if (!S.locked) S.autoLockExe = null;
+  log(
+    S.locked ? "otomatik ayar kilitlendi" : "otomatik ayarın kilidi çözüldü",
+    "warn",
+  );
   render();
   void refresh();
 }
@@ -1677,7 +1842,9 @@ export function applyProfile(p: Profile): void {
     S.draft = { ...p };
     renderEditor();
   }
-  log(`profil: ${p.name}`, "ok");
+  log(`profil uygulandı: ${p.name}`, "ok");
+  // duzeltme v2.2 (D): profil uygulama artık toast ile de görünür.
+  toast.ok(`${p.name} profili uygulandı`);
   void diskLog(`profil ${p.name}`, 0, S.lastAppliedBright, S.appliedKey);
   render();
   void tick("profil");
@@ -1690,6 +1857,8 @@ export function saveDraft(name: string, apps: string[]): void {
   saveProfiles(S.profiles);
   S.editorDirty = false;
   log(`profil kaydedildi: ${S.draft.name}`, "ok");
+  // duzeltme v2.2 (D): profil kaydetme artık toast ile de görünür.
+  toast.ok("Profil kaydedildi");
   // Aktif profil kaydedildiyse global state'i de ona göre senkronla.
   if (S.draft.id === S.activeId) {
     S.mode = S.draft.mode;
@@ -1728,13 +1897,28 @@ export function duplicateDraft(): void {
   saveProfiles(S.profiles);
   S.draft = { ...p };
   S.editorDirty = false;
+  // duzeltme v2.2 (D): çoğaltma artık toast ile de görünür.
+  toast.ok(`"${p.name}" profili çoğaltıldı`);
   renderEditor();
+  render();
+}
+
+/** duzeltme v2.2 (D + madde 10): silinen profili Geri al ile eski yerine koyar. */
+function restoreProfile(removed: Profile, idx: number): void {
+  if (S.profiles.length >= MAX_PROFILES) return;
+  if (S.profiles.some((p) => p.id === removed.id)) return;
+  const next = S.profiles.slice();
+  next.splice(Math.min(Math.max(idx, 0), next.length), 0, removed);
+  S.profiles = next;
+  saveProfiles(S.profiles);
+  toast.ok(`"${removed.name}" profili geri getirildi`);
   render();
 }
 
 export function deleteDraft(): void {
   if (S.profiles.length <= 1) return;
   const removed = S.draft;
+  const idx = S.profiles.findIndex((p) => p.id === removed.id);
   S.profiles = S.profiles.filter((p) => p.id !== removed.id);
   saveProfiles(S.profiles);
   if (S.activeId === removed.id) {
@@ -1750,6 +1934,10 @@ export function deleteDraft(): void {
     render();
   }
   log("profil silindi", "warn");
+  // duzeltme v2.2 (D): silme onaysız ama Geri al ile telafi edilebilir.
+  toast.action(`"${removed.name}" profili silindi`, {
+    action: { label: "Geri al", onAct: () => restoreProfile(removed, idx) },
+  });
 }
 
 export function restoreSeeds(): void {
@@ -1780,8 +1968,10 @@ export async function autostartEnabled(): Promise<boolean> {
 export async function setAutostart(v: boolean): Promise<void> {
   try {
     await invoke("autostart_set", { enabled: v });
-    log(v ? "otomatik başlatma açıldı" : "otomatik başlatma kapandı", "ok");
+    // duzeltme v2.2 (D): açılışta başlatma değişimi toast ile görünür.
+    toast.ok(v ? "Windows açılışında başlatma açıldı" : "Windows açılışında başlatma kapatıldı");
   } catch (e) {
     log("otomatik başlatma değiştirilemedi: " + String(e), "bad");
+    toastErrOnce("Windows açılışında başlatma değiştirilemedi", String(e));
   }
 }

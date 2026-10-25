@@ -36,3 +36,4 @@ qa/test-results
 latest.json
 tools/.license-private.pem
 
+.playwright-mcp/

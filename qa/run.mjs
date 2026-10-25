@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 TitanLion72
-// Visual + functional QA for the smart-screen UI shell (index.html SÖZLEŞME v2).
+// Visual + functional QA for the smart-screen UI shell (index.html SÖZLEŞME v2.2).
 // Serves ../dist with a stubbed Tauri bridge, walks the four tabs, captures
 // screenshots into ./shots, and fails on overflow, dead controls, swallowed
-// tick errors or console exceptions.
+// tick errors or console exceptions. 21 senaryo: 1-15 v2 uyarlaması,
+// 16-21 v2.2 özellikleri (toast, Kelvin, auto-seg, profil editörü, okuma
+// geri dönüşü, geçmiş insan dili).
 //
 // Stub policy: UNKNOWN invoke commands THROW (never return null) so real
 // regressions surface instead of silently degrading. The Pro gate mimic in the
@@ -144,8 +146,10 @@ window.__TAURI_INTERNALS__ = {
       case "hdr_status": return false;
       case "hdr_status_all": return window.__hdrAll;
       case "monitor_color_temp_info": return [
+        // v2.2 (17. senaryo): DISPLAY2 destekli — ilk harici monitörün kendi
+        // ayarı var, #warm-tech-note "Monitörün kendi ayarı" demeli.
         { device: ${JSON.stringify("\\\\.\\DISPLAY1")}, supported: true, increment: 50 },
-        { device: ${JSON.stringify("\\\\.\\DISPLAY2")}, supported: false, increment: 0 },
+        { device: ${JSON.stringify("\\\\.\\DISPLAY2")}, supported: true, increment: 50 },
         { device: ${JSON.stringify("\\\\.\\DISPLAY3")}, supported: false, increment: 0 },
       ];
       case "monitor_set_color_temp": return null;
@@ -254,8 +258,26 @@ async function run() {
       await page.waitForTimeout(300);
     };
     const openAdvanced = async () => {
-      await page.locator("#advanced").click();
+      // Idempotent: körlemesine tıklamak zaten açıkken KAPATIYORdu, sonraki
+      // senaryoda #lic-key görünmez kalıyordu. Doğrudan aç.
+      await page.evaluate(() => {
+        const d = document.getElementById("advanced");
+        if (d) d.open = true;
+      });
       await page.waitForTimeout(150);
+    };
+    // Sticky çubuk/uzun sayfa: kaydırıp tıkla (aksi hâlde Playwright 30 sn bekler).
+    const clickEl = async (sel) => {
+      const loc = page.locator(sel);
+      await loc.scrollIntoViewIfNeeded();
+      await loc.click();
+    };
+    // fill() yalnız "input" tetikler; change dinleyen alanlar için change yay.
+    const setField = async (sel, value) => {
+      const loc = page.locator(sel);
+      await loc.scrollIntoViewIfNeeded();
+      await loc.fill(value);
+      await loc.dispatchEvent("change");
     };
     // Karar "2 tur bekleme" kuralıyla uygulanır: hedefi değiştir, iki tur koş.
     const snap = async (target) => {
@@ -302,6 +324,17 @@ async function run() {
 
   const text = async (page, sel) => ((await page.locator(sel).textContent()) ?? "").trim();
 
+  // Toast'ları güvenle kapat: fareyi sağ alttaki toast alanından çek
+  // (hover sayacı durdurur), sonra Esc ile teker teker kapat.
+  const dismissToasts = async (page) => {
+    await page.mouse.move(30, 30);
+    for (let i = 0; i < 8; i++) {
+      if ((await page.locator("#toast-host .toast").count()) === 0) return;
+      await page.keyboard.press("Escape");
+      await page.waitForTimeout(250);
+    }
+  };
+
   // 1. Bugün: hero + durum kartları + monitörler + olay akışı.
   await scenario("catppuccin-macchiato", "dark", async ({ page, shot }) => {
     await checkOverflow(page, "bugun");
@@ -310,32 +343,36 @@ async function run() {
     }
     const bright = await text(page, "#st-bright");
     check(/^%\d+$/.test(bright), "hero", `st-bright dolmadi: "${bright}"`);
-    const target = await text(page, "#hero-target");
-    check(/^%\d+$/.test(target), "hero", `hero-target dolmadi: "${target}"`);
+    // v2.2: #hero-target ve #next-change SILINDI — tek satir #hero-sub'ta.
+    const heroSub = await text(page, "#hero-sub");
+    check(
+      /^Ulaşılmak istenen %\d+/.test(heroSub),
+      "hero",
+      `hero-sub hedef satiri dolmadi: "${heroSub}"`,
+    );
     const pill = await text(page, "#mode-pill");
     check(pill === "Akıllı", "hero", `mode-pill beklenen rozet degil: "${pill}"`);
-    const next = await text(page, "#next-change");
-    check(
-      next === "ölçüme göre" || /^sonraki değişim: \d{2}:\d{2}$/.test(next),
-      "hero",
-      `next-change belirsiz: "${next}"`,
-    );
     const why = await text(page, "#why-line");
-    check(why.includes("ölçüme göre akıyor"), "hero", `why-line akıyor durumunu gostermedi: "${why}"`);
-    const sub = await text(page, "#sub-bright");
-    check(sub.includes("hedef:"), "hero", `sub-bright hedef satiri yok: "${sub}"`);
+    check(why.includes("otomatik çalışıyor"), "hero", `why-line akıyor durumunu gostermedi: "${why}"`);
+    // GERIYE UYUM: #sub-bright DOM'da var ama hidden gelir; bilgi hero-sub'ta.
+    check(await page.locator("#sub-bright").isHidden(), "hero", "sub-bright hidden gelmedi (geriye uyum)");
+    const subCompat = await text(page, "#sub-bright");
+    check(subCompat.includes("Ulaşılmak istenen"), "hero", `sub-bright hedef metni yok: "${subCompat}"`);
     const clock = await text(page, "#clock");
     check(/^\d{2}:\d{2}$/.test(clock), "hero", `clock canli saat gostermedi: "${clock}"`);
     for (const id of ["st-light", "st-theme", "st-frozen"]) {
       const t = await text(page, `#${id}`);
       check(t && t !== "-", "panel", `#${id} dolmadi (tick hata yutmus olabilir): "${t}"`);
     }
+    const frozen = await text(page, "#st-frozen");
+    check(frozen === "Otomatik çalışıyor", "panel", `st-frozen beklenen metin degil: "${frozen}"`);
     const rows = await page.locator("#monitor-list .monitor-row").count();
     check(rows >= 3, "monitor", `monitor satiri az: ${rows}`);
     const firstVal = await page.locator("#monitor-list .monitor-row .mon-val").first().textContent();
     check((firstVal ?? "").includes("%42"), "monitor", `ilk satir yuzdesi dolmadi: "${firstVal}"`);
-    const chips = await page.locator("#profile-switch .chip").count();
-    check(chips >= 2, "panel", `profil hizli secimi yok (${chips})`);
+    // v2.2: #profile-switch SILINDI — yerine #auto-seg (4 dugme) geldi.
+    const segBtns = await page.locator("#auto-seg .seg-item").count();
+    check(segBtns === 4, "panel", `auto-seg dugme sayisi=${segBtns} (beklenen 4)`);
     const logRows = await page.locator("#log .log-row").count();
     check(logRows >= 1, "panel", `olay akisi bos (${logRows} satir)`);
     const logText = await text(page, "#log");
@@ -347,6 +384,15 @@ async function run() {
 
   // 2. Sekme gezinme + kapsam: her sekme kendi sayfasini acar, digeri kapanir.
   await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    // v2.2: sekme etiketleri Durum · Profiller · Geçmiş · Ayarlar (sirayla).
+    const labels = await page.evaluate(() =>
+      Array.from(document.querySelectorAll(".tab")).map((t) => (t.textContent ?? "").trim()),
+    );
+    check(
+      labels.join("|") === "Durum|Profiller|Geçmiş|Ayarlar",
+      "sekme",
+      `sekme etiketleri bozuk: ${JSON.stringify(labels)}`,
+    );
     for (const name of ["panel", "settings", "profiles", "history"]) {
       await openTab(name);
       const visible = await page.locator(`#page-${name}`).isVisible();
@@ -368,7 +414,7 @@ async function run() {
     const ver = await text(page, "#app-ver");
     check(ver !== "-" && ver.length > 0, "sekme", `app-ver dolmadi (plugin:app|version?): "${ver}"`);
     const modeBadge = await text(page, "#mode-badge");
-    check(modeBadge.includes("İzliyor"), "sekme", `mode-badge izliyor gostermedi: "${modeBadge}"`);
+    check(modeBadge.includes("Otomatik çalışıyor"), "sekme", `mode-badge otomatik calismayi gostermedi: "${modeBadge}"`);
     const profPill = await text(page, "#profile-pill");
     check(profPill.length > 0, "sekme", "profile-pill bos");
     await shot("2-sekmeler.png");
@@ -404,14 +450,15 @@ async function run() {
     await page.waitForTimeout(250);
     check((await text(page, "#warm-val")) === "20", "ritim", "warm-range input warm-val'i guncellemedi");
     const note = await text(page, "#warm-preview-note");
-    check(note.includes("Canlı önizleme"), "ritim", `onizleme notu yok: "${note}"`);
+    check(note.includes("Hızlı sarılık"), "ritim", `hizli sarilik notu yok: "${note}"`);
     const left = await page.locator("#day-now").evaluate((el2) => el2.style.left);
     check(left.endsWith("%"), "ritim", `day-now konumu yuzde degil: "${left}"`);
     const calib = await text(page, "#calib-hint");
-    check(calib.includes("kalibrasyon"), "ritim", `kalibrasyon gosterimi eksik: "${calib}"`);
+    check(calib.includes("Öğrenilen tercih"), "ritim", `ogrenilen tercih gosterimi eksik: "${calib}"`);
     check(await page.locator("#warm-hdr-note").isHidden(), "ritim", "HDR notu hdr yokken gorunuyor");
 
     await page.locator("#sleep-start").fill("2");
+    await page.locator("#sleep-start").dispatchEvent("change");
     await page.locator("#sleep-cap").click();
     await page.waitForTimeout(150);
     check((await page.locator("#sleep-start").inputValue()) === "2", "ritim", "gece korumasi saati kaydedilmedi");
@@ -459,8 +506,9 @@ async function run() {
     const rows = await page.locator("#audit-list .audit-row").count();
     check(rows >= 2, "kontrast", `denetim satiri az: ${rows}`);
     const badges = await page.locator("#audit-list .badge").allTextContents();
-    check(badges.includes("FAIL"), "kontrast", "FAIL rozeti gorunmedi");
-    check(badges.includes("AA"), "kontrast", "AA rozeti gorunmedi");
+    // v2.2 (B): WCAG rozetleri insan dilinde — "okunaksız"/"iyi".
+    check(badges.includes("okunaksız"), "kontrast", `okunaksız rozeti gorunmedi: ${badges.join(",")}`);
+    check(badges.includes("iyi"), "kontrast", `iyi rozeti gorunmedi: ${badges.join(",")}`);
     const colors = await page.locator("#audit-list .audit-muted").allTextContents();
     check(colors.some((c) => c.includes("renk")), "kontrast", "renk kodu sutunu gorunmedi");
     await page.locator("#audit-refresh").click();
@@ -482,7 +530,7 @@ async function run() {
     // Ucretsiz: karar uygulanir ama harici monitore yazma DENENMEZ bile.
     await snap(["ss-night", "dark", 28]);
     const logFree = await text(page, "#log");
-    check(logFree.includes("tema: ss-night"), "lisans", `ucretsiz karar uygulanmadi: ${logFree.slice(0, 80)}`);
+    check(logFree.includes("ss-night"), "lisans", `ucretsiz karar uygulanmadi: ${logFree.slice(0, 80)}`);
     const autoFree = (await invocations()).filter(
       ([c, a]) => c === "brightness_set_monitor" && a && !String(a.id).includes("DISPLAY1"),
     );
@@ -499,8 +547,9 @@ async function run() {
     await openAdvanced();
     const lic0 = await text(page, "#lic-status");
     check(lic0.includes("Ücretsiz"), "lisans", `kart ucretsiz gostermedi: ${lic0}`);
-    const mini0 = await text(page, "#lic-mini-status");
-    check(mini0.includes("ücretsiz"), "lisans", `mini durum ucretsiz gostermedi: ${mini0}`);
+    // v2.2: #lic-mini / #lic-mini-status SILINDI — lisans yalniz Ayarlar'da.
+    check((await page.locator("#lic-mini").count()) === 0, "lisans", "lic-mini hala DOM'da");
+    check((await page.locator("#lic-mini-status").count()) === 0, "lisans", "lic-mini-status hala DOM'da");
     check(await page.locator("#lic-deactivate").isHidden(), "lisans", "ucretsizde Kaldir dugmesi gorunuyor");
 
     await page.locator("#lic-activate").click();
@@ -516,8 +565,6 @@ async function run() {
     await page.waitForTimeout(400);
     const lic = await text(page, "#lic-status");
     check(lic.includes("Pro") && lic.includes("qa@test.local"), "lisans", `etkinlesen kart eksik: ${lic}`);
-    const mini = await text(page, "#lic-mini-status");
-    check(mini.includes("Pro"), "lisans", `mini durum Pro gostermedi: ${mini}`);
     check(await page.locator("#lic-err").isHidden(), "lisans", "etkinlesten sonra hata hala gorunuyor");
     check(await page.locator("#lic-deactivate").isVisible(), "lisans", "etkinlesten sonra Kaldir gorunmedi");
 
@@ -573,30 +620,40 @@ async function run() {
     await page.locator("#pf-name").fill("Gece");
     await page.locator("#pf-save").click();
     await page.waitForTimeout(250);
+    // v2.2: kaydetme toast'u sağ altta savebar'ı kapatır — temizle.
+    await dismissToasts(page);
     const names = await page.locator("#profile-cards .pc-name").allTextContents();
     check(names.includes("Gece"), "profil", `kaydedilen isim yok: ${names.join(",")}`);
 
     // Iki asamali silme: ilk tik onay, ikinci tik siler.
+    await page.locator("#pf-delete").scrollIntoViewIfNeeded();
     await page.locator("#pf-delete").click();
     await page.waitForTimeout(150);
     const armLabel = (await page.locator("#pf-delete").textContent()) ?? "";
     check(armLabel.includes("Emin"), "profil", `silme onayi cikmadi: ${armLabel}`);
     const armedCount = await page.locator("#profile-cards .profile-card").count();
     check(armedCount === after, "profil", "tek tikta silindi, onay beklenirdi");
+    await page.locator("#pf-delete").scrollIntoViewIfNeeded();
     await page.locator("#pf-delete").click();
     await page.waitForTimeout(300);
+    // Silme aksiyon toast'u ("Geri al") süresizdir — kapatmadan devam etme.
+    await dismissToasts(page);
     const afterDelete = await page.locator("#profile-cards .profile-card").count();
     check(afterDelete === after - 1, "profil", `ikinci tikta silinmedi (${after} -> ${afterDelete})`);
 
     // Geri getirme: silinen tohum profil geri gelir.
     const filmCard = page.locator("#profile-cards .profile-card").filter({ hasText: "Film" });
     if ((await filmCard.count()) > 0) {
-      await filmCard.first().click();
+      // v2.2: kartta "Uygula" dugmesi de var — secim icin isme tikla.
+      await filmCard.first().locator(".pc-name").click();
       await page.waitForTimeout(250);
-      await page.locator("#pf-delete").click();
+      await page.locator("#pf-delete").scrollIntoViewIfNeeded();
+    await page.locator("#pf-delete").click();
       await page.waitForTimeout(150);
-      await page.locator("#pf-delete").click();
+      await page.locator("#pf-delete").scrollIntoViewIfNeeded();
+    await page.locator("#pf-delete").click();
       await page.waitForTimeout(300);
+      await dismissToasts(page);
     }
     const namesBeforeRestore = await page.locator("#profile-cards .pc-name").allTextContents();
     await page.locator("#pf-restore").click();
@@ -632,7 +689,8 @@ async function run() {
     await openTab("profiles");
     check(!(await appsInput.isDisabled()), "bagim", "Pro'da uygulama girisi kapali kaldi");
     const filmCard = page.locator("#profile-cards .profile-card").filter({ hasText: "Film" });
-    await filmCard.first().click();
+    // v2.2: kartta "Uygula" dugmesi de var — secim icin isme tikla.
+    await filmCard.first().locator(".pc-name").click();
     await page.waitForTimeout(250);
     const countBefore = await text(page, "#pf-apps-count");
     await page.locator("#pf-bind-current").click();
@@ -640,6 +698,8 @@ async function run() {
     const countAfter = await text(page, "#pf-apps-count");
     check(countAfter !== countBefore, "bagim", `on plandaki eklemedi: ${countBefore} -> ${countAfter}`);
     check(countAfter.includes("1 uygulama"), "bagim", `baglanan uygulama sayisi yanlis: "${countAfter}"`);
+    // v2.2: bağlama toast'u sağ altta savebar'ı kapatır — temizle.
+    await dismissToasts(page);
     await page.locator("#pf-save").click();
     await page.waitForTimeout(250);
     await checkOverflow(page, "bagim");
@@ -657,7 +717,8 @@ async function run() {
     check((await text(page, "#sum-frozen")) === "2", "grafik", "dondurulan tur sayisi dolmadi");
     const rows = await page.locator("#hist-panel div").count();
     check(rows > 0, "gecmis", "kayit satiri yok");
-    check(await page.locator("#lic-mini").isVisible(), "gecmis", "lic-mini gorunmuyor");
+    // v2.2: #lic-mini SILINDI — Geçmiş'te lisans kopyasi yok.
+    check((await page.locator("#lic-mini").count()) === 0, "gecmis", "lic-mini hala DOM'da");
 
     const before = (await invocations()).filter(([c]) => c === "log_lines").length;
     await page.locator("#hist-refresh").click();
@@ -735,7 +796,7 @@ async function run() {
     const d3 = writes.filter(([, a]) => a && String(a.id).includes("DISPLAY3"));
     check(d3.length > 0, "otomatik", "hatali monitore (DISPLAY3) yazma denemesi olmadi");
     const logText = await text(page, "#log");
-    check(logText.includes("tema:"), "otomatik", "karar uygulanmadi (tema log'u yok)");
+    check(logText.includes("tema değişti"), "otomatik", "karar uygulanmadi (tema log'u yok)");
     check(!logText.includes("hata:"), "otomatik", `tick hatasi: ${logText.slice(0, 120)}`);
     const errText = await text(page, "#monitor-list .monitor-row.bad .mon-err");
     check(errText.includes("DDC"), "otomatik", `DDC hatasi satirda gorunmedi: ${errText}`);
@@ -791,7 +852,7 @@ async function run() {
     // Tekrar basmak bitirir.
     await page.locator("#pause-btn").click();
     await page.waitForTimeout(250);
-    check((await text(page, "#mode-badge")).includes("İzliyor"), "duraklatma", "duraklatma bitmedi");
+    check((await text(page, "#mode-badge")).includes("Otomatik çalışıyor"), "duraklatma", "duraklatma bitmedi");
 
     // "Bugün kapat": gece yarisina kadar duraklatir, kalan sure gorunur.
     await page.locator("#day-off-btn").click();
@@ -814,7 +875,7 @@ async function run() {
     check((await text(page, "#mode-badge")).includes("Duraklatıldı"), "flyout", "ss:action pause-1h duraklatmadi");
     await page.evaluate(() => window.__emit("ss:action", { action: "pause-1h" }));
     await page.waitForTimeout(250);
-    check((await text(page, "#mode-badge")).includes("İzliyor"), "flyout", "ss:action pause-1h geri acmadi");
+    check((await text(page, "#mode-badge")).includes("Otomatik çalışıyor"), "flyout", "ss:action pause-1h geri acmadi");
     const mark = (await invocations()).length;
     await page.evaluate(() => window.__emit("ss:action", { action: "measure" }));
     await page.waitForTimeout(700);
@@ -948,22 +1009,33 @@ async function run() {
     check(snooze > Date.now(), "guncelleme", `erteleme kaydi bozuk: ${snooze}`);
   }, null, { updateVersion: "9.9.9" });
 
-  // 14. HDR: monitör rozeti "HDR" + soluk satır + Ritim'de sıcak ton notu.
-  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+  // 14. HDR: monitör rozeti "HDR açık" + soluk satır + Ayarlar'da sıcaklık notu.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, shot }) => {
     const rows = page.locator("#monitor-list .monitor-row");
     check((await rows.count()) >= 3, "hdr", "monitor satirlari yok");
     const hdrBadge = ((await rows.nth(1).locator(".ct-badge").textContent()) ?? "").trim();
-    check(hdrBadge === "HDR", "hdr", `HDR rozeti gorunmedi: "${hdrBadge}"`);
+    check(hdrBadge === "HDR açık", "hdr", `HDR rozeti gorunmedi: "${hdrBadge}"`);
     const hdrClass = (await rows.nth(1).getAttribute("class")) ?? "";
     check(hdrClass.includes("hdr"), "hdr", "HDR satiri soluk (hdr sinifi) degil");
+    // v2.2: ct rozetleri insan dilinde — destekli "monitörün kendi ayarı",
+    // desteksiz "programla yapılıyor" (wmi/ddc yok).
     const hwBadge = ((await rows.nth(0).locator(".ct-badge").textContent()) ?? "").trim();
-    check(hwBadge === "donanımsal", "hdr", `DISPLAY1 donanimsal rozeti yok: "${hwBadge}"`);
+    check(hwBadge === "monitörün kendi ayarı", "hdr", `DISPLAY1 destek rozeti yok: "${hwBadge}"`);
     const swBadge = ((await rows.nth(2).locator(".ct-badge").textContent()) ?? "").trim();
-    check(swBadge === "yazılımsal", "hdr", `DISPLAY3 yazilimsal rozeti yok: "${swBadge}"`);
+    check(swBadge === "programla yapılıyor", "hdr", `DISPLAY3 programla rozeti yok: "${swBadge}"`);
     await openTab("settings");
     check(await page.locator("#warm-hdr-note").isVisible(), "hdr", "warm-hdr-note gorunmedi");
     const note = await text(page, "#warm-hdr-note");
     check(note.includes("HDR"), "hdr", `not metni HDR icermiyor: "${note}"`);
+    // v2.2 (E): HDR açıkken Kelvin kaydırıcısı disabled (görünür ama soluk).
+    check(await page.locator("#warm-kelvin").isDisabled(), "hdr", "HDR açıkken kelvin kaydiricisi kilitlenmedi");
+    check(await page.locator("#warm-presets .chip").first().isDisabled(), "hdr", "HDR açıkken preset çipleri kilitlenmedi");
+    // HDR ayar bağlantısı ayar sayfasını açar.
+    const openBefore = (await invocations()).filter(([c]) => c === "plugin:opener|open_url").length;
+    await page.locator("#warm-hdr-link").click();
+    await page.waitForTimeout(250);
+    const openAfter = (await invocations()).filter(([c]) => c === "plugin:opener|open_url").length;
+    check(openAfter === openBefore + 1, "hdr", "warm-hdr-link open_url cagirmadi");
     await checkOverflow(page, "hdr");
     await shot("14-hdr.png");
   }, null, { hdrAll: [{ device: "\\\\.\\DISPLAY2", hdr: true }] });
@@ -984,6 +1056,275 @@ async function run() {
     check(after === before + 1, "hakkinda", "kaynak kodu dugmesi open_url cagirmadi");
     await checkOverflow(page, "hakkinda");
     await shot("15-hakkinda.png");
+  });
+
+  // 16. Toast sistemi: kapsayıcı, roller, otomatik kapanış, en fazla 3,
+  //     × ve Esc ile kapanış, aksiyonlu toast (profil sil → Geri al).
+  //     Not: #now-btn toast ÜRETMEZ (tick yalnız log yazar) — yalnız turun
+  //     koştuğu doğrulanır, toast assert'i güvenilir tetikleyicilerle yapılır.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, openAdvanced, snap, shot }) => {
+    const host = page.locator("#toast-host");
+    const toastCount = async () => await host.locator(".toast").count();
+    const waitHostEmpty = async () =>
+      await page.waitForFunction(() => document.querySelectorAll("#toast-host .toast").length === 0, null, { timeout: 10_000 });
+
+    // (a) #now-btn tıklanabilir + tur koşuyor (toast çıkarmıyor — rapora not).
+    const mark = (await invocations()).length;
+    await page.locator("#now-btn").click();
+    await page.waitForTimeout(700);
+    const ran = (await invocations()).slice(mark).map(([c]) => c);
+    check(ran.includes("decide_target"), "toast", "#now-btn tur calistirmadi");
+
+    // (b) info toast: #toast-host içinde çıkar, role="status", 4 sn sonra kaybolur.
+    await openTab("settings");
+    await page.locator("#break-switch").click();
+    await page.waitForTimeout(300);
+    check((await toastCount()) >= 1, "toast", "break-switch toast cikarmadi");
+    const first = host.locator(".toast").first();
+    check((await first.getAttribute("role")) === "status", "toast", "info toast role=status degil");
+    await page.waitForTimeout(4_900);
+    check((await toastCount()) === 0, "toast", "info toast 4 sn sonra kaybolmadi");
+
+    // (c) × düğmesi kapatır.
+    await page.locator("#break-switch").click();
+    await page.waitForTimeout(300);
+    check((await toastCount()) >= 1, "toast", "ikinci break-switch toast cikarmadi");
+    await host.locator(".toast-x").first().click();
+    await page.waitForTimeout(500);
+    check((await toastCount()) === 0, "toast", "x dugmesi toast'u kapatmadi");
+
+    // (d) Esc kapatır. (Not: fill() change tetiklemez — değer + change elle dispatch.)
+    await page.locator("#sleep-start").evaluate((el2) => {
+      el2.value = "21";
+      el2.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await page.waitForTimeout(300);
+    check((await toastCount()) >= 1, "toast", "gece saati toast cikarmadi");
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(500);
+    check((await toastCount()) === 0, "toast", "Esc toast'u kapatmadi");
+
+    // (e) err toast: role="alert" (Pro + otomatik tur → DDC hatası).
+    await openAdvanced();
+    await page.locator("#lic-key").fill("SS-QA-TEST-KEY-1234567890");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(500);
+    check((await host.locator(".toast-ok").count()) >= 1, "toast", "lisans busy→ok toast gorunmedi");
+    await dismissToasts(page);
+    await openTab("panel");
+    await snap(["ss-paper", "light", 60]);
+    const errToast = host.locator(".toast-err").first();
+    check((await errToast.count()) === 1, "toast", "DDC hatasi err toast cikarmadi");
+    check((await errToast.getAttribute("role")) === "alert", "toast", "err toast role=alert degil");
+    await dismissToasts(page);
+    await waitHostEmpty();
+
+    // (f) ekranda en fazla 2 toast: 4 hızlı toast → 2 görünür (küçük pencere kuralı).
+    await openTab("settings");
+    for (const v of ["22", "23", "20", "21"]) {
+      await page.locator("#sleep-start").evaluate((el2, val) => {
+        el2.value = val;
+        el2.dispatchEvent(new Event("change", { bubbles: true }));
+      }, v);
+      await page.waitForTimeout(120);
+    }
+    const visible = await toastCount();
+    check(visible === 2, "toast", `en fazla 2 kurali bozuldu: ${visible} gorunur toast`);
+    await dismissToasts(page);
+    await waitHostEmpty();
+
+    // (g) aksiyonlu toast: profil sil → "Geri al" düğmesi → profil geri gelir.
+    await openTab("profiles");
+    const cardsBefore = await page.locator("#profile-cards .profile-card").count();
+    await page.locator("#pf-delete").scrollIntoViewIfNeeded();
+    await page.locator("#pf-delete").click();
+    await page.waitForTimeout(150);
+    await page.locator("#pf-delete").scrollIntoViewIfNeeded();
+    await page.locator("#pf-delete").click();
+    await page.waitForTimeout(400);
+    const cardsAfterDelete = await page.locator("#profile-cards .profile-card").count();
+    check(cardsAfterDelete === cardsBefore - 1, "toast", `silme calismadi (${cardsBefore} -> ${cardsAfterDelete})`);
+    const actBtn = host.locator(".toast-act").first();
+    check((await actBtn.count()) === 1, "toast", "silme sonrasi Geri al dugmesi cikmadi");
+    check((await actBtn.textContent()) === "Geri al", "toast", "aksiyon dugmesi 'Geri al' degil");
+    const toastText = await host.locator(".toast").first().textContent();
+    check((toastText ?? "").includes("silindi"), "toast", `silme toast metni bozuk: "${toastText}"`);
+    await actBtn.click();
+    await page.waitForTimeout(500);
+    const cardsAfterUndo = await page.locator("#profile-cards .profile-card").count();
+    check(cardsAfterUndo === cardsBefore, "toast", `Geri al profili getirmedi (${cardsAfterDelete} -> ${cardsAfterUndo})`);
+    await checkOverflow(page, "toast");
+    await shot("16-toast.png");
+  });
+
+  // 17. Kelvin arayüzü: kaydırıcı + değer/ad, preset çipleri, sıfırlama,
+  //     donanımsal destek notu, HDR kilidi (14. senaryoda).
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, shot }) => {
+    await openTab("settings");
+    check(!(await page.locator("#warm-kelvin").isDisabled()), "kelvin", "HDR yokken kelvin kaydiricisi kilitli");
+    // Kaydırıcı 4200 → değer "4200 K" + ad "Florasan" + donanımsal yazma.
+    await page.locator("#warm-kelvin").evaluate((el2) => {
+      el2.value = "4200";
+      el2.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    await page.waitForTimeout(400);
+    check((await text(page, "#warm-kelvin-val")) === "4200 K", "kelvin", `kelvin degeri dolmadi: "${await text(page, "#warm-kelvin-val")}"`);
+    check((await text(page, "#warm-kelvin-name")) === "Florasan", "kelvin", `4200 adi "Florasan" degil: "${await text(page, "#warm-kelvin-name")}"`);
+    const ctCalls = (await invocations()).filter(([c]) => c === "monitor_set_color_temp");
+    check(
+      ctCalls.length > 0 && ctCalls.at(-1)[1].kelvin === 4200 && String(ctCalls.at(-1)[1].device).includes("DISPLAY2"),
+      "kelvin",
+      `monitor_set_color_temp DISPLAY2'ye 4200 yazmadi: ${JSON.stringify(ctCalls.at(-1))}`,
+    );
+    // Preset çipi (2700) → kaydırıcı 2700 + ad "Ampul" + çip vurgusu.
+    const bulb = page.locator("#warm-presets .chip[data-k='2700']");
+    await bulb.click();
+    await page.waitForTimeout(300);
+    check((await page.locator("#warm-kelvin").inputValue()) === "2700", "kelvin", "preset kaydiriciyi 2700 yapmadi");
+    check((await text(page, "#warm-kelvin-val")) === "2700 K", "kelvin", "preset degeri 2700 K degil");
+    check((await text(page, "#warm-kelvin-name")) === "Ampul", "kelvin", `2700 adi "Ampul" degil: "${await text(page, "#warm-kelvin-name")}"`);
+    check(((await bulb.getAttribute("class")) ?? "").includes("active"), "kelvin", "secili preset cipi vurgulanmadi");
+    // Sıfırlama → 6500 K.
+    await page.locator("#warm-reset").click();
+    await page.waitForTimeout(300);
+    check((await text(page, "#warm-kelvin-val")) === "6500 K", "kelvin", `reset 6500 K yapmadi: "${await text(page, "#warm-kelvin-val")}"`);
+    check((await page.locator("#warm-kelvin").inputValue()) === "6500", "kelvin", "reset kaydiriciyi 6500 yapmadi");
+    // Teknik not: ilk harici monitör destekli → "Monitörün kendi ayarı".
+    const note = await text(page, "#warm-tech-note");
+    check(note.includes("Monitörün kendi ayarı"), "kelvin", `teknik not destekli monitoru soylemedi: "${note}"`);
+    check(await page.locator("#warm-hdr-note").isHidden(), "kelvin", "HDR yokken HDR notu gorunuyor");
+    await checkOverflow(page, "kelvin");
+    await shot("17-kelvin.png");
+  });
+
+  // 18. Otomatik ayar segmenti: 4 düğme, toggle, "1 saat" ↔ "Bugün" ayrılığı,
+  //     "Açık" duraklatma VE kilidi kaldırır.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    const segBtns = await page.locator("#auto-seg .seg-item").count();
+    check(segBtns === 4, "otoseg", `auto-seg dugme sayisi=${segBtns} (beklenen 4)`);
+    for (const id of ["auto-on", "pause-btn", "day-off-btn", "lock-btn"]) {
+      check(await page.locator(`#${id}`).isVisible(), "otoseg", `#${id} gorunmuyor`);
+    }
+    const pressed = async (id) => await page.locator(`#${id}`).getAttribute("aria-pressed");
+    const activeCls = async (id) => ((await page.locator(`#${id}`).getAttribute("class")) ?? "").includes("active");
+
+    // "1 saat": bas → açılır, tekrar bas → kapanır.
+    await page.locator("#pause-btn").click();
+    await page.waitForTimeout(250);
+    check((await pressed("pause-btn")) === "true" && (await activeCls("pause-btn")), "otoseg", "1 saat acilmadi");
+    await page.locator("#pause-btn").click();
+    await page.waitForTimeout(250);
+    check((await pressed("pause-btn")) === "false" && !(await activeCls("pause-btn")), "otoseg", "1 saat kapanmadi");
+
+    // Ayrı durumlar: "1 saat" etkinken "Bugün" yok sayılır — ikisi birbirini
+    // iptal ETMEZ; "Bugün" kendi durumunu değiştiremez (kod: yok sayıldı).
+    await page.locator("#pause-btn").click();
+    await page.waitForTimeout(250);
+    await page.locator("#day-off-btn").click();
+    await page.waitForTimeout(250);
+    check((await pressed("pause-btn")) === "true", "otoseg", "Bugün tiklamasi 1 saat'i iptal etti");
+    check((await pressed("day-off-btn")) === "false", "otoseg", "1 saat etkinken Bugün aktiflesti (yok sayilmaliydi)");
+    const logText = await text(page, "#log");
+    check(logText.includes("yok sayıldı"), "otoseg", `yok sayma log'u yok: "${logText.slice(0, 100)}"`);
+
+    // "Açık": duraklatmayı kaldırır + toast görünür.
+    await page.locator("#auto-on").click();
+    await page.waitForTimeout(300);
+    check((await pressed("pause-btn")) === "false", "otoseg", "Acik dugmesi duraklatmayi kaldirmadi");
+    check((await text(page, "#mode-badge")).includes("Otomatik çalışıyor"), "otoseg", "Acik sonrasi rozet otomatik degil");
+    check((await page.locator("#toast-host .toast").count()) >= 1, "otoseg", "otomatik moda donus toast'u cikmadi");
+
+    // "Kilitli": açılır, "Açık" çözer.
+    await page.locator("#lock-btn").click();
+    await page.waitForTimeout(250);
+    check((await pressed("lock-btn")) === "true" && (await activeCls("lock-btn")), "otoseg", "Kilitli acilmadi");
+    check((await text(page, "#mode-badge")).includes("Kilitli"), "otoseg", "kilit rozeti gelmedi");
+    await page.locator("#auto-on").click();
+    await page.waitForTimeout(250);
+    check((await pressed("lock-btn")) === "false", "otoseg", "Acik dugmesi kilidi cozmedi");
+    check((await text(page, "#mode-badge")).includes("Otomatik çalışıyor"), "otoseg", "kilit cozulunce rozet otomatik degil");
+    await checkOverflow(page, "otoseg");
+    await shot("18-otoseg.png");
+  });
+
+  // 19. Profil editörü: "Kaydedilmedi" göstergesi, kaydet, kart yalnız seçer,
+  //     ayrı "Uygula" çipi uygular.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, shot }) => {
+    await openTab("profiles");
+    check(await page.locator("#pf-dirty").isHidden(), "profedit", "pf-dirty basta gorunuyor");
+    // Alan değişimi → "Kaydedilmedi" belirir.
+    await page.locator("#pf-off-plus").click();
+    await page.waitForTimeout(250);
+    check(await page.locator("#pf-dirty").isVisible(), "profedit", "alan degisince pf-dirty cikmadi");
+    const dirtyText = await text(page, "#pf-dirty");
+    check(dirtyText.includes("Kaydedilmedi"), "profedit", `pf-dirty metni bozuk: "${dirtyText}"`);
+    check((await text(page, "#pf-off-val")) === "+5", "profedit", "ofset +5 olmadi");
+    // Kaydet → gösterge gizlenir + toast çıkar.
+    await page.locator("#pf-save").click();
+    await page.waitForTimeout(300);
+    check(await page.locator("#pf-dirty").isHidden(), "profedit", "kaydetince pf-dirty gizlenmedi");
+    check((await page.locator("#toast-host .toast").count()) >= 1, "profedit", "kaydet toast'u cikmadi");
+    await dismissToasts(page);
+
+    // Kart tıklaması YALNIZ seçer: editör dolar, tema yazılmaz, aktif kart değişmez.
+    const mark = (await invocations()).length;
+    const filmCard = page.locator("#profile-cards .profile-card").filter({ hasText: "Film" });
+    check((await filmCard.count()) > 0, "profedit", "Film karti yok");
+    await filmCard.first().locator(".pc-name").click();
+    await page.waitForTimeout(250);
+    check((await page.locator("#pf-name").inputValue()) === "Film", "profedit", "kart secimi editoru doldurmadi");
+    const between = (await invocations()).slice(mark);
+    check(!between.some(([c]) => c === "theme_set"), "profedit", `kart secimi tema uyguladi: ${JSON.stringify(between.slice(0, 4))}`);
+    check((await text(page, "#profile-cards .profile-card.active .pc-name")) === "İş", "profedit", "kart secimi aktif profili degistirdi");
+
+    // "Uygula" çipi: tema yazar + kart aktifleşir + toast.
+    await filmCard.first().locator(".pc-apply").click();
+    await page.waitForTimeout(400);
+    const applied = (await invocations())
+      .slice(mark)
+      .filter(([c]) => c === "theme_set");
+    check(applied.length > 0 && applied[0][1].name === "vesper", "profedit", `Uygula tema yazmadi: ${JSON.stringify(applied[0])}`);
+    check((await text(page, "#profile-cards .profile-card.active .pc-name")) === "Film", "profedit", "Uygula karti aktiflestirmedi");
+    const hostText = await text(page, "#toast-host");
+    check(hostText.includes("Film profili uygulandı"), "profedit", `uygulama toast'u yok: "${hostText.slice(0, 80)}"`);
+    await checkOverflow(page, "profedit");
+    await shot("19-profil-editör.png");
+  });
+
+  // 20. Okuma profili geri dönüşü: aç → ss-dusk, kapat → önceki tema geri gelir.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    await openTab("panel");
+    const before = await text(page, "#st-theme");
+    check(before.length > 0 && before !== "-", "okuma", `acilis temasi okunamadi: "${before}"`);
+    await openTab("settings");
+    await page.locator("#read-btn").click();
+    await page.waitForTimeout(500);
+    check((await text(page, "#st-theme")) === "ss-dusk", "okuma", `okuma profili temayi degistirmadi: "${await text(page, "#st-theme")}"`);
+    check((await page.locator("#read-btn").getAttribute("aria-pressed")) === "true", "okuma", "read-btn aria-pressed guncellenmedi");
+    await page.locator("#read-btn").click();
+    await page.waitForTimeout(500);
+    const after = await text(page, "#st-theme");
+    check(after === before, "okuma", `kapatince onceki tema geri gelmedi: "${before}" -> "${after}"`);
+    check((await page.locator("#read-btn").getAttribute("aria-pressed")) === "false", "okuma", "read-btn kapanmadi");
+    await checkOverflow(page, "okuma");
+    await shot("20-okuma.png");
+  });
+
+  // 21. Geçmiş insan dili: ham log biçimi (source=/level=/tone=) yok,
+  //     satırlar "·" ayraçlı insan dilinde.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    await openTab("history");
+    await page.waitForTimeout(400);
+    const rows = await page.locator("#hist-panel div").allTextContents();
+    check(rows.length > 0, "gecmis-dil", "kayit satiri yok");
+    const histText = await text(page, "#hist-panel");
+    for (const raw of ["source=", "level=", "tone=", "desired=", "theme="]) {
+      check(!histText.includes(raw), "gecmis-dil", `ham log biçimi sızdı: "${raw}" → "${histText.slice(0, 100)}"`);
+    }
+    check(histText.includes("·"), "gecmis-dil", `satirlar '·' ayraçlı değil: "${histText.slice(0, 100)}"`);
+    check(rows.every((r) => r.includes("·")), "gecmis-dil", `ayraçsız satır var: ${rows.filter((r) => !r.includes("·")).slice(0, 2).join(" | ")}`);
+    await checkOverflow(page, "gecmis-dil");
+    await shot("21-geçmiş-dil.png");
   });
 
   await browser.close();

@@ -8,6 +8,7 @@
  * karar mantığı `orchestr.ts`, render `panels.ts` içindedir.
  */
 
+import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -18,6 +19,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import type { Update } from "@tauri-apps/plugin-updater";
 import * as O from "./orchestr";
 import * as P from "./panels";
+import { toast } from "./toast";
 
 const WATCH_MS = 60 * 1000;
 /** Canlı saat + gün şeridi imleci: tur dışında hafif tazeleme. */
@@ -101,10 +103,18 @@ function wireUpdater(): void {
     const btn = btnEl("update-install");
     btn.disabled = true;
     btn.textContent = "Kuruluyor…";
+    // duzeltme v2.2 (D): güncelleme kurulumu busy → ok/hata toast'uyla görünür.
+    const busy = toast.busy("Güncelleme kuruluyor…");
     pendingUpdate
       .downloadAndInstall()
-      .then(() => relaunch())
+      .then(() => {
+        busy.done("Güncelleme kuruldu — uygulama yeniden başlıyor");
+        return relaunch();
+      })
       .catch((e: unknown) => {
+        // busy toast'unu ok'a çevirmeden kapat (Esc üstteki toast'u kapatır).
+        document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+        toast.err("Güncelleme kurulamadı", { detail: String(e) });
         O.log("güncelleme kurulamadı: " + String(e), "bad");
         el("update-text").textContent = "Güncelleme kurulamadı — başka bir zaman tekrar denenecek.";
         btn.disabled = false;
@@ -164,15 +174,36 @@ window.addEventListener("DOMContentLoaded", () => {
   // Boş log için yönlendirme (appendLog ilk satırda bu elemanı kaldırır).
   const logEmpty = document.createElement("div");
   logEmpty.className = "log-empty";
-  logEmpty.textContent = "İlk ölçüm birkaç dakika içinde düşer.";
+  logEmpty.textContent = "Birkaç dakika içinde ilk ölçüm gelir.";
   el("log").append(logEmpty);
 
   // ---------- hızlı eylem çubuğu ----------
   el("now-btn").addEventListener("click", () => void O.tick("manuel"));
   el("pause-btn").addEventListener("click", () => O.togglePauseHour());
+  // duzeltme v2.2 (madde 11): "Açık" duraklatma VE kilidi kaldırır —
+  // "otomatik"e alma toast ile görünür.
+  el("auto-on").addEventListener("click", () => {
+    let changed = false;
+    if (O.S.pauseUntil !== null) {
+      O.clearPause("otomatik moda dönüldü");
+      changed = true;
+    }
+    if (O.S.locked) {
+      O.toggleLock();
+      changed = true;
+    }
+    if (changed) toast.info("Otomatik moda alındı");
+  });
   el("night-btn").addEventListener("click", () => {
     openUrl("ms-settings:nightlight").catch((e: unknown) => {
       O.log("gece ışığı açılamadı: " + String(e), "bad");
+    });
+  });
+  // duzeltme v2.2 (E): HDR notundaki bağlantı night-btn ile aynı ayar sayfasını açar.
+  el("warm-hdr-link").addEventListener("click", (e) => {
+    e.preventDefault();
+    openUrl("ms-settings:nightlight").catch((err: unknown) => {
+      O.log("HDR ayar sayfası açılamadı: " + String(err), "bad");
     });
   });
 
@@ -206,13 +237,32 @@ window.addEventListener("DOMContentLoaded", () => {
     }
     P.addAppExe(exe);
     O.log(`bağlandı: ${exe} → ${O.S.draft.name} (Kaydet ile kalıcı olur)`, "ok");
+    // duzeltme v2.2 (D): uygulama bağlama toast ile de görünür.
+    toast.ok(`${exe} → ${O.S.draft.name} profiline bağlandı`);
   });
 
   // ---------- Geçmiş ----------
   el("hist-refresh").addEventListener("click", () => void O.loadHistory());
   el("log-clear-btn").addEventListener("click", () => {
-    if (!window.confirm("Kayıtlar temizlensin mi?")) return;
-    void O.clearLogs();
+    // duzeltme v2.2 (madde 10): window.confirm YOK — temizle + Geri al'lı toast.
+    // Satırlar önce bellekte tutulur; Geri al hepsini geri yazar.
+    const saved = O.S.histLines.slice();
+    void O.clearLogs().then(() => {
+      toast.action("Kayıtlar temizlendi", {
+        action: {
+          label: "Geri al",
+          onAct: () => {
+            const chrono = saved.slice().reverse();
+            void (async () => {
+              for (const line of chrono) {
+                await invoke("log_tick", { line }).catch(() => undefined);
+              }
+              await O.loadHistory();
+            })();
+          },
+        },
+      });
+    });
   });
 
   // ---------- ilk çizim ----------

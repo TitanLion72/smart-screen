@@ -31,10 +31,14 @@ bozulmaz (sert bir test var).
 
 | Bölüm | Ne işe yarar |
 |---|---|
-| **Bugün** | "Şu an" kartı: gerçek + hedef parlaklık, mod rozeti, sonraki değişim saati, **neden** satırı; monitör satırları; hızlı eylemler (**Şimdi Ölç / 1 saat duraklat / Bugün kapat**); son olaylar; güncelleme varsa tek satır band |
-| **Ritim** | Otomasyon kipi (Oto / Işığa göre / Saate göre / Sabit), 24 saatlik sıcak ton şeridi + şiddet, gece koruması, 20-20-20 mola, okuma profili; **Gelişmiş** altında tema seçimi + kontrast denetimi (WCAG), otostart, Hakkında (GPL) ve lisans |
-| **Profiller** | İş/Film gibi paketler; bir profil uygulama listesine bağlanabilir (`code.exe` gibi) |
-| **Geçmiş** | Bugünün özeti + 12 saatlik grafik + kayıtlar + lisans durumu |
+| **Durum** | "Şu an" kartı: gerçek parlaklık, ulaşılmak istenen değer, sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi; monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
+| **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
+| **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
+| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Gelişmiş** altında tema seçimi, okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
+
+Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
+silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen
+değişiklikler sessizdir.
 
 **Tepsi (tray):** sol tık **hızlı panel**i açar (parlaklık, hızlı eylemler, Ayarlar);
 sağ tık menüsünde Ayarlar · 1 saat duraklat · Bugün kapat · Çıkış. Hızlı panel dışına
@@ -61,9 +65,15 @@ DDC/CI desteklenmiyorsa veya OSD'den kapatılmışsa satırda net hata görünü
 (hata 31); sessizce başka yola düşülmez. Tek ekranlı kurulumda sınıflandırma
 kaybolursa WMI son şans olarak denenir.
 
-> Bilinen sınır: harici monitörlerde **sıcak ton** DDC üzerinden değil yalnız
-> gamma rampasıyla uygulanır; DDC sıcaklık (VCP 0x0C) kontrolü sonraki sürüme
-> bırakılmıştır.
+> Bilinen sınır: harici monitörlerde **sıcak ton**, monitör VCP 0x0C'yi desteklemiyorsa
+> yalnız gamma rampasıyla (yazılımsal) uygulanır. Uygulama monitörü bir kez yoklar:
+> destekliyorsa ayar monitörün kendisinde yapılır ("Monitörün kendi ayarı"), desteklemiyorsa
+> "Programla yapılıyor" notu görünür.
+
+**Ekran rengi sıcaklığı:** Ayarlar'da **2500–6500 K** aralığında seçilir (sol sıcak, sağ
+gündüz). Hazır çipler: Mum · Ampul · Halojen · Florasan · Gündüz. Tek tıkla 6500 K'ye
+dönülebilir, Esc son değere döndürür. Kaydırıcı sürüklenirken canlı uygulanır; monitör
+yazımı 150 ms bekletilir ki donanım yorulmasın.
 
 **HDR:** HDR açık bir monitörde yazılımsal sıcak ton uygulanmaz (Windows rampaları
 HDR'da yok sayar). Uygulama bunu tespit eder, monitör satırında `HDR` rozeti gösterir
@@ -72,7 +82,7 @@ ve neden uygulamadığını yazar. Parlaklık DDC üzerinden çalışmaya devam 
 ## Otomatik güncelleme
 
 Uygulama açılıştan 10 sn sonra ve günde bir kez `latest.json` üzerinden yeni sürüm
-kontrol eder. Güncelleme varsa **Bugün** sekmesinde tek satır band çıkar: *"v2.1.1
+kontrol eder. Güncelleme varsa **Durum** sekmesinde tek satır band çıkar: *"v2.2.1
 hazır — şimdi kur?"*. Kurulum yalnız senin onayınla başlar ve uygulamayı yeniden
 başlatır; "Ertele" 24 saat susturur. Güncelleme paketi ayrıca minisign ile imzalıdır
 (uygulama içi doğrulama), kurulum dosyasının Authenticode imzası yoktur.

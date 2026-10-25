@@ -1,5 +1,277 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## V2.2 TURU (2026-10-25) — "anlaşılır dil + geri bildirim + tatlı arayüz"
+
+**Kullanıcı talimatı (birebir):** "kullanıcıların anlam veremediği, kullanıcıya uygun dil
+kullanılmayan çok sekme var" · "bazı sekmelerin işlevini yerine getirdiğinden emin değilim;
+tıklıyorsun ama ne bir push bildirim ne bir toast bildirim" · "UI biraz amatör ve fazla
+kötü duruyor; tatlı, modern, yenilikçi, gerekirse 3D bir uygulama olmalı".
+Ayrıca **v2.2 için ertelenen konular** da bu turda: DDC 0x0C arayüzü, imzalama/SmartScreen,
+CHANGELOG. KURAL: yalnız smart-screen reposu; bu tur da final değil.
+
+**Ön tarama (şef, 2026-10-25):** `index.html` 43 KB / 129 id · `styles.css` 36 KB ·
+`panels.ts` 31 KB · `orchestr.ts` 54 KB. Geri bildirim **yalnız** 20-20-20 molasında
+(`orchestr.ts:1202 sendNotification`); parlaklık, tema, profil, lisans, ayar kaydı SESSİZ.
+
+**Dalga haritası:**
+- [K1] **keşif (4 paralel, salt-okuma):** (a) UX dil + işlev denetimi (jargon envanteri,
+  sessiz eylemler, ölü kontroller, sekme amaçları), (b) modern/3D UI trendleri + WebView2
+  performans sınırları, (c) geri bildirim hiyerarşisi (toast/OS bildirim/inline + sayısal
+  kurallar), (d) renk sıcaklığı arayüzü + CHANGELOG/araç seçimi.
+- [K2] **tasarım (şef):** bilgi mimarisi (≤3 sekme + ayar alanı), Türkçe sözlük (jargon →
+  insan dili), tasarım dili (3D derinlik nereye, nereye değil), geri bildirim matrisi
+  (eylem → kanal → süre), DDC 0x0C sunumu, CHANGELOG formatı.
+- [K3] **uygulama:** (a) tasarım sistemi + ana pencere (`styles.css` + `index.html`) ∥
+  (b) geri bildirim altyapısı (`src/toast.ts` + orchestr kablolama) → (c) dil geçişi
+  (panels/orchestr metinleri) + DDC 0x0C arayüzü → (d) QA senaryoları.
+- [K4] **doğrulama + reviewer + release v2.2.0** (updater artefaktları dahil).
+
+**Dosya sahipliği (çakışma önleme):** tasarım yazarı yalnız `index.html` +
+`src/styles.css`; geri bildirim yazarı yalnız `src/toast.ts` + `src/toast.css` + kablolama
+noktaları; dil geçişi ve QA sıralı (tek yazar). `flyout.*` dil geçişinden ayrı yazar.
+
+**Değişmezler:** `el()` id sözleşmesi (silinen id varsa QA + sözleşme birlikte güncellenir) ·
+`--accent` vb. CSS değişken sözleşmesi · parlaklık `Math.round` · kilit/dondurma kuralları ·
+00:00-01:30 %0 yazmama · ücretsiz/Pro kapıları.
+
+### [K1d] renk sıcaklığı + CHANGELOG sonucu (2026-10-25, PASS)
+- **Kelvin birincil, yüzde ikincil:** f.lux/redshift Kelvin + hazır adlar kullanıyor
+  (Ampul 2700, Halojen 3400, Florasan 4200, Gündüz 5500); Windows Night Light kullanıcıya
+  yüzde gösterip içeride Kelvin'e çeviriyor. Karar: **"4200 K · Florasan"** biçimi; yüzde
+  yalnız ipucu satırında. Yalın "2700 K" soğuk, yalın "%70" yönsüz.
+- **Kaydırıcı:** sol = sıcak (2500 K), sağ = gündüz (6500 K) — gradyan ve sayı ekseni aynı
+  yönde; adım **100 K**; DDC yavaş (~50-100 ms) → **150-200 ms debounce**, `change`'te tek
+  yazma; "6500 K'ye dön" + Esc ile geri alma (5 sn toast).
+- **Donanım/yazılım ayrımı iç detay** → rozet YOK: başarılıysa hiç gösterme; DDC
+  desteklemiyorsa tek gri satır "Ekran katmanıyla uygulanıyor" + (i) açıklaması. `DDC`,
+  `VCP 0x0C`, `wmı` gibi kısaltmalar kullanıcıya GÖSTERİLMEZ.
+- **HDR:** gizleme ve devre dışı bırakma yok — kontrol yerinde, soluk; altında kalıcı tek
+  satır "HDR açıkken renk sıcaklığı uygulanamıyor" + "HDR ayarlarını aç"; HDR kapanınca
+  değer kendiliğinden döner.
+- **CHANGELOG:** Keep a Changelog 1.1.0 + SemVer, elle tutulan `Unreleased` bölümü
+  (standard-version deprecated; release-please tek kişide gereksiz yük). Sürüm notu ayrı:
+  "benim için ne değişti" dili, refactor/chore satırları girmez.
+- **Doğrulanamadı:** HDR'ın Night Light'ı bloklaması resmî MS kaynağıyla yok (topluluk);
+  Lunar sunumu; VESA 0x0C eşlemesi bu turda teyit edilemedi.
+
+### [K1c2] geri bildirim sistemi sonucu (2026-10-25, PASS)
+- **Hiyerarşi:** etkisi ekranda görünen 0-100 ms eylem → sessiz; başarı (kaydet/etkinleştir)
+  → **toast 4-6 s**; alan hatası → inline (kalıcı); geri alınabilir yıkıcı işlem →
+  **toast + "Geri al", 8-10 s, kendiliğinden kapanmaz**; 1 s üstü iş → düğme "Kaydediliyor…"
+  + disabled + spinner (statik "İşleniyor…" YASAK); ≥10 s → yüzde + İptal.
+- **Toast kuralları:** sağ-alt, yeni **üstte**, ekranda **en fazla 3** (fazlası kuyruk),
+  genişlik sabit, en fazla 2 satır, 4-8 px aralık. Başarı/bilgi `role="status"`
+  (`aria-live="polite"`), hata `role="alert"` (`assertive`). **Otomatik kapanan toast'a asla
+  focus taşınmaz** (APG). `×` + Esc ile kapatma; hover/focus'ta sayaç durur (WCAG 2.2.1).
+  Aksiyon düğmesi Tab ile erişilebilir.
+- **OS bildirimi yalnız:** (a) pencere kapalı/tray'deyken biten iş, (b) beklenen olay
+  (20-20-20, lisans). Uygulama öndeyse in-app toast. İzin reddedilirse **tekrar sorma**,
+  sessizce in-app'e düş + Ayarlar'da "Bildirimler kapalı — aç" bağlantısı.
+  Tauri kısıtı: Windows'ta yalnız **kurulu** uygulamada çalışır; yönetici olarak çalışan
+  uygulama bildirim gönderemez.
+- **Yorgunluk:** kullanıcı tetiklemeyen OS bildirimi **günde ≤1-2**, aynı türden saatte ≤1
+  (mühendislik önerisi; kaynakta masaüstü için sayısal tavan yok).
+- **Sessiz kalması DOĞRU:** slider sürükleme, anında görünen toggle, tema uygulama
+  (tüm UI değişir), sekme geçişi, filtre. **Zorunlu onay:** kaydet, sil, lisans
+  etkinleştir/kaldır, uygulama bağla, otostart (registry görünmez).
+- **Hata dili:** "ne oldu + neden + ne yapmalı", suçlamasız, teknik kod yalnız "Ayrıntılar"
+  altında. Modal yalnız kritik hatada.
+- **Eylem→kanal matrisi** (K2'ye girdi): parlaklık sessiz · tema seçimi sessiz · "otomatik"e
+  alma toast · profil kaydet/uygula toast (+sil'de Geri al) · lisans 6 s toast veya inline
+  hata · uygulama bağla toast · otostart toast · kalibrasyon spinner+toast · log temizle
+  toast+Geri al · Pro kapısı inline banner · kontrast denetimi inline sonuç.
+
+### [K1e] dil + işlev denetimi sonucu (2026-10-25, PASS)
+**Dil (44 bulgu; en kritikleri):**
+- Sekme adları içeriği anlatmıyor: "Ritim" → **Ayarlar**, "Bugün" → **Durum**.
+- Aynı kavrama üç ad: "kip" / "mod" / "kaynak" → **Çalışma biçimi**; "sıcak ton" /
+  "ton" / "renk" → **Ekranı sarılaştırma**; "dondurma" / "kilit" / "donduruldu" →
+  **Ayar yapılmıyor**; "kalibrasyon" → **Öğrenilen tercih**; "tur" → **Ölçüm**.
+- `index.html:435` **yanlış bilgi**: "bu tavanın altına inmez" — kod üst sınır uyguluyor
+  (`orchestr.ts:803-805`) → "gece bu değerin üstüne çıkmaz".
+- İngilizce sızıntı: `orchestr.ts:1035` "bright/cool", "dark/dim"; `panels.ts:539`
+  "mod: dark"; `panels.ts:304` ham `wmi`/`ddc` rozeti; "donanımsal/yazılımsal".
+- `index.html:483` "7+ AAA, 4.5+ AA, 3+ AA-large, altı FAIL" → "7+ çok iyi, 4.5+ iyi,
+  3+ sınır, altı okunaksız".
+- `panels.ts:630` **yanıltıcı**: "canlı önizleme" yazıyor ama `Kapalı` kipte etkisi yok.
+
+**Ölü / yarım kontroller (13):**
+1. `accent-picker` rengi değiştiriyor ama **kaydetmiyor** (`panels.ts:180-185`) → yeniden
+   açılışta sıfır.
+2. Okuma profili kapanışı temayı/animasyonu geri almıyor (`orchestr.ts:597-603`).
+3. `sleep-cap` ipucu kodun tersini yazıyor.
+4. `#break-text` hiç güncellenmiyor.
+5. `pf-add` sınırda **nedensiz disabled**; Pro uyarısı düğmeden ulaşılamaz.
+6. `break-switch` hiç log yazmıyor (tamamen sessiz).
+7. Profil kartı tıklaması hem düzenliyor hem uyguluyor (sürpriz).
+8. `editorDirty` yazılıyor ama **hiç çizilmiyor** → kaydedilmemiş değişiklik uyarısı yok.
+9. `hist-panel` ham backend dökümü basıyor (`source=auto/auto | level=… | tone=…`).
+10. `log-clear-btn` `window.confirm` kullanıyor (uygulama içi desenle tutarsız).
+11. `pause-btn` + `day-off-btn` **aynı `pauseUntil` alanını** paylaşıp birbirini iptal ediyor.
+12. `autoLock` tek yönlü: uygulama kapansa da kilit açılmıyor (kasıtlı mı doğrulanamadı).
+13. "Film" tohum profilinde `autoLock:true` → ücretsiz kullanıcıda kalıcı kilit riski.
+- Ek: `now-btn` kilit/sabit biçimde hiçbir şey yapmıyor ve **sessiz**; `#break-text`
+  ve `#sub-bright`/`#hero-target` çift bilgi.
+
+**Bilgi mimarisi kararı (uygulanacak):** 3 sekme + 1 ayar alanı —
+**Durum** (hero + monitörler + 3 eylem + son 5 olay) · **Profiller** (kartlar + editör +
+yapışkan "Kaydet / Kaydedilmedi" çubuğu) · **Geçmiş** (özet + grafik + insan dilinde
+zaman çizelgesi) · **Ayarlar** (biçim, sarılaştırma, gece, mola, listeler, Gelişmiş).
+Kaldır: "Ritim" adı, Bugün'deki profil çipleri (Profiller'de var), Geçmiş'teki `lic-mini`.
+Ekle: eylem sonrası toast + geri al, kaydedilmedi göstergesi, disabled nedenleri.
+
+### [K2] TASARIM KARARLARI — v2.2 (2026-10-25, şef)
+
+**A) Bilgi mimarisi (4 → 3 sekme + Ayarlar):**
+| Sekme | İçerik | Neden |
+|---|---|---|
+| **Durum** | hero (parlaklık + neden + sonraki değişim, tek kez), monitör satırları, 3 eylem, son 5 olay | Günlük tek soru: "şu an ne durumda" |
+| **Profiller** | kartlar + editör + yapışkan "Kaydet / Kaydedilmedi" çubuğu | Tek başına anlaşılan iş |
+| **Geçmiş** | özet + grafik + **insan dilinde** zaman çizelgesi | Ham log okunmuyor |
+| **Ayarlar** | çalışma biçimi, sarılaştırma, gece, mola, listeler, Gelişmiş (tema, okunabilirlik, lisans, hakkında) | "Ritim" adı içeriği anlatmıyordu |
+
+Kaldırılan: Bugün'deki profil çipleri (Profiller'de var) · Geçmiş'teki `lic-mini` (Ayarlar'da var)
+· 3 ayrı durum düğmesi → tek **"Otomatik ayar" seçici** (Açık · 1 saat · Bugün · Kilitli).
+
+**B) Dil sözlüğü (bağlayıcı):**
+| Eski | Yeni |
+|---|---|
+| kip / mod / kaynak | **Çalışma biçimi** |
+| sıcak ton / ton / renk | **Ekranı sarılaştırma** |
+| şiddet | **Sarılık düzeyi** |
+| kalibrasyon | **Öğrenilen tercih** |
+| dondurma / kilit / donduruldu | **Ayar yapılmıyor** (+ nedeni) |
+| tur / ölçüm turu | **Ölçüm** |
+| hedef | **Ulaşılmak istenen** (tek yerde) |
+| kaynak (Gün/Sarı/Beyaz/Gece) | **Işık varsayımı** |
+| Ritim | **Ayarlar** |
+| Bugün | **Durum** |
+| WCAG / AAA / FAIL | **çok iyi / iyi / sınır / okunaksız** |
+| wmi / ddc / donanımsal / yazılımsal | **dahili panel / harici** + "monitörün kendi ayarı" / "programla yapılıyor" |
+| Otostart | **Windows açılışında başlat** |
+| HDR (rozet) | "HDR açıkken ekran sarılaştırılamıyor" |
+
+Kural: kullanıcıya görünen hiçbir metinde `VCP`, `DDC`, `gamma`, `WMI`, `kelvin` (birim
+olarak `K` serbest), `rampa`, `AA/AAA`, `FAIL`, `invoke` geçmez.
+
+**C) Tasarım dili — "tatlı ama oyuncak değil":**
+1. **Derinlik:** zemin merdiveni 3 kademe (bg / surface / raised), saf siyah yok. Kartlarda
+   2 katmanlı yumuşak gölge + ince üst ışık kenarı (`inset 0 1px 0 rgba(255,255,255,.07)`).
+2. **Tek cam yüzey:** yalnız sol ray `backdrop-filter: blur(14px) saturate(1.2)` (Liquid Glass
+   mantığı: functional layer). Kartlar **opak** — çok katmanlı blur YOK (Tauri: acrylic
+   Win11'de yeniden boyutlandırmada kötü performans).
+3. **3D:** yalnız hero kartında `perspective: 900px` + hover `rotateX(1.5deg) rotateY(-2deg)`
+   (≤3°), `transform-style: preserve-3d` sadece o alt ağaçta. **WebGL/three.js YOK.**
+   Transform'lu katmana kritik metin konmaz (rasterleşme).
+4. **Motion:** varsayılan **180 ms**, giriş 200-250, çıkış 120-150; `cubic-bezier(0.2,0,0,1)`.
+   Yalnız `transform`/`opacity` animate edilir; gölge `::after` opacity ile. Sürekli ambient
+   animasyon YOK. `prefers-reduced-motion: reduce` → transform/parallax kapalı, opacity 100 ms.
+5. **Tipografi:** 12/14/16/20/32/48; gövde 14-16, satır 1.5, başlık 1.2; ağırlık 400/500/600.
+   Sayılarda `font-variant-numeric: tabular-nums` (değer oynarken genişlik zıplamasın).
+6. **Renk:** tek accent + 3 durum (başarı/uyarı/hata). Durum asla yalnız renkle anlatılmaz —
+   nokta + metin. Kontrast: metin ≥4.5:1, ikon/sınır ≥3:1. İkincil gri "zaten soluk" diye
+   ilden kaçınılmaz: 3:1 altına inilmez.
+7. **Erişilebilirlik:** `:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }`
+   (asla `none`) · `forced-colors: active` → cam/gölge kapanır, `1px solid CanvasText` ·
+   `prefers-contrast: more` → kenarlıklar koyulaşır · sidebar'da roving tabindex + ok tuşları.
+8. **"Wow" tek yerde:** hero'da ışık→parlaklık→sarılık zincirini gösteren ince SVG eğri,
+   canlı güncellenen; maliyeti düşük, ürüne özgü. Başka süs yok.
+9. **Layout:** `border-image`/`clip-path` yok; 8px tabanlı aralık; taşma yok; sidebar etiketi
+   **her genişlikte** görünür (ikon-only mod kaldırılır).
+
+**D) Geri bildirim sistemi (`src/toast.ts`, kendi kendine mount):**
+- API: `toast.ok(msg)` · `toast.info(msg)` · `toast.err(msg, {detail?})` ·
+  `toast.action(msg, {label, onAct, ms?})` · `toast.busy(msg)` → `done()`.
+- Sağ-alt, yeni üstte, **en fazla 3** (fazlası kuyruk), sabit genişlik, ≤2 satır, 4-8 px aralık.
+- Süre: başarı/bilgi **4 s**, hata **6 s**, aksiyonlu (Geri al) **kendiliğinden kapanmaz**.
+  Hover/focus'ta sayaç durur. `×` + Esc kapatır.
+- `role="status"` + `aria-live="polite"` (başarı/bilgi), `role="alert"` + `assertive` (hata).
+  Otomatik kapanan toast'a **focus taşınmaz**; içindeki düğme Tab ile erişilebilir.
+- `forced-colors` ve `prefers-reduced-motion` desteği. Z-index en üstte, flyout'ta da kullanılır.
+- **Sessiz kalacaklar:** parlaklık kaydırıcı, tema seçimi, sekme geçişi, toggle'lar.
+- **Toast üretecekler:** profil kaydet/uygula/çoğalt/sil(+Geri al), lisans etkinleştir/kaldır,
+  uygulama bağla/kaldır, Windows açılışında başlat, kalibrasyon, log temizle(+Geri al),
+  "otomatik"e alma, güncelleme kurulumu, monitör yazma hatası.
+- **Inline kalacaklar:** lisans hatası (alan yanında), Pro kapısı (banner), kontrast denetimi
+  sonucu (liste), okunaksız tema uyarısı (bant).
+
+**E) Ölü kontrol düzeltmeleri (13 madde → bu turda kapanacak):**
+`accent-picker` kalıcı (`setSetting`) · okuma profili kapanınca tema+animasyon geri ·
+`sleep-cap` ipucu düzelt · `#break-text` güncelle · `pf-add` disabled nedeni + Pro uyarısı
+erişilebilir · `break-switch` toast · profil kartı tıklaması ayrıştır (seç vs uygula) ·
+`editorDirty` "Kaydedilmedi" göstergesi · Geçmiş insan dilinde · `log-clear` toast+Geri al
+(confirm kaldır) · `pause`/`day-off` ayrı durumlar · `autoLock` iki yönlü ·
+Film tohumunda `autoLock` kapalı.
+
+**F) Renk sıcaklığı (yeni, Kelvin):**
+2500-6500 K kaydırıcı, **sol sıcak**, 100 K adım, gradyan sürekli; büyük değer "4200 K" +
+altında "Florasan" adı; hazır çipler (2500 Mum, 2700 Ampul, 3400 Halojen, 4200 Florasan,
+5500 Gündüz); 150 ms debounce, `change`'te tek yazma; "6500 K'ye dön" + Esc geri alma.
+Donanım destekliyorsa hiç rozet yok; desteklemiyorsa tek gri satır "Programla yapılıyor"
++ (i). HDR'de kontrol **soluk ama yerinde** + tek satır neden + "HDR ayarlarını aç".
+Yüzde yalnız ipucu satırında (geriye uyum).
+
+**G) CHANGELOG + sürüm notu:** `CHANGELOG.md` Keep a Changelog 1.1.0, `Unreleased` bölümü
+elle; sürüm notu ayrı yazılır ("benim için ne değişti" dili, chore/refactor girmez).
+
+**H) İmzalama (v2.2'de kod değişmez):** README + SECURITY'de gerekçe zaten var; v2.2'de
+release notuna "neden imzasız" tek paragraf + `.sha256` doğrulama komutu eklenir.
+
+### [K3] UYGULAMA — v2.2 (2026-10-25/26)
+- **Tasarım sistemi (PASS):** `index.html` + `src/styles.css` sıfırdan — 146 id, 3 kademeli
+  derinlik, cam YALNIZ ray, 3D YALNIZ hero (≤3°, metin transform'suz katmanda), motion 180 ms
+  yalnız transform/opacity, tabular-nums, `forced-colors`/`prefers-contrast`/`reduced-motion`
+  kapıları. Ray etiketleri artık **her genişlikte** görünür (şikâyetin kök nedeni).
+- **Toast sistemi (PASS):** `src/toast.ts` + `toast.css` — `ok/info/err/action/busy`,
+  role=status/alert, hover'da sayaç durur, ×/Esc, `prefers-reduced-motion` + `forced-colors`.
+  **Ekranda en fazla 2** (800x600'de 3 toast içeriğin ~%30'unu kapatıyordu — şef düzeltti).
+- **Dil geçişi (PASS):** ~50 görünür metin; sözlük uygulandı (Çalışma biçimi, Ekranı
+  sarılaştırma, Sarılık düzeyi, Öğrenilen tercih, Ayar yapılmıyor, Ölçüm, Ulaşılmak istenen,
+  Işık varsayımı, dahili panel/harici, çok iyi/iyi/sınır/okunaksız). Görünür metinde
+  VCP/DDC/gamma/WMI/AAA/FAIL yok (yalnız kod karşılaştırmaları).
+- **13 ölü kontrol kapandı:** accent kalıcı · okuma profili tema+animasyon geri alır ·
+  sleep-cap ipucu · `#break-text` · `pf-add` neden + Pro ipucu · break-switch toast ·
+  kart tıklaması yalnız seçer (ayrı "Uygula") · `#pf-dirty` "Kaydedilmedi" · Geçmiş insan
+  dilinde (`source=/level=/tone=` yok) · log-clear toast+Geri al · pause/day-off ayrı durumlar ·
+  autoLock iki yönlü · Film tohumunda autoLock kapalı.
+- **Kelvin arayüzü (PASS):** 2500-6500 K, sol sıcak, 100 K adım, 150 ms debounce, ad tablosu
+  (Mum/Ampul/Halojen/Florasan/Gündüz/Berrak), preset çipleri, "6500 K'ye dön", Esc geri alma,
+  `#warm-tech-note` "Monitörün kendi ayarı" / "Programla yapılıyor", HDR'de soluk+neden+link.
+  Destekliyorsa `monitor_set_color_temp`, değilse sessizce `setWarmPercent`.
+- **CHANGELOG (PASS):** `CHANGELOG.md` (Keep a Changelog, 8 sürüm, Unreleased = v2.2),
+  `tools/release-notes.mjs` (chore/docs/refactor atlar, `.sha256` bloğu ekler),
+  `.github/release.yml` (kategoriler).
+- **QA (PASS):** 21 senaryo (15 uyarlama + 6 yeni: toast, Kelvin, auto-seg, profil editörü,
+  okuma geri dönüşü, geçmiş dili). Kare sayısı 36. Koşu: PASS ×2.
+- **Şef düzeltmeleri (QA harness):** `openAdvanced` idempotent yapıldı (körlemesine tıklama
+  zaten açıkken kapatıyordu → `#lic-key` görünmez kalıp 30 sn timeout) · yapışkan çubuk için
+  `scrollIntoViewIfNeeded` · `fill()` change tetiklemediği için `dispatchEvent("change")` ·
+  toast limiti 3→2 · marka adı 14→13px + letter-spacing (kırpılıyordu) · flyout sürümü
+  `getVersion()`'a bağlandı (sabit "v2.1" kalıyordu).
+- **Sürüm:** 2.2.0 (package.json, Cargo.toml, tauri.conf.json, Cargo.lock).
+
+
+### [K1.0] şef gözlemi — ekran görüntülerinden (2026-10-25, salt-okuma)
+`qa/shots/1-bugun.png`, `3-ritim.png`, `4-profiller.png` incelendi. Somut kusurlar:
+1. **Sekme rayı 800x600'de yalnız ikon** — etiket yok → "hangi sekme ne işe yarıyor"
+   şikâyetinin doğrudan sebebi. Etiket her genişlikte görünmeli.
+2. **Hero'da çift etiket:** "HEDEF %30" satırı + hemen üstünde "hedef: %30"; ayrıca
+   "SONRAKI DEĞİŞİM" başlığı + "sonraki değişim: 06:00" metni. Aynı bilgi iki kez.
+3. **Metin taşması/kırpma:** ışık kartı "zaman + dim/neu…", tema kartı
+   "catppuccin-macc…" — kullanıcı değeri göremiyor. `text-overflow` çözüm değil,
+   kısaltma/en-boyutlandırma tasarlanmalı.
+4. **Saf jargon rozetleri:** `wmı`, `ddc`, `donanımsal`, `yazılımsal` — kullanıcı için
+   anlamsız; üstelik İngilizce/Türkçe karışık (`ddc` küçük, `Pro` büyük).
+5. **Başlık `ORTAM IŞIĞI`** geniş harf aralıklı mono büyük harf → geliştirici aracı izlenimi.
+6. **Form alanları boş ve geniş** (gece koruması "Bitiş saati"/"Gece tavanı" boş, hizasız) →
+   "bozuk" görünüm. Boş durum + placeholder + birim (saat/% ) tasarlanmalı.
+7. **Hiyerarşi ters:** "sonraki mola: kapalı" en büyük yazı; asıl değer (parlaklık) ile
+   yarışıyor.
+8. **Geri bildirim yok:** hiçbir ekran görüntüsünde onay/hata/toast izi yok.
+9. Vurgu rengi (`#5b8def` benzeri mavi) tek başına taşınıyor; durum renkleri (uyarı/hata/
+   başarı) sistematik değil; yüzey katmanları birbirine çok yakın → derinlik yok.
+
+
 ## V2.1 TURU (2026-10-24) — "hızlı erişim + güven"
 
 **Hedef v2.1.0:** v2'nin üstüne üç şey: (1) tray'den tek tıkla **hızlı panel (flyout)**,
