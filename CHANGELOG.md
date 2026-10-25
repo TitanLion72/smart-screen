@@ -1,4 +1,4 @@
-# Değişiklik Günlüğü
+﻿# Değişiklik Günlüğü
 
 Bu projenin dikkate değer değişiklikleri bu dosyada tutulur.
 
@@ -13,6 +13,10 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 ## [Unreleased]
 
+_(hen�z yay�nlanmad�)_
+
+## [2.2.0] - 2026-10-26
+
 v2.2 turu — "anlaşılır dil + geri bildirim + tatlı arayüz". Bu tur da final değildir.
 
 ### Added
@@ -20,7 +24,7 @@ v2.2 turu — "anlaşılır dil + geri bildirim + tatlı arayüz". Bu tur da fin
   `Profiller`, `Geçmiş`, `Ayarlar`; "Ritim" adı kalktı, içeriği Ayarlar'a taşındı.
 - **Toast/geri bildirim sistemi** (`src/toast.ts`, kendi kendine mount): `toast.ok`,
   `toast.info`, `toast.err`, `toast.action` (Geri al), `toast.busy`; sağ-alt, yeni üstte,
-  ekranda en fazla 3 bildirim, kuyruk; başarı 4 sn, hata 6 sn, aksiyonlu bildirim
+  ekranda en fazla 2 bildirim, kuyruk; başarı 4 sn, hata 6 sn, aksiyonlu bildirim
   kendiliğinden kapanmaz; hover/focus'ta sayaç durur; `role="status"`/`role="alert"`,
   `aria-live` desteği, Esc ve × ile kapatma, otomatik kapanan bildirime focus taşınmaz.
 - **Sessiz eylemlere geri bildirim:** profil kaydet/uygula/çoğalt/sil (+Geri al), lisans
