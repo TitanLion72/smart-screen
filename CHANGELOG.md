@@ -15,6 +15,18 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.4.3] - 2026-10-26
+
+v2.4.2'yi kurup açtım: pencere **yine 816×639** geldi. Sebep `tauri-plugin-window-state` —
+son pencere boyutunu hatırlıyor, yani yeni varsayılan (1040×740) mevcut kurulumlara
+**hiç ulaşmıyordu**. Paket yayınlandıktan sonra fark edildi.
+
+### Fixed
+- **Eski 800×600 penceresi bir kez büyütülüyor:** `winstate` modülü, kayıtlı boyut tam
+  olarak eski varsayılana eşitse (800×600) ve pencere maksimize değilse 1040×740 yapar,
+  işaret dosyası bırakır ve bir daha çalışmaz. Kullanıcının kendi seçtiği boyutlara
+  dokunulmaz (`kullanici_boyutu_korunur` testi).
+
 ## [2.4.2] - 2026-10-26
 
 Kullanıcı v2.4.1'i açtı, ilk bakışta iki şey sırıttı: uygulama **800×600** açılıyor

@@ -39,8 +39,7 @@ aşağıda kalıyor, içerik dock'un dibine sıfıra dayanıyor.
   artık 56px, metne 84px pay.
 - **Geçmiş özet şeridi:** üç "—" + tek `#sum-hint` satırı (yeni id; SÖZLEŞME'ye de yazıldı).
 
-**Yeni ölçüm araçları (kalıcı):**
-- `qa/measure-budget.mjs` — sayfa/dikey bütçe: `pageScroll` vs `pageClient`, hero/monitör/asym
+**Yeni ölçüm araçları (kalıcı):**- `qa/measure-budget.mjs` — sayfa/dikey bütçe: `pageScroll` vs `pageClient`, hero/monitör/asym
   yükseklikleri. Boşluk ve "ekrana sığmıyor" sınıfı hatalar buradan görülür.
 - `qa/check-topbar.mjs` — üst şeritte taşma (audit'in `scrollWidth` kontrolü bunu yakalamıyor).
 - `qa/audit-shots.mjs` boyutları: 1040×740 (varsayılan), 800×600, 1000×720, 760×600,
@@ -48,6 +47,16 @@ aşağıda kalıyor, içerik dock'un dibine sıfıra dayanıyor.
 
 **Ders:** pencere varsayılanı değiştiğinde QA boyut listesine **o boyutu ekle**; yoksa
 kullanıcının ilk gördüğü ekran test edilmemiş olur.
+
+**v2.4.3 (aynı gün):** v2.4.2 kurulup açıldı — pencere **yine 800×600**. Sebep
+`tauri-plugin-window-state`: son boyutu hatırlıyor, `tauri.conf.json` varsayılanı
+mevcut kurulumda hiç okunmuyor. Çözüm `src-tauri/src/winstate.rs`: pencere
+yaratılmadan **önce** (`run()` başında, plugin dosyayı okumadan) kayıtlı boyut tam
+olarak eski varsayılana eşitse 1040×740'a çek, `.layout-242` işareti bırak; kullanıcı
+kendi boyutunu seçtiyse dokunma. 5 birim testi var.
+**Ders:** "varsayılanı değiştirdim" demek yetmez — kalıcı durum (window-state,
+localStorage, prefs) eski değeri geri getiriyorsa göç yaz.**
+
 
 
 ## V2.3 TURU (2026-10-26) — "premium 3B sahne"

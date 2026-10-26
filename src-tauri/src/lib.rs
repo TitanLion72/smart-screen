@@ -25,6 +25,7 @@ mod prefs;
 mod ps;
 mod stats;
 mod theme;
+mod winstate;
 
 use std::sync::Mutex;
 use std::time::Instant;
@@ -499,6 +500,11 @@ async fn monitor_set_color_temp(device: String, kelvin: i32) -> Result<(), Strin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Pencere yaratılmadan ÖNCE: window-state dosyasındaki eski varsayılan
+    // boyutu (800x600) yeni varsayılana büyüt — yoksa güncelleme sonrası
+    // kullanıcı yine sıkışmış pencereyi görür (v2.4.2).
+    winstate::migrate_once();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             // Ikinci kopya acilirsa ilk pencereyi one getir; ikinci cikar.
