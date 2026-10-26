@@ -15,6 +15,28 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.4.2] - 2026-10-26
+
+Kullanıcı v2.4.1'i açtı, ilk bakışta iki şey sırıttı: uygulama **800×600** açılıyor
+(hero + monitörler ekranı doldurup gerisi aşağıda kalıyor) ve içerik dock'un dibine
+sıfıra dayanıyor. Ayrıca 1920'de sol kolon kısa kalıp yine ölü boşluk bırakıyordu.
+
+### Changed
+- **Varsayılan pencere 1040×740** (min 760×600). 800×600'de ilk açılış sıkışıyordu.
+- **Hero yatay yerleşime geçti:** parlaklık solda, eğri sağda. Dikey yığında hero
+  383px yer kaplıyordu; artık 226px — 740px pencerede alt sıralar da görünüyor.
+- **Durum sayfası dengelendi:** "Otomatik ayar" kartı sol kolona (olay akışının altına)
+  taşındı. Sağda tek "Durum" kartı kaldığı için 1920'de sol altta oluşan ölü boşluk kapandı.
+- Otomatik ayar kartında düğmeler tek satırda, ölçüm bilgisi altında hairline ile.
+
+### Fixed
+- **İçerik dock'a sıfıra dayanıyordu:** sayfa altındaki nefes payı 16 → 24px,
+  dock üstüne 8px boşluk.
+- **760/800px'te hero eğrisi metnin üstünden geçiyordu:** alçak pencerede eğri
+  96px'e *büyüyordu* (ters mantık). Artık 56px'e küçülüyor, metne 84px pay bırakılıyor.
+- **Geçmiş özet şeridi tutarsızdı:** iki hücre "—", biri "henüz yok" yazıyordu.
+  Üçü de "—"; altında tek satır "İlk ölçümden sonra dolar" (yeni `#sum-hint`).
+
 ## [2.4.1] - 2026-10-26
 
 Kullanıcı maksimize pencerede ekran görüntüsü gönderdi: *"şöyle bi bakınca düzeltmişsin

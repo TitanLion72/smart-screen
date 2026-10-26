@@ -1,7 +1,7 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "smart-screen",
-  "version": "2.4.1",
+  "version": "2.4.2",
   "identifier": "com.smartscreen.app",
   "build": {
     "beforeDevCommand": "npm run dev",
@@ -14,10 +14,10 @@
     "windows": [
       {
         "title": "smart-screen",
-        "width": 800,
-        "height": 600,
-        "minWidth": 720,
-        "minHeight": 560,
+        "width": 1040,
+        "height": 740,
+        "minWidth": 760,
+        "minHeight": 600,
         "resizable": true,
         "center": true
       }

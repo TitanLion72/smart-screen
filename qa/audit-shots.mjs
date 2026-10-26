@@ -89,9 +89,11 @@ const stub = () => {
 };
 
 const sizes = [
+  // v2.4.2: varsayılan pencere 1040x740 — ilk açılışta bu görünüyor.
+  { w: 1040, h: 740, tag: "1040" },
   { w: 800, h: 600, tag: "800" },
   { w: 1000, h: 720, tag: "1000" },
-  { w: 720, h: 560, tag: "720" },
+  { w: 760, h: 600, tag: "760" },
   // v2.4.1: maksimize pencere — asıl kırılma burada oluyordu.
   { w: 1920, h: 1040, tag: "1920" },
   { w: 1440, h: 900, tag: "1440" },

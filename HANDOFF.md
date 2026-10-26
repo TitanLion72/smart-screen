@@ -22,6 +22,34 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.4.2 TURU (2026-10-26) — ilk açılış sıkışıyordu
+
+**Kullanıcı:** *"deneyeyim, açıldı mı"* → uygulamayı `target/release`'ten açtım, canlı
+ekran görüntüsü çektim. İlk açılış **800×600**: hero + monitörler ekranı doldurup gerisi
+aşağıda kalıyor, içerik dock'un dibine sıfıra dayanıyor.
+
+**Yapılanlar:**
+- Varsayılan pencere **1040×740** (min 760×600).
+- **Hero yatay:** metin solda, eğri sağda → 383px → 226px. (`@media 980px` bloğu zaten
+  `grid-template-columns` yazıyordu; taban flex kalmış, hedeflediği düzen hiç kurulmamış.)
+- **Sol/sağ denge:** "Otomatik ayar" sol kolona (olay akışının altına) taşındı; sağda tek
+  "Durum" kartı. 1920'de sol altta oluşan ~200px ölü boşluk kapandı. `asym` 658 → 439px.
+- **Dock payı:** `.page` alt boşluğu 24px, dock üstü 8px.
+- **760/800'de eğri metne biniyordu:** `max-height:660` bloğu eğriyi 96px'e *büyütüyordu*;
+  artık 56px, metne 84px pay.
+- **Geçmiş özet şeridi:** üç "—" + tek `#sum-hint` satırı (yeni id; SÖZLEŞME'ye de yazıldı).
+
+**Yeni ölçüm araçları (kalıcı):**
+- `qa/measure-budget.mjs` — sayfa/dikey bütçe: `pageScroll` vs `pageClient`, hero/monitör/asym
+  yükseklikleri. Boşluk ve "ekrana sığmıyor" sınıfı hatalar buradan görülür.
+- `qa/check-topbar.mjs` — üst şeritte taşma (audit'in `scrollWidth` kontrolü bunu yakalamıyor).
+- `qa/audit-shots.mjs` boyutları: 1040×740 (varsayılan), 800×600, 1000×720, 760×600,
+  1920×1040, 1440×900.
+
+**Ders:** pencere varsayılanı değiştiğinde QA boyut listesine **o boyutu ekle**; yoksa
+kullanıcının ilk gördüğü ekran test edilmemiş olur.
+
+
 ## V2.3 TURU (2026-10-26) — "premium 3B sahne"
 
 **Kullanıcı talimatı (birebir):** v2.2 tesliminden sonra — *"UI daha değişecek mi bu nihai

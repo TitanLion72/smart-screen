@@ -185,6 +185,7 @@
   #sum-changes     | span       | bugün tema değişimi sayısı              | text
   #sum-avg         | span       | ortalama parlaklık ("%43")              | text
   #sum-frozen      | span       | ayar yapılmayan ölçüm sayısı            | text
+  #sum-hint        | div        | boş durum açıklaması (ölçüm yokken)     | hidden = ticks > 0
   #chart           | svg        | 12 saatlik grafik (viewBox 0 0 720 180) | drawChart() innerHTML; rect sayısı QA'da
   #hist-panel      | div.hist   | disk kayıtları (JS: düz div satırları → CSS zaman çizelgesi) | scroll
   #hist-refresh    | button     | "Yenile"                                | click → loadHistory()
@@ -378,62 +379,66 @@
           </div>
 
           <div class="asym">
-            <!-- Sol: olay akışı -->
-            <div class="panel-box span-main">
-              <div class="box-title">Olay akışı</div>
-              <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
-              <div class="toolbar">
-                <span class="hint">en son 5 olay görünür — tam liste Geçmiş'te</span>
-                <span class="spacer"></span>
-                <button id="log-all-link" class="linklike" type="button">Tümü → Geçmiş</button>
-              </div>
-            </div>
-
-            <!-- Sağ: durum + otomatik ayar üst üste (kolon yüksekliği dengelenir) -->
-            <div class="col-stack">
+            <!-- Sol: olay akışı + otomatik ayar. Sağdaki "Durum" tek kart olduğu
+                 için sol uzun tutuldu; tersi olsaydı sol altta ölü boşluk kalırdı
+                 (v2.4.2). -->
+            <div class="col-stack span-main">
               <div class="panel-box">
-                <div class="box-title">Durum</div>
-                <div class="st-row">
-                  <span class="dot" id="dot-light"></span>
-                  <div class="st-body">
-                    <div class="st-label">Işık</div>
-                    <div class="st-val" id="st-light">Ölçüm bekleniyor</div>
-                    <div class="st-sub" id="sub-light">-</div>
-                  </div>
-                </div>
-                <div class="st-row">
-                  <span class="dot accent" id="dot-theme"></span>
-                  <div class="st-body">
-                    <div class="st-label">Tema</div>
-                    <div class="st-val" id="st-theme">Ölçüm bekleniyor</div>
-                    <div class="st-sub" id="sub-theme">-</div>
-                  </div>
-                </div>
-                <div class="st-row">
-                  <span class="dot ok" id="dot-frozen"></span>
-                  <div class="st-body">
-                    <div class="st-label">Ayar durumu</div>
-                    <div class="st-val" id="st-frozen">Ölçüm bekleniyor</div>
-                    <div class="st-sub" id="sub-frozen">-</div>
-                  </div>
+                <div class="box-title">Olay akışı</div>
+                <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
+                <div class="toolbar">
+                  <span class="hint">en son 5 olay görünür — tam liste Geçmiş'te</span>
+                  <span class="spacer"></span>
+                  <button id="log-all-link" class="linklike" type="button">Tümü → Geçmiş</button>
                 </div>
               </div>
 
               <div class="panel-box">
                 <div class="box-title">Otomatik ayar</div>
                 <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
-                <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
-                <button id="pause-btn" class="seg-item" type="button" data-auto="hour" aria-pressed="false">1 saat</button>
-                <button id="day-off-btn" class="seg-item" type="button" data-auto="day" aria-pressed="false">Bugün</button>
-                <button id="lock-btn" class="seg-item" type="button" data-auto="lock" aria-pressed="false">Kilitli</button>
-              </div>
-              <button id="now-btn" class="btn-primary" type="button">Şimdi yeniden ayarla</button>
-              <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
-              <div class="side-meta">
-                <span class="hint" id="break-countdown">-</span>
-                <span class="hint">son ölçüm <span id="last-measure">-</span></span>
+                  <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
+                  <button id="pause-btn" class="seg-item" type="button" data-auto="hour" aria-pressed="false">1 saat</button>
+                  <button id="day-off-btn" class="seg-item" type="button" data-auto="day" aria-pressed="false">Bugün</button>
+                  <button id="lock-btn" class="seg-item" type="button" data-auto="lock" aria-pressed="false">Kilitli</button>
+                </div>
+                <div class="toolbar">
+                  <button id="now-btn" class="btn-primary" type="button">Şimdi yeniden ayarla</button>
+                  <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
+                </div>
+                <div class="meta-row">
+                  <span class="hint" id="break-countdown">-</span>
+                  <span class="hint">son ölçüm <span id="last-measure">-</span></span>
+                </div>
               </div>
             </div>
+
+            <!-- Sağ: durum (tek kart, satırlar hairline ile ayrılır) -->
+            <div class="panel-box span-side">
+              <div class="box-title">Durum</div>
+              <div class="st-row">
+                <span class="dot" id="dot-light"></span>
+                <div class="st-body">
+                  <div class="st-label">Işık</div>
+                  <div class="st-val" id="st-light">Ölçüm bekleniyor</div>
+                  <div class="st-sub" id="sub-light">-</div>
+                </div>
+              </div>
+              <div class="st-row">
+                <span class="dot accent" id="dot-theme"></span>
+                <div class="st-body">
+                  <div class="st-label">Tema</div>
+                  <div class="st-val" id="st-theme">Ölçüm bekleniyor</div>
+                  <div class="st-sub" id="sub-theme">-</div>
+                </div>
+              </div>
+              <div class="st-row">
+                <span class="dot ok" id="dot-frozen"></span>
+                <div class="st-body">
+                  <div class="st-label">Ayar durumu</div>
+                  <div class="st-val" id="st-frozen">Ölçüm bekleniyor</div>
+                  <div class="st-sub" id="sub-frozen">-</div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -525,6 +530,9 @@
               <div class="card-label">Ayar yapılmayan ölçüm</div>
               <div class="sum-val"><span id="sum-frozen">0</span></div>
             </div>
+            <!-- Boş durum tek satırda: üç hücreye ayrı ayrı "veri yok" yazmak
+                 gürültülü, tek "—" ise bozuk görünüyordu (v2.4.2). -->
+            <div class="sum-hint hint" id="sum-hint">İlk ölçümden sonra dolar</div>
           </div>
 
           <div class="asym">

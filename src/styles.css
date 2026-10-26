@@ -518,7 +518,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
-  padding-bottom: var(--sp-4);
+  /* v2.4.2: dock'un hemen üstünde içerik sıfıra dayanıyordu; son satır
+     kesilmiş gibi görünüyordu. Kaydırma sonunda nefes payı bırak. */
+  padding-bottom: var(--sp-5);
   transform-origin: 50% 0%;
 }
 
@@ -601,7 +603,7 @@ body {
      durur çünkü üstünde boşluk + gölge var. */
   flex: none;
   align-self: center;
-  margin: 0 auto 20px;
+  margin: 8px auto 20px;
   display: flex;
   gap: 6px;
   padding: 8px;
@@ -765,9 +767,12 @@ body {
 
 .hero-body {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-3);
+  /* v2.4.2: metin | eğri yan yana. Dikey yığında hero 383px yer kaplıyor,
+     740px pencerede alt sıralar ekranın dışında kalıyordu. */
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 0.95fr);
+  align-items: end;
+  gap: var(--sp-6);
   padding: var(--sp-5) var(--sp-6);
   min-height: 0;
 }
@@ -1067,6 +1072,17 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--sp-1);
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
+}
+
+/* Aynı hairline ayırıcı, tek satır: geniş kartta iki satır yer kaplamasın
+   (v2.4.2 - Otomatik ayar kartı sola taşındı). */
+.meta-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  flex-wrap: wrap;
   padding-top: var(--sp-2);
   border-top: 1px solid var(--border-subtle);
 }
@@ -1645,6 +1661,13 @@ button:disabled:active {
   letter-spacing: -0.5px;
   font-variant-numeric: tabular-nums;
   color: var(--text-1);
+}
+
+/* Boş durum satırı: şeridin altında tek açıklama (v2.4.2). */
+.sum-hint {
+  grid-column: 1 / -1;
+  padding-top: var(--sp-2);
+  border-top: 1px solid var(--border-subtle);
 }
 
 .chart-box {
@@ -2619,7 +2642,10 @@ button.swatch[aria-pressed="true"] {
   }
 
   .hero-text {
-    padding-bottom: 76px;
+    /* Altta mutlak konumlu eğri şeridi: 64px eğri + ~12px etiket + 16px pay.
+       76px yetmiyordu, eğri "Ulaşılmak istenen…" satırının üstünden geçiyordu
+       (v2.4.2). */
+    padding-bottom: 92px;
   }
 
   .hero-curve-side {
@@ -2694,8 +2720,13 @@ button.swatch[aria-pressed="true"] {
     min-height: 0;
   }
 
+  /* Eğri şeridi alçak pencerede BÜYÜMEZ, küçülür; metinle çakışmasın. */
   #hero-curve {
-    height: 96px;
+    height: 56px;
+  }
+
+  .hero-text {
+    padding-bottom: 84px;
   }
 
   .stage {

@@ -1070,17 +1070,13 @@ function renderHistory(): void {
       }
     }
     drawChart(S.stats);
-    // "-" boş görünüyordu; ilk ölçüm gelmeden anlamlı durum yaz (v2.4.1).
+    // Veri yokken üç hücreye farklı metin ("—", "henüz yok") koymak tutarsız
+    // duruyordu; artık üçü de "—" ve altında tek açıklama satırı var (v2.4.2).
     const ticks = S.stats?.ticksToday ?? 0;
     el("sum-changes").textContent = ticks > 0 ? String(S.stats?.themeChangesToday ?? 0) : "—";
-    el("sum-avg").textContent =
-      ticks > 0 ? `%${S.stats?.avgAppliedToday ?? 0}` : "henüz yok";
+    el("sum-avg").textContent = ticks > 0 ? `%${S.stats?.avgAppliedToday ?? 0}` : "—";
     el("sum-frozen").textContent = ticks > 0 ? String(S.stats?.frozenTicksToday ?? 0) : "—";
-    // Boş durum ipucu: sayı yoksa altında neden olduğunu söyle.
-    const summaryHint = ticks > 0 ? "" : "İlk ölçümden sonra dolar";
-    for (const id of ["sum-changes", "sum-avg", "sum-frozen"]) {
-      el(id).title = summaryHint;
-    }
+    el("sum-hint").hidden = ticks > 0;
   }
 }
 
