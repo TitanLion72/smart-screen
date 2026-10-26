@@ -15,6 +15,27 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.3.1] - 2026-10-26
+
+v2.3.0'ın yayın sonrası incelemesinden çıkan düzeltmeler (sürüm notu: ilk 2.3.0
+kurulumunu yaptıysan bunu da kur — ışık göstergesi yanlış ölçekteydi).
+
+### Fixed
+- **Işık göstergesi yanlış ölçekteydi:** kamera parlaklığı 0–255 aralığında gelirken
+  0–1000 sanılıp 10'a bölünüyordu; nokta hep eğrinin en alt çeyreğinde kalıyordu.
+- **Açılış hatası artık pencereyi düşürmüyor:** ilk çizim ve periyodik yenileme
+  `try/catch` ile sarıldı; bir bölüm patlarsa hata olay akışına yazılır, uygulama açık kalır.
+  (2.3.0'daki "api is not defined" çökmesinin sınıfı sistemik olarak kapatıldı.)
+- **Hero eğrileri artık çiziliyor:** yalnız noktalar taşınıyordu, eğri çizgileri sabit
+  kalıyordu; 24 saatlik eğriler ölçüme göre yeniden üretiliyor.
+- **Hareket azaltma ayarı sonradan değişince** paralaks yeniden başlıyor (restart gerekmiyor).
+- `#pf-name` yanlış türde (`HTMLButtonElement`) çağrılıyordu.
+
+### Notes
+- `qa/run.mjs`: **bayat `dist/` koruması** eklendi — `src/` daha yeniyse test
+  başlamadan durur ve `npm.cmd run build` hatırlatır. 2.3.0'daki çökmenin QA'da
+  görünmemesinin en olası nedeni eski `dist` ile test edilmesiydi.
+
 ## [2.3.0] - 2026-10-26
 
 v2.3 turu — "premium 3B sahne". Arayüz bu kez **mekânsal dille** yeniden yazıldı;

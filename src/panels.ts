@@ -579,8 +579,9 @@ function renderHeroCurve(): void {
   if (!svg) return;
   const now = new Date();
   const minute = now.getHours() * 60 + now.getMinutes();
-  // CamSample.lum: 0-1000 arası ışık düzeyi (level metin, lum sayı).
-  const lightPct = S.lastCam ? Math.round(Math.min(100, S.lastCam.lum / 10)) : 0;
+  // CamSample.lum: kameradan gelen ortalama parlaklık, 0-255 aralığında
+  // (src-tauri/src/light.rs:14). Yüzdeye çevir: 255 → %100.
+  const lightPct = S.lastCam ? Math.round((S.lastCam.lum / 255) * 100) : 0;
   const brightPct = Math.max(0, Math.min(100, Math.round(S.lastAppliedBright)));
   const warmPct = Math.max(0, Math.min(100, Math.round(S.warmPercent)));
   const x = (16 + (minute / 1440) * 232).toFixed(1);
@@ -600,6 +601,35 @@ function renderHeroCurve(): void {
     c.setAttribute("cx", x);
     c.setAttribute("cy", yOf(value));
   }
+  // Eğriler de gerçek veriye göre: bugünün 24 saatini örnekleyip polyline üret.
+  // (Sabit C-eğrileri noktalarla uyuşmuyordu — reviewer #4.)
+  const curve = (id: string, at: (hour: number) => number): void => {
+    const p = document.getElementById(id);
+    if (!p) return;
+    const pts: string[] = [];
+    for (let h = 0; h <= 24; h += 1) {
+      const px = 16 + (h / 24) * 232;
+      const py = 88 - (Math.max(0, Math.min(100, at(h))) / 100) * 76;
+      pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
+    }
+    p.setAttribute("d", `M${pts.join(" L")}`);
+  };
+  // Işık: gece düşük, gündüz yüksek (kamera ölçümüne göre ölçeklenir).
+  const lightScale = Math.max(0.15, lightPct / 100);
+  curve("hc-light-path", (h) => {
+    const sun = Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
+    return sun * 100 * lightScale;
+  });
+  // Parlaklık: ışıkla aynı yönde, gece tavanlı (uygulamanın kuralı).
+  curve("hc-bright-path", (h) => {
+    const sun = Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
+    return Math.min(brightPct + sun * 40, 100);
+  });
+  // Sarılık: gece yüksek, gündüz düşük (warmth_auto eğrisinin kabası).
+  curve("hc-warm-path", (h) => {
+    const night = 1 - Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
+    return Math.min(100, warmPct + night * 45);
+  });
 }
 
 function renderCards(): void {
@@ -1085,7 +1115,7 @@ export function wireButtons(): void {
     const apps = tagApps?.get() ?? S.draft.apps ?? [];
     saveDraft(readDraftName(), apps);
   });
-  btnEl("pf-name").addEventListener("input", () => {
+  inputEl("pf-name").addEventListener("input", () => {
     S.editorDirty = true;
   });
   // Silme iki aşamalı: yanlışlıkla tek tık silmesin, 3 sn içinde tekrar basılınca sil.

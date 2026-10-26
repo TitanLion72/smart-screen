@@ -22,6 +22,42 @@ const qaDir = dirname(fileURLToPath(import.meta.url));
 const distDir = join(qaDir, "..", "dist");
 const shotDir = join(qaDir, "shots");
 
+// Bayat dist koruması: src/ içindeki en yeni dosya dist/index.html'den yeniyse
+// test edilen kod eski demektir. Sessizce eski kodu test etmek, v2.3.0'daki
+// "api is not defined" çökmesinin QA'da görünmemesinin makul açıklamasıydı.
+async function assertFreshDist() {
+  const { stat, readdir } = await import("node:fs/promises");
+  const newestIn = async (dir) => {
+    let newest = 0;
+    for (const e of await readdir(dir, { withFileTypes: true })) {
+      const p = join(dir, e.name);
+      if (e.isDirectory()) newest = Math.max(newest, await newestIn(p));
+      else newest = Math.max(newest, (await stat(p)).mtimeMs);
+    }
+    return newest;
+  };
+  const distIndex = join(distDir, "index.html");
+  let distMtime;
+  try {
+    distMtime = (await stat(distIndex)).mtimeMs;
+  } catch {
+    console.error("dist/ yok — önce: npm.cmd run build");
+    process.exit(1);
+  }
+  const srcNewest = Math.max(
+    await newestIn(join(qaDir, "..", "src")),
+    (await stat(join(qaDir, "..", "index.html"))).mtimeMs,
+  );
+  if (srcNewest > distMtime + 1000) {
+    console.error(
+      "dist/ bayat: src/ daha yeni. Önce `npm.cmd run build` çalıştır — " +
+        "aksi hâlde eski kod test edilir.",
+    );
+    process.exit(1);
+  }
+}
+await assertFreshDist();
+
 const TYPES = {
   ".html": "text/html; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",

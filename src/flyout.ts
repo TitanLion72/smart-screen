@@ -8,7 +8,7 @@
    - invoke("brightness_set", { value: number })
    - invoke("hdr_status") -> boolean (kendi cihazın HDR'ı; başarısızsa
      #fx-hdr kalıcı gizli, hata gösterilmez)
-   - invoke("app_version") -> string (opsiyonel; yoksa "v2.1")
+   - getVersion() -> string (opsiyonel; yoksa sabit "v2.3.0")
    - invoke("flyout_hide") -> pencereyi backend gizler (UI kendini gizlemez)
    - emit("ss:action", { action })  action ∈ measure | pause-1h |
      day-off | lock | open-main
@@ -242,7 +242,7 @@ void invoke<boolean>("hdr_status")
     hdrEl.hidden = true;
   });
 
-// Sürüm: app_version yoksa "v2.1"
+// Sürüm: getVersion() yoksa sabit yedek
 void getVersion()
   .then((v) => {
     const s = String(v ?? "").trim();

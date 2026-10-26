@@ -266,8 +266,23 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---------- ilk çizim ----------
+  // v2.3: render hatası pencereyi düşürmesin. el() bilinçli olarak throw eder;
+  // bir renderX patlarsa kullanıcı boş pencereyle kalıyordu (v2.3.0'daki
+  // "api is not defined" çökmesinin sınıfı). Sarmala + logla, uygulama ayakta kalsın.
+  const safeRender = (): void => {
+    try {
+      P.renderAll();
+    } catch (err) {
+      console.error("[smart-screen] render hatası:", err);
+      try {
+        P.appendLog(`arayüz hatası: ${String(err)}`, "bad");
+      } catch {
+        /* log kutusu da bozuksa sessiz geç */
+      }
+    }
+  };
   P.switchTab("panel");
-  P.renderAll();
+  safeRender();
 
   getVersion()
     .then((v) => {
@@ -313,7 +328,7 @@ window.addEventListener("DOMContentLoaded", () => {
     void O.refreshMonitorList();
     void O.tick("izle");
   }, WATCH_MS);
-  window.setInterval(() => P.renderAll(), CLOCK_MS);
+  window.setInterval(() => safeRender(), CLOCK_MS);
   window.addEventListener("focus", () => {
     void O.refreshMonitorList();
     if (Date.now() - O.S.lastAct > WATCH_MS) void O.tick("odak");
@@ -356,11 +371,11 @@ window.addEventListener("DOMContentLoaded", () => {
     document.documentElement.style.setProperty("--mx", "0");
     document.documentElement.style.setProperty("--my", "0");
   };
-  if (!reduceMotion.matches) {
-    document.addEventListener("pointermove", onMove, { passive: true });
-    document.addEventListener("pointerleave", onLeave);
-  }
+  // Dinleyiciler bir kez bağlanır; reduced-motion durumu her olayda okunur
+  // (v2.3.1: kullanıcı ayarı sonradan değiştirirse restart gerekmiyordu).
+  document.addEventListener("pointermove", onMove, { passive: true });
+  document.addEventListener("pointerleave", onLeave);
   reduceMotion.addEventListener("change", () => {
-    onLeave();
+    if (reduceMotion.matches) onLeave();
   });
 });
