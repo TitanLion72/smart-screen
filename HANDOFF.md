@@ -60,6 +60,18 @@ tabindex + ok tuşları yoktu); hero eğrisi hiç güncellenmiyordu (sabit 40/45
 geliştirici için ABD/Kanada sınırlı → TR kapsam dışı), gerçek WebGL sahne (talep olursa),
 tray flyout'un da yeni sahne diline taşınması (şu an ayrı ve sade).
 
+### [K5] YAYIN SONRASI REVIEW → v2.3.1 (2026-10-26)
+Bağımsız reviewer 2 MAJOR buldu; ikisi de gerçekti:
+1. **Işık ölçeği 10 kat yanlıştı:** `light.rs` `luminance` **0-255** döndürürken ben
+   0-1000 sanıp `lum/10` yazmıştım → nokta hep alt çeyrekte. `lum/255*100` yapıldı.
+   Ders: bir alanın birimini **kaynak koddan** doğrula, yorumdan değil.
+2. **Açılış render'ı korumasızdı:** `el()` bilinçli throw eder; herhangi bir `renderX`
+   patlarsa pencere düşer. `safeRender()` sarmalayıcısı ilk çizim + zamanlayıcıya uygulandı.
+MINOR/NIT: hero eğri yolları da gerçek veriden çiziliyor (yalnız noktalar değil) ·
+reduced-motion sonradan değişince paralaks çalışıyor · `#pf-name` `inputEl` ·
+flyout sürüm yorumları · **QA bayat-dist koruması** (`src/` > `dist/` ise test durur).
+**v2.3.1 yayınlandı** — 171+2 test, clippy 0, fmt, build, QA PASS.
+
 
 ## V2.2 TURU (2026-10-25) — "anlaşılır dil + geri bildirim + tatlı arayüz"
 
