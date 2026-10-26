@@ -15,6 +15,50 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.5.0] - 2026-10-27
+
+Kullanıcı iki şeyi net söyledi: *"pek stabil çalışmıyor, bazen durduk yere çok kısık bazen
+durduk yere çok parlak"* ve *"sıcaklık tonu işlevsiz gibi"*. Bu sürüm yeni özellik değil,
+**güven sürümü**: her iki şikâyetin kök nedeni ölçüldü ve kurallar test edilebilir hâle
+getirildi (`src/engine.ts` + 12 birim testi, `decide.rs` 24 saat simülasyonu).
+
+### Fixed
+- **Parlaklık artık sıçramıyor.** Tur başına en fazla 8 puan yazılır; hedefe uçurum
+  yok. Tema değişimi parlaklığı hedefe sıçratmıyor, kademeli yaklaşıyor (`decide::next_brightness`).
+- **Kilit ekranı / kapalı ekran artık ayar turu değil.** `lockapp.exe` önde olduğu turda
+  hiçbir yazma yapılmaz; parlaklık okuması 0 geldiğinde (ekran kapanması) yazma atlanır.
+  "Durduk yere çok kısık" bunun sonucuydu: kilitte 0 okunuyor, uyanınca o 0'a yazılıyordu.
+- **Dış müdahale saygı görüyor.** Yazdıktan sonraki 90 sn içinde okunan değer ±6'dan fazla
+  saparsa (kullanıcı ya da başka bir yazılım) 15 dk boyunca dokunulmaz. WMI'ın bir tur
+  gecikmeli yansımasına karşı 250 ms sonra doğrulama okuması yapılır — yanlış pencere açılmaz.
+- **Işık seviyesi histerezli.** Eşik etrafındaki ±6 gürültü sahneyi oynatmıyor; ton için son
+  üç ölçümün medyanı kullanılıyor. Tek gürültülü kamera karesi artık tema değiştiremiyor.
+- **Tema değişimi frenlendi.** En az 10 dk bekleme + 3 bağımsız ölçüm (pil modunda 2).
+  Kamera önbelleğinden dönen aynı kare "ikinci ölçüm" sayılmıyor (eski hâlde sayılıyordu —
+  tema arka arkaya zıplıyordu).
+- **Sıcak ton gerçekten uygulanıyor.** Şiddet ölçeği 0-45'ten **0-100**'e taşındı ve yüzde
+  artık *tavan* değil *şiddet*: otomatik eğri (saat + ışık) bununla çarpılır. Kanal eğrisi
+  kübikleştirildi (`warm_channel`), böylece %70 "biraz sarı" değil gerçekten sıcak.
+  Mevcut kullanıcının %35 ayarı bir kez %70'e taşınır (`warmScale=2` işareti).
+- **Sıcak ton yazımı doğrulanıyor.** `SetDeviceGammaRamp` sürücü tarafından sessizce
+  reddedilebiliyor; yazımdan sonra rampa geri okunur, fark büyükse log'a
+  `sıcak ton sürücüde tutmadı: warmth=… beklenen mavi=%… okunan=%…` düşer.
+- **Yanlış "tam ekran" dondurması.** `applicationframehost.exe` (UWP çerçevesi) ve kabuk
+  pencereleri (Başlat, arama, XAML) tam ekran boyutunda görünüp ayarı donduruyordu. Artık
+  `SHQueryUserNotificationState` ile ayrıştırılıyor: gerçek tam ekran oyun/video dondurur,
+  kabuk katmanı dondurmaz.
+
+### Changed
+- **Öğrenilen parlaklık artık delta.** Mutlak değer değil, hedefe göre fark (−20..+20)
+  öğrenilir; en az 3 gözlem **ve** 3 farklı gün gerekir. Eski `prefs.json` kayıtları
+  (mutlak değer) göçte silinir, tema tercihleri korunur (`STORE_VERSION=2`).
+- **Parlaklık yazımı doğrulanır.** Yazma sonrası okunan değer ±2 dışındaysa 3 kez denenir,
+  olmuyorsa "sürücü parlaklığı uygulamadı: yazılan X, okunan Y" hatası yüzeye çıkar.
+- **Log damgası yerel saat + ofset** (`2026-10-27T14:32:05+03:00`). Eski UTC (`Z`) damgası
+  ile saatler karışıyordu; yeni satırlarda `read=`/`written=` alanları var (geriye uyumlu).
+- **Okunaksız kombinasyon kapısı.** Açık temada çok kısık, koyu temada çok parlak hedef
+  okunabilir aralığa çekilir; gece tavanı ve okuma kipi verildiyse kullanıcı niyeti korunur.
+
 ## [2.4.3] - 2026-10-26
 
 v2.4.2'yi kurup açtım: pencere **yine 816×639** geldi. Sebep `tauri-plugin-window-state` —

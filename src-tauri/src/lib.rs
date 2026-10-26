@@ -36,7 +36,7 @@ use activity::{
 use autostart::{autostart_status, set_autostart};
 use battery::battery_status as query_battery_status;
 use brightness::{get_brightness, set_brightness};
-use decide::{next_brightness, scene_target, Source};
+use decide::{next_brightness, scene_target, Level, Source};
 use light::{classify, sample_light};
 use logger::{
     clear_log as clear_disk_log, log_tick as write_disk_log, read_lines as read_disk_log,
@@ -250,7 +250,7 @@ async fn brightness_get() -> Result<u8, String> {
 }
 
 #[tauri::command]
-async fn brightness_set(value: u8) -> Result<(), String> {
+async fn brightness_set(value: u8) -> Result<u8, String> {
     run_blocking(move || set_brightness(value)).await?
 }
 
@@ -293,14 +293,28 @@ async fn theme_set(name: String, mode: Option<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn decide_target(hour: u8, source: String) -> (String, String, u8) {
-    let (name, mode, bright) = scene_target(Source::from_str(&source), hour % 24);
+async fn decide_target(
+    hour: u8,
+    minute: u8,
+    source: String,
+    level: String,
+) -> (String, String, u8) {
+    let lvl = Level::from_str(&level).unwrap_or(Level::Normal);
+    let (name, mode, bright) = scene_target(Source::from_str(&source), hour % 24, minute % 60, lvl);
     (name.to_string(), mode.to_string(), bright)
 }
 
 #[tauri::command]
 async fn decide_brightness(current: u8, desired: u8, hour: u8, minute: u8) -> u8 {
     next_brightness(current, desired, hour % 24, minute % 60)
+}
+
+/// Olcum seviyesini histerezle gunceller: tek bir gurultulu kare sahneyi
+/// degistirmez (PLAN-v3 §4.1). Taninmayan `prev` icin `normal` kabul edilir.
+#[tauri::command]
+async fn decide_level(prev: String, lum: f32) -> String {
+    let prev = Level::from_str(&prev).unwrap_or(Level::Normal);
+    decide::next_level(prev, lum).as_str().to_string()
 }
 
 #[tauri::command]
@@ -344,8 +358,8 @@ async fn pref_learn(hour: u8, light: String, name: String, mode: String) {
 }
 
 #[tauri::command]
-async fn pref_get(hour: u8, light: String) -> Option<(String, String)> {
-    run_blocking(move || lookup_pref(hour, &light))
+async fn pref_get(hour: u8, light: String, mode: String) -> Option<(String, String)> {
+    run_blocking(move || lookup_pref(hour, &light, &mode))
         .await
         .ok()
         .flatten()
@@ -381,19 +395,28 @@ async fn gamma_restore() -> Result<(), String> {
     run_blocking(gamma::restore_original).await?
 }
 
-/// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=45).
+/// Yazimdan sonra geri okuma: (beklenen, okunan) mavi orta ton yuzdesi.
+/// Surucu rampayi sessizce reddettiyse fark buyuk cikar; arayuz loglar.
+#[tauri::command]
+async fn gamma_verify_warmth(percent: u8) -> Result<(u8, u8), String> {
+    run_blocking(move || gamma::verify_warmth(percent)).await?
+}
+
+/// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=100).
 #[tauri::command]
 async fn warmth_auto(hour: u8, minute: u8, light_level: String) -> Result<u8, String> {
     Ok(decide::warmth_auto(hour % 24, minute % 60, &light_level))
 }
 
+/// Hedefe gore parlaklik FARKINI ogrenir (delta, −20..+20).
 #[tauri::command]
-async fn pref_learn_bright(hour: u8, light: String, value: u8) {
-    let _ = run_blocking(move || prefs::learn_bright(hour, &light, value)).await;
+async fn pref_learn_bright(hour: u8, light: String, delta: i8) {
+    let _ = run_blocking(move || prefs::learn_bright(hour, &light, delta)).await;
 }
 
+/// (ortalama delta, gozlem sayisi, farkli gun sayisi).
 #[tauri::command]
-async fn pref_get_bright(hour: u8, light: String) -> Option<(u8, u32)> {
+async fn pref_get_bright(hour: u8, light: String) -> Option<(i8, u32, u32)> {
     run_blocking(move || prefs::get_bright(hour, &light))
         .await
         .ok()
@@ -637,6 +660,7 @@ pub fn run() {
             theme_set,
             decide_target,
             decide_brightness,
+            decide_level,
             brightness_floor,
             light_sample,
             log_tick,
@@ -650,6 +674,7 @@ pub fn run() {
             stats_summary,
             gamma_set_warmth,
             gamma_restore,
+            gamma_verify_warmth,
             warmth_auto,
             pref_learn_bright,
             pref_get_bright,

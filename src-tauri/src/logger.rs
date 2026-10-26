@@ -2,8 +2,9 @@
 // Copyright (C) 2026 TitanLion72
 //! Tur basina tek satir disk logu. Grafik ve gecmise bakis buradan okunur.
 //!
-//! Format (sabit, bozma): `iso | source=.. | level=.. | tone=.. |
-//! desired=.. | applied=.. | theme=.. | note=..`
+//! Format (sabit, bozma): `yerel-iso | source=.. | level=.. | tone=..
+//! | desired=.. [| read=..] [| written=..] | applied=.. | theme=.. | note=..`
+//! `read` okunan, `written` bu turda yazilan degerdir; eski satirlarda yok.
 
 use std::fs;
 use std::path::{Path, PathBuf};

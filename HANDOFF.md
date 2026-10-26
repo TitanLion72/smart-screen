@@ -22,6 +22,52 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.5.0 TURU (2026-10-27) — "güven": parlaklık düzensizliği + işlevsiz sıcak ton
+
+**Kullanıcı (birebir):** *"pek stabil çalışmıyor bazen durduk yere çok kısık bazen durduk
+yere çok parlak"* · *"sıcaklık tonu işlevsiz gibi"* · *"büyük oranda geliştirme gerek
+detaylı"*. Karar: **önce stabilite**, sonra tasarım sistemi (v2.6).
+
+**Kök nedenler (log + kod kanıtıyla):**
+1. **Kilit ekranı bir ayar turuydu.** `lockapp.exe` ön plandayken WMI parlaklığı **0**
+   okuyor, o 0 hedefe yazılıyor; kilit açılınca ekran "durduk yere çok kısık" geliyordu.
+2. **Tema kararı sıçratıyordu.** İki tur üst üste aynı karar → hedef parlaklık *doğrudan*
+   yazılıyordu (30 → 80 gibi), adım kuralı atlanıyordu.
+3. **Kamera önbelleği "ikinci ölçüm" sayılıyordu.** 5 dk'lık önbellek aynı kareyi döndürürken
+   `pendingCount` artıyor → tema arka arkaya zıplıyordu.
+4. **Işık eşiği gürültüye açıktı.** Histerez yoktu; ton tek kareyle dönüyordu.
+5. **Sıcak ton ölçeği yanlıştı.** `warmPercent` 0-45 bandında *tavan* olarak kullanılıyor,
+   otomatik eğri (0-40) onunla `min()`'leniyordu → pratikte hep aynı, silik sarılık.
+6. **`GetDeviceGammaRamp` hiç okunmuyordu** → sürücü reddetse bile "uygulandı" loglanıyordu.
+
+**Mimari:** tüm karar kuralları **saf** hâle getirildi.
+- `src/engine.ts` (yeni, DOM/invoke/`Date.now()` yok) + `src/engine.test.ts` (12 test,
+  `npm test` = `node --test src/engine.test.ts`): `isNewMeasurement`, `skipReason`,
+  `isExternalChange`, `extendRespect`, `learnDelta`, `learnAllowed`, `readableTarget`,
+  `finalTarget`, `themeGate`, `medianTone`, `lightKey`.
+- Rust: `decide.rs` yeniden (`Level`+`next_level` ±6 histerez, sürekli taban eğrisi,
+  `scene_target`, `next_brightness` adımı, `warmth_auto` 0-100) — **24 saat simülasyon
+  testi**: hiçbir adım >8, 30 dk'da en fazla 2 yön değişimi.
+- `prefs.rs` sema v2: öğrenme **delta** (−20..+20), en az 3 gözlem + 3 farklı gün;
+  v1'deki mutlak `bright` kayıtları göçte silinir (tema tercihleri korunur).
+- `gamma.rs`: kübik `warm_channel`, `verify_warmth` (yazım sonrası mavi orta ton geri
+  okuma) → `lib.rs gamma_verify_warmth` → `orchestr.applyWarmth` loglar.
+- `activity.rs`: `SHELL_HOSTS` + `SHQueryUserNotificationState` — kabuk penceresi
+  (`applicationframehost.exe`, Başlat, arama) artık tam ekran sayılmıyor; gerçek tam ekran
+  oyun/video hâlâ donduruyor.
+
+**Ölçüm disiplini:** tur başına tek `brightness_get`, sonra tek yazma; yazma sonrası okunan
+değer ±2 dışındaysa 3 deneme (`brightness.rs`), olmuyorsa görünür hata. Dış müdahale:
+yazımdan sonraki 90 sn içinde ±6 sapma → 15 dk saygı (250 ms sonra doğrulama okuması).
+
+**Doğrulama:** `cargo test` **193** yeşil (7 ignored) · clippy `-D warnings` 0 · fmt temiz ·
+`npx tsc --noEmit` temiz · `npm run build` temiz · QA `node run.mjs` **PASS** ·
+kareler gözle incelendi.
+
+**Ders:** "QA PASS" bu sınıf hatayı yakalamıyordu; hata *zaman* ve *durum* (kilit, önbellek,
+dış müdahale) içindeydi. Bu yüzden kurallar saf fonksiyona alınıp sahte saatle test edildi.
+
+
 ## V2.4.2 TURU (2026-10-26) — ilk açılış sıkışıyordu
 
 **Kullanıcı:** *"deneyeyim, açıldı mı"* → uygulamayı `target/release`'ten açtım, canlı

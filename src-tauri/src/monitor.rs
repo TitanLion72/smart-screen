@@ -130,13 +130,15 @@ pub fn set_brightness_checked(
 /// monitörlü kurulumda son sans olarak WMI'ya duser.
 fn write_value(m: &RawMonitor, value: u8, single: bool) -> Result<(), String> {
     if m.is_internal {
-        return crate::brightness::set_brightness(value);
+        return crate::brightness::set_brightness(value).map(|_| ());
     }
     match ddc_set_brightness(m, value) {
         Ok(()) => Ok(()),
         Err(e) => {
             if single {
-                crate::brightness::set_brightness(value).map_err(|_| e)
+                crate::brightness::set_brightness(value)
+                    .map(|_| ())
+                    .map_err(|_| e)
             } else {
                 Err(e)
             }

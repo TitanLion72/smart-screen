@@ -78,6 +78,12 @@ window.__invocations = [];
 window.__licPro = false;
 window.__theme = [${JSON.stringify(themeName)}, ${JSON.stringify(themeMode)}];
 window.__target = ["vesper", "dark", 30];
+// Parlaklık durumu: yazınca okunan değer de değişir (gerçek WMI gibi),
+// böylece kademeli adım kuralı QA'de de sınanır.
+window.__bright = 42;
+// Sicak ton rampa durumu: __warmReject = surucu yazimi yutuyor senaryosu.
+window.__warm = 0;
+window.__warmReject = false;
 window.__logs = ["2026-10-06T20:58:00.000Z | source=auto/auto | level=dark | tone=neutral | desired=30 | applied=30 | theme=vesper/dark | note=izle"];
 window.__hdrAll = ${JSON.stringify(opts && opts.hdrAll ? opts.hdrAll : [])};
 window.__update = ${
@@ -109,8 +115,10 @@ window.__TAURI_INTERNALS__ = {
   invoke: async (cmd, args) => {
     window.__invocations.push([cmd, args ?? null]);
     switch (cmd) {
-      case "brightness_get": return 42;
-      case "brightness_set": return null;
+      case "brightness_get": return window.__bright;
+      case "brightness_set":
+        window.__bright = args && typeof args.value === "number" ? args.value : window.__bright;
+        return window.__bright;
       case "is_fullscreen": return false;
       case "foreground_exe": return ${JSON.stringify(exe ?? "firefox.exe")};
       // theme_get durumsal: theme_set yazdigini okur (backend davranisi).
@@ -123,7 +131,18 @@ window.__TAURI_INTERNALS__ = {
         return null;
       // decide_target QA'nin hedefini okur: karar degistirilerek snap tetiklenir.
       case "decide_target": return window.__target;
-      case "decide_brightness": return (args && typeof args.desired === "number") ? args.desired : 30;
+      // Gerçek adım kuralı: hedefe ucte bir, 3..8 puan (decide.rs).
+      case "decide_brightness": {
+        const cur = Number(args.current);
+        const des = Math.max(0, Math.min(100, Number(args.desired)));
+        const gap = Math.abs(des - cur);
+        if (gap < 2) return cur;
+        const step = Math.min(gap, Math.max(3, Math.min(8, Math.floor(gap / 3))));
+        return des > cur ? cur + step : cur - step;
+      }
+      // Histerez Rust'ta; QA için eşik sınıflaması yeter (tek kare).
+      case "decide_level":
+        return args.lum < 34 ? "dark" : args.lum < 80 ? "dim" : args.lum < 150 ? "normal" : "bright";
       case "brightness_floor": return 0;
       case "light_sample":
         // "dim": kamera override'i (dark->ss-night, bright->ss-paper) kararın
@@ -175,8 +194,17 @@ window.__TAURI_INTERNALS__ = {
         return { pro: false, email: null, issued: null };
       case "battery_status": return [85, true];
       case "warmth_auto": return 35;
-      case "gamma_set_warmth": return null;
-      case "gamma_restore": return null;
+      // Sicak ton durumu: yazinca rampa degisir, geri okuma da onu gorur.
+      case "gamma_set_warmth":
+        if (!window.__warmReject) window.__warm = Number(args.percent);
+        return null;
+      case "gamma_restore":
+        window.__warm = 0;
+        return null;
+      case "gamma_verify_warmth": {
+        const blue = (p) => Math.round(100 - Number(p) * 0.24);
+        return [blue(args.percent), blue(window.__warm || 0)];
+      }
       case "animations_set": return null;
       // v2.1 backend: HDR + donanımsal sıcaklık görünürlüğü.
       case "hdr_status": return false;
@@ -324,15 +352,16 @@ async function run() {
       await loc.fill(value);
       await loc.dispatchEvent("change");
     };
-    // Karar "2 tur bekleme" kuralıyla uygulanır: hedefi değiştir, iki tur koş.
+    // Karar artık dwell + bağımsız tur ister; "manuel" tur bunları atlar ama
+    // parlaklık kademeli (tur başına ≤8) yaklaşır. Hedefe oturana kadar koş.
     const snap = async (target) => {
       await page.evaluate((t) => {
         window.__target = t;
       }, target);
-      await page.locator("#now-btn").click();
-      await page.waitForTimeout(400);
-      await page.locator("#now-btn").click();
-      await page.waitForTimeout(700);
+      for (let i = 0; i < 5; i++) {
+        await page.locator("#now-btn").click();
+        await page.waitForTimeout(350);
+      }
     };
     const shot = async (name) => page.screenshot({ path: join(shotDir, name) });
     try {

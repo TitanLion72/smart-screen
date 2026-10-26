@@ -827,10 +827,9 @@ function renderWarm(): void {
   el("warm-val").textContent = String(S.warmPercent);
   const range = inputEl("warm-range");
   if (document.activeElement !== range) range.value = String(S.warmPercent);
-  // duzeltme v2.2 (E): yüzde kaydırıcısı "hızlı sarılık" olarak kaldı —
-  // not gerçek davranışı anlatır (canlı önizleme değil).
+  // v2.5: yüzde artık tavan değil ŞİDDET — otomatik eğri bununla çarpılır.
   el("warm-preview-note").textContent =
-    `Hızlı sarılık düzeyi: %${S.warmPercent} — otomatik kipte üst sınırdır, sabit kipte doğrudan uygulanır; kapalı kipte etkisizdir.`;
+    `Hızlı sarılık şiddeti: %${S.warmPercent} — otomatik kipte saat/ışık eğrisiyle çarpılır, sabit kipte doğrudan uygulanır; kapalı kipte etkisizdir.`;
   el("calib-hint").textContent = S.calibHint;
   // HDR açık monitörde sıcak ton etkisiz: not görünür, kontrol soluk kalır.
   const hdr = S.hdrOn;

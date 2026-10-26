@@ -1,6 +1,6 @@
 [package]
 name = "smart-screen"
-version = "2.4.3"
+version = "2.5.0"
 description = "Ortam ışığına göre tema ve parlaklık ayarlayan tray uygulaması"
 authors = ["TitanLion72"]
 license = "GPL-3.0-or-later"
@@ -29,7 +29,7 @@ tauri-plugin-process = "2"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 chrono = "0.4"
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_Threading", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Devices_Display"] }
+windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_UI_Shell", "Win32_System_Threading", "Win32_Graphics_Gdi", "Win32_UI_ColorSystem", "Win32_Devices_Display"] }
 nokhwa = { version = "0.10.11", features = ["input-native"] }
 # Offline lisans dogrulamasi (Ed25519). rand feature'u gerekmez: testlerde
 # seed'li SigningKey::from_bytes yeterli.

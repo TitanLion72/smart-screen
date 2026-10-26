@@ -13,15 +13,64 @@ use windows::Win32::Graphics::Gdi::{
 use windows::Win32::System::Threading::{
     OpenProcess, QueryFullProcessImageNameW, PROCESS_NAME_FORMAT, PROCESS_QUERY_LIMITED_INFORMATION,
 };
+use windows::Win32::UI::Shell::{
+    SHQueryUserNotificationState, QUNS_BUSY, QUNS_PRESENTATION_MODE, QUNS_RUNNING_D3D_FULL_SCREEN,
+};
 use windows::Win32::UI::WindowsAndMessaging::{
     GetForegroundWindow, GetSystemMetrics, GetWindowRect, GetWindowThreadProcessId, SM_CXSCREEN,
     SM_CYSCREEN,
 };
 
+/// Kabuk (shell) katmani surecleri: bunlar tam ekran boyutunda pencere acabilir
+/// ama kullanici oyun/video izlemiyordur (Baslat, arama, XAML kabugu, kilit).
+/// `applicationframehost.exe` bu listenin ozel uyesidir: UWP uygulamalarinin
+/// cercevesini barindirir — Netflix/Prime Video gibi bir uygulama gercekten
+/// tam ekran video oynatiyorsa Windows "mesgul" der ve dondurma yine olur.
+pub const SHELL_HOSTS: &[&str] = &[
+    "applicationframehost.exe",
+    "startmenuexperiencehost.exe",
+    "searchhost.exe",
+    "shellexperiencehost.exe",
+    "textinputhost.exe",
+    "lockapp.exe",
+];
+
+/// Exe kabuk katmanindan mi (tam ekran sayilmamali)?
+pub fn is_shell_host(exe: &str) -> bool {
+    SHELL_HOSTS.contains(&exe)
+}
+
+/// Windows'un "kullaniciya bildirim gosterme" durumu: on planda gercek bir
+/// tam ekran uygulama (oyun/video/sunum) var mi? Kabuk katmanindaki XAML
+/// pencereleri bu durumu tetiklemez — ayirt edici sinyal burasidir.
+pub fn shell_is_busy() -> bool {
+    unsafe {
+        match SHQueryUserNotificationState() {
+            Ok(state) => {
+                state == QUNS_BUSY
+                    || state == QUNS_RUNNING_D3D_FULL_SCREEN
+                    || state == QUNS_PRESENTATION_MODE
+            }
+            // Sorgulanamiyorsa "mesgul degil" varsayilir: yanlis dondurma,
+            // yanlis parlaklik degisiminden daha cok rahatsiz eder.
+            Err(_) => false,
+        }
+    }
+}
+
 /// On plan pencere tam ekransa true (oyun/video). Tek basina
 /// dondurma sebebi degil; exe listeleriyle birlikte degerlendirilir.
 pub fn is_fullscreen() -> bool {
-    is_foreground_fullscreen()
+    if !is_foreground_fullscreen() {
+        return false;
+    }
+    // Kabuk pencereleri (Baslat/arama/XAML cerceve) tam ekran boyutunda
+    // gorunur ama kullanici icerik izlemiyordur. Gercek tam ekran oyun/video
+    // Windows'ta "mesgul" durumunu tetikler; yoksa dondurmayiz.
+    match foreground_exe() {
+        Some(exe) if is_shell_host(&exe) => shell_is_busy(),
+        _ => true,
+    }
 }
 
 fn is_foreground_fullscreen() -> bool {
@@ -150,5 +199,21 @@ mod tests {
         assert!(is_blocked("vlc.exe", &list));
         assert!(!is_blocked("vlc", &list));
         assert!(!is_blocked("chrome.exe", &list));
+    }
+
+    #[test]
+    fn shell_hosts_are_lowercase_and_exact() {
+        for exe in SHELL_HOSTS {
+            assert_eq!(*exe, exe.to_lowercase(), "kabuk exe'si kucuk harf olmali");
+        }
+        assert!(is_shell_host("applicationframehost.exe"));
+        assert!(is_shell_host("lockapp.exe"));
+        assert!(!is_shell_host("ApplicationFrameHost.exe"));
+        assert!(!is_shell_host("chrome.exe"));
+    }
+
+    #[test]
+    fn shell_busy_query_does_not_panic() {
+        let _ = shell_is_busy();
     }
 }

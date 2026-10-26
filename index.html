@@ -199,9 +199,9 @@
   #day-strip       | div        | 24 saat gün çizgisi (gradient şerit)    | dekoratif; aria-hidden
   #day-now         | div        | şeritte "şimdi" imleci                   | style.left = saat yüzdesi
   #warm-minus      | button     | sarılık düzeyi −5                       | click → warmPercent azalt (min 0)
-  #warm-val        | span       | sarılık düzeyi değeri ("35")             | text
-  #warm-plus       | button     | sarılık düzeyi +5                        | click → warmPercent artır (tavan kuralı)
-  #warm-range      | input range | sarılık düzeyi kaydırıcısı (0-60, stepper ile aynı değer) | input → warmPercent; warm-val ile senkron
+  #warm-val        | span       | sarılık düzeyi değeri ("70")             | text
+  #warm-plus       | button     | sarılık düzeyi +5                        | click → warmPercent artır (tavan 100)
+  #warm-range      | input range | sarılık düzeyi kaydırıcısı (0-100, stepper ile aynı değer) | input → warmPercent; warm-val ile senkron
   #warm-preview-note | div.hint | canlı önizleme notu (yüzde küçük satırda) | text
   #warm-kelvin     | input range | YENİ: Kelvin sıcaklığı (2500–6500, step 100, value 6500) | input → renk sıcaklığı; aria-label "Ekran rengi sıcaklığı"
   #warm-kelvin-val | span       | YENİ: büyük değer ("4200 K")             | text
@@ -583,11 +583,11 @@
                 <div class="warm-ctrl">
                   <div class="stepper">
                     <button id="warm-minus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini azalt">−</button>
-                    <span id="warm-val">35</span>
+                    <span id="warm-val">70</span>
                     <button id="warm-plus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini artır">+</button>
                   </div>
                   <label class="sr-only" for="warm-range">Sarılık düzeyi</label>
-                  <input id="warm-range" type="range" min="0" max="60" step="5" value="35" aria-label="Sarılık düzeyi" />
+                  <input id="warm-range" type="range" min="0" max="100" step="5" value="70" aria-label="Sarılık düzeyi" />
                 </div>
               </div>
               <div class="hint" id="warm-preview-note">Canlı önizleme açıktır — düzey değişince ekran anında sarılır.</div>

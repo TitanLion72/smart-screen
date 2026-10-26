@@ -41,10 +41,12 @@ static OPS: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 /// Surucunun kabul ettigi identity'den maksimum sapma (Microsoft dokumu).
 const MAX_DEVIATION: i32 = 32768;
 
-/// warmth=100 hedef carpanlari: kirmizi korunur, mavi en cok kisilir.
-const FULL_RED: f32 = 1.0;
-const FULL_GREEN: f32 = 0.88;
-const FULL_BLUE: f32 = 0.72;
+/// warmth=100'de yesil/mavi kanalina uygulanan egri siddeti (0..1).
+/// Egri iki ucu KORUR (x=1 -> kimlik), orta tonlari kisar. Dogrusal carpanla
+/// ayni surucu sinirinda cok daha belirgin bir renk sicakligi verir
+/// (bkz. `warm_channel` ve PLAN-v3 §4.2).
+const MAX_WARM_GREEN: f32 = 0.30;
+const MAX_WARM_BLUE: f32 = 0.78;
 
 /// Per-cihaz disk kayitlarinin deseni: `smart-screen-gamma-<cihaz>.bin`.
 const GAMMA_PREFIX: &str = "smart-screen-gamma-";
@@ -73,15 +75,17 @@ struct DiskOriginal {
 }
 
 /// warmth (0-100) icin rampa uretir: 0 = identity (degisiklik yok),
-/// 100 = en sicak. Carpanlar 1.0'dan hedefe lineer interpole edilir.
-/// Cikis her zaman monoton ve surucu sinirlari icindedir (SAF).
+/// 100 = en sicak. Kirmizi kimlik kalir; yesil/mavi `warm_channel` egrisiyle
+/// kisilir. Cikis her zaman monoton ve surucu sinirlari icindedir (SAF).
+///
+/// v2.5: dogrusal carpan (mavi 1.0 -> 0.72) birakildi. Sebep: 35 puanlik
+/// varsayilan ayarda maviyi yalnizca %9.8 kisiyordu (neredeyse gorunmez).
 pub fn build_ramp(warmth: u8) -> Ramp {
     let t = warmth.min(100) as f32 / 100.0;
-    let id = identity_channel();
     Ramp {
-        red: scale_channel(&id, lerp(1.0, FULL_RED, t)),
-        green: scale_channel(&id, lerp(1.0, FULL_GREEN, t)),
-        blue: scale_channel(&id, lerp(1.0, FULL_BLUE, t)),
+        red: identity_channel(),
+        green: warm_channel(MAX_WARM_GREEN * t),
+        blue: warm_channel(MAX_WARM_BLUE * t),
     }
 }
 
@@ -201,6 +205,21 @@ pub fn set_warmth(warmth: u8) -> Result<(), String> {
 /// (hepsi HDR) hata da yoktur.
 fn all_warm_attempts_failed(attempted: usize, errors: usize) -> bool {
     attempted > 0 && errors == attempted
+}
+
+/// Yazımdan sonra geri okuma (PLAN-v3 §4.2/5): birincil ekranın mavi orta
+/// tonu beklenen değere yakın mı? Sürücü rampayı sessizce reddettiyse fark
+/// büyük çıkar; çağıran bunu uyarı olarak loglar.
+///
+/// Dönüş: (beklenen, okunan) — 0..100 arası mavi orta ton yüzdesi.
+pub fn verify_warmth(warmth: u8) -> Result<(u8, u8), String> {
+    let device = target_devices()
+        .into_iter()
+        .next()
+        .unwrap_or_else(|| PRIMARY_DEVICE.to_string());
+    let now = read_ramp(&device)?;
+    let mid = |r: &Ramp| ((r.blue[128] as f32 / 65535.0) * 100.0).round() as u8;
+    Ok((mid(&build_ramp(warmth)), mid(&now)))
 }
 
 /// Tek cihaza sicak ton: once orijinali yakala, sonra uygula.
@@ -527,25 +546,22 @@ fn identity_ramp() -> Ramp {
     }
 }
 
-/// a'dan b'ye t oraninda lineer interpolasyon.
-fn lerp(a: f32, b: f32, t: f32) -> f32 {
-    a + (b - a) * t
-}
-
-/// Tek kanali carpanla olcekler. Sonuc once identity+-32768 araligina
-/// kelepcelenir, sonra monotonluk onceden gelen degerle garanti edilir
-/// (hi azalmadigi icin bu kelepceyi bozmaz).
-fn scale_channel(identity: &[u16; 256], m: f32) -> [u16; 256] {
+/// Sicak ton egrisi: kanal girisi `x = i / 255`, cikis kup egriyle karistirilir
+/// `out = 65535 * ((1 - s) * x + s * x^3)`.
+///
+/// - `s = 0` kimlik; `s = 1` orta tonlar 0.125'e iner, `x = 1` KORUNUR
+///   (tepe beyazi kirpilmaz, ekran "yanmis" görünmez).
+/// - Turev `(1 - s) + 3s x^2 > 0` → her s icin MONOTON.
+/// - En buyuk sapma `65535 * s * x * (1 - x^2) <= 25240 * s < 32768` → her s
+///   icin surucu siniri (`MAX_DEVIATION`) ICINDE. Bu yuzden dogrusal carpanin
+///   aksine mavi %50'nin altina inebilir (SAF).
+fn warm_channel(strength: f32) -> [u16; 256] {
+    let s = strength.clamp(0.0, 1.0);
     let mut out = [0u16; 256];
-    let mut prev = 0i32;
-    for i in 0..256 {
-        let id = identity[i] as i32;
-        let lo = (id - MAX_DEVIATION).max(0);
-        let hi = (id + MAX_DEVIATION).min(u16::MAX as i32);
-        let scaled = (identity[i] as f32 * m).round() as i32;
-        let v = scaled.clamp(lo, hi).max(prev);
-        out[i] = v as u16;
-        prev = v;
+    for (i, v) in out.iter_mut().enumerate() {
+        let x = i as f32 / 255.0;
+        let shaped = (1.0 - s) * x + s * x * x * x;
+        *v = (65535.0 * shaped).round().clamp(0.0, 65535.0) as u16;
     }
     out
 }
@@ -624,15 +640,36 @@ mod tests {
     }
 
     #[test]
-    fn full_warmth_cuts_blue_and_keeps_red() {
+    fn full_warmth_cuts_midtones_and_keeps_top() {
         let r = build_ramp(100);
-        assert_eq!(r.red[255], 65535, "kirmizi korunmali");
-        let g = r.green[255] as f32 / 65535.0;
-        let b = r.blue[255] as f32 / 65535.0;
-        assert!((g - FULL_GREEN).abs() < 0.01, "yesil oran: {g}");
-        assert!((b - FULL_BLUE).abs() < 0.01, "mavi oran: {b}");
-        assert!(r.blue[255] < r.green[255]);
-        assert!(r.green[255] < r.red[255]);
+        assert_eq!(r.red, identity_channel(), "kirmizi korunmali");
+        // Egri uclari korur: tepe beyazi kirpilmaz (bant/sert gecis yok).
+        assert_eq!(r.blue[255], 65535, "mavi tepe korunmali");
+        assert_eq!(r.green[255], 65535, "yesil tepe korunmali");
+        // Orta tonlar guclu kisilir: eski dogrusal carpan 0.72 idi.
+        let mid_b = r.blue[128] as f32 / 65535.0;
+        let mid_g = r.green[128] as f32 / 65535.0;
+        assert!(mid_b < 0.25, "mavi orta ton cok zayif: {mid_b}");
+        assert!(mid_g < 0.50, "yesil orta ton cok zayif: {mid_g}");
+        assert!(mid_b < mid_g, "mavi yesilden once kisilmali");
+    }
+
+    #[test]
+    fn default_warmth_is_now_perceptible() {
+        // v2.5 regresyonu: varsayilan 35'te mavi orta ton en az %15 kisilmeli.
+        // Eski dogrusal rampada bu deger %9.8 idi ("sicak ton islevsiz").
+        let mid = build_ramp(35).blue[128] as f32 / 65535.0;
+        assert!(mid < 0.425, "varsayilan sicak ton zayif: {mid}");
+    }
+
+    #[test]
+    fn warmth_strength_increases_monotonically() {
+        let mut prev = 65535;
+        for w in 0..=100u8 {
+            let mid = build_ramp(w).blue[128];
+            assert!(mid <= prev, "warmth={w} oncekinden acik");
+            prev = mid;
+        }
     }
 
     #[test]
@@ -667,30 +704,26 @@ mod tests {
     }
 
     #[test]
-    fn scale_clamps_total_blackout() {
-        // Kotu niyetli carpan (0.0) bile sinirlari asamaz, monotonluk bozulmaz.
-        let flat = scale_channel(&identity_channel(), 0.0);
-        let r = Ramp {
-            red: flat,
-            green: flat,
-            blue: flat,
-        };
-        assert!(is_monotonic(&r));
-        assert!(within_driver_limits(&r));
+    fn warm_channel_stays_valid_at_extremes() {
+        // s=0 kimlik, s=1 en sert: ikisi de sinir ve monotonluk icinde.
+        for s in [0.0f32, 0.5, 1.0] {
+            let ch = warm_channel(s);
+            let r = Ramp {
+                red: ch,
+                green: ch,
+                blue: ch,
+            };
+            assert!(is_monotonic(&r), "s={s} monoton degil");
+            assert!(within_driver_limits(&r), "s={s} sinir asiyor");
+            assert_eq!(r.red[0], 0);
+            assert_eq!(r.red[255], 65535);
+        }
     }
 
     #[test]
-    fn scale_clamps_overshoot() {
-        // 1.5 carpan bile ust siniri (identity+32768 ve 65535) asamaz.
-        let hot = scale_channel(&identity_channel(), 1.5);
-        let r = Ramp {
-            red: hot,
-            green: hot,
-            blue: hot,
-        };
-        assert!(within_driver_limits(&r));
-        assert!(is_monotonic(&r));
-        assert_eq!(r.red[255], 65535);
+    fn warm_channel_clamps_out_of_range_strength() {
+        assert_eq!(warm_channel(1.5), warm_channel(1.0));
+        assert_eq!(warm_channel(-2.0), identity_channel());
     }
 
     #[test]

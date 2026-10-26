@@ -31,15 +31,28 @@ struct Pref {
     light: String,
     name: String,
     mode: String,
+    /// Son ogrenme zamani (unix sn). Eski kayitlarda yok → 0 (en eski).
+    #[serde(default)]
+    seen: u64,
 }
 
-/// Parlaklik tercihi: toplam + gozlem sayisi (ortalama = toplam/sayi).
+/// Parlaklik tercihi: hedefe gore **delta** (mutlak parlaklik DEGIL),
+/// isaretli toplam + gozlem sayisi + farkli gunler (PLAN-v3 §4.1/7).
+///
+/// v2.5: eski sema mutlak parlakligi ortaliyordu; ogrenilen deger yillarca
+/// ayni kalip sahne hedefini eziyordu (sikayet: "durduk yere cok kisik").
 #[derive(Serialize, Deserialize, Clone)]
 struct BrightPref {
     hour: u8,
     light: String,
-    total: u32,
+    /// Isaretli delta toplami (ornek: -5, +8).
+    #[serde(default)]
+    total: i32,
+    #[serde(default)]
     count: u32,
+    /// Gozlem yapilan farkli gunler ("YYYY-MM-DD"), en fazla 14 tutulur.
+    #[serde(default)]
+    days: Vec<String>,
 }
 
 #[derive(Serialize, Deserialize, Default)]
@@ -53,7 +66,10 @@ struct Store {
     version: u32,
 }
 
-const STORE_VERSION: u32 = 1;
+/// Sema surumu. 2 = parlaklik ogrenmesi delta + gun bazli.
+const STORE_VERSION: u32 = 2;
+/// Bir tercihte tutulan farkli gun sayisi.
+const MAX_DAYS: usize = 14;
 
 fn prefs_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
@@ -70,10 +86,10 @@ pub fn learn_pref(hour: u8, light: &str, name: &str, mode: &str) {
     }
 }
 
-pub fn get_pref(hour: u8, light: &str) -> Option<(String, String)> {
+pub fn get_pref(hour: u8, light: &str, want_mode: &str) -> Option<(String, String)> {
     let _guard = guard();
     let p = prefs_path().ok()?;
-    lookup_at(&p, hour, light)
+    lookup_at(&p, hour, light, want_mode)
 }
 
 pub fn list_prefs() -> Vec<(u8, String, String, String)> {
@@ -95,16 +111,18 @@ pub fn clear_prefs() {
     }
 }
 
-/// Kullanicinin el ile kullandigi parlakligi ogrenir; gozlem sayisini artirir.
-pub fn learn_bright(hour: u8, light: &str, value: u8) {
+/// Kullanicinin sectigi parlakligin o anki hedefe gore FARKINI ogrenir
+/// (delta, mutlak parlaklik degil); gozlem sayisini ve gun cesidini artirir.
+pub fn learn_bright(hour: u8, light: &str, delta: i8) {
     let _guard = guard();
     if let Ok(p) = prefs_path() {
-        let _ = learn_bright_at(&p, hour, light, value);
+        let day = chrono::Local::now().format("%Y-%m-%d").to_string();
+        let _ = learn_bright_at(&p, hour, light, delta, &day);
     }
 }
 
-/// Ogrenilmis ortalama parlaklik + gozlem sayisi (guven gostergesi).
-pub fn get_bright(hour: u8, light: &str) -> Option<(u8, u32)> {
+/// Ogrenilmis ortalama delta + gozlem sayisi + farkli gun sayisi.
+pub fn get_bright(hour: u8, light: &str) -> Option<(i8, u32, u32)> {
     let _guard = guard();
     let p = prefs_path().ok()?;
     lookup_bright_at(&p, hour, light)
@@ -121,10 +139,15 @@ fn load(path: &PathBuf) -> Store {
             Store::default()
         }
     };
-    // Migration hook: eski format (version 0) -> mevcut sema.
+    // Migration: v1 parlaklik ogrenmesi MUTLAK degeri sakliyordu. Delta
+    // semasina cevrilemez (o anki hedef bilinmiyor) → temizlenir; tema
+    // tercihleri korunur. Boylece sahneyi ezen eski ogrenme bir daha
+    // uygulanmaz (PLAN-v3 §2/A4).
     if store.version < STORE_VERSION {
+        if store.version < 2 {
+            store.bright.clear();
+        }
         store.version = STORE_VERSION;
-        // Burada eski alanlar yenilenecek (su an sema degismedi).
         let _ = save(path, &store);
     }
     store
@@ -161,28 +184,74 @@ fn learn_at(path: &PathBuf, hour: u8, light: &str, name: &str, mode: &str) -> Re
         Some(slot) => {
             slot.name = name.to_string();
             slot.mode = mode.to_string();
+            slot.seen = now_secs();
         }
         None => store.prefs.push(Pref {
             hour,
             light: light.to_string(),
             name: name.to_string(),
             mode: mode.to_string(),
+            seen: now_secs(),
         }),
     }
     save(path, &store)
 }
 
-fn lookup_at(path: &PathBuf, hour: u8, light: &str) -> Option<(String, String)> {
+/// Simdiki zaman (unix sn); kilitli olmayan basit okuma.
+fn now_secs() -> u64 {
+    chrono::Utc::now().timestamp().max(0) as u64
+}
+
+/// Isik anahtarinin seviye parcasi: `dim/warm` -> `dim`.
+fn light_level(light: &str) -> &str {
+    light.split('/').next().unwrap_or(light)
+}
+
+/// Tema tercihini uc kademeli bulur (PLAN-v3 §4.1):
+/// 1. tam kosul (saat + isik) — kullanicinin o kosuldaki acik secimi,
+/// 2. ayni saat + ayni isik SEVIYESI (ton farkli) — sahne salinmasin,
+/// 3. ayni saat + ayni MOD — **isik yok sayilir ama mod korunur**.
+///
+/// Eski davranis (v2.4): 3. kademe modu yok sayiyordu ve o saatteki ILK
+/// kaydi donduruyordu; gece yarisinda `github/light` gibi acik tema
+/// uygulanip parlaklik 30'da kalabiliyordu (PLAN-v3 §2/A5).
+fn lookup_at(path: &PathBuf, hour: u8, light: &str, want_mode: &str) -> Option<(String, String)> {
     let store = load(path);
-    store
+    if let Some(p) = store
         .prefs
         .iter()
         .find(|p| p.hour == hour && p.light == light)
-        .or_else(|| store.prefs.iter().find(|p| p.hour == hour))
+    {
+        return Some((p.name.clone(), p.mode.clone()));
+    }
+    let level = light_level(light);
+    if let Some(p) = store
+        .prefs
+        .iter()
+        .filter(|p| p.hour == hour && light_level(&p.light) == level)
+        .max_by_key(|p| p.seen)
+    {
+        return Some((p.name.clone(), p.mode.clone()));
+    }
+    store
+        .prefs
+        .iter()
+        .filter(|p| p.hour == hour && p.mode == want_mode)
+        .max_by_key(|p| p.seen)
         .map(|p| (p.name.clone(), p.mode.clone()))
 }
 
-fn learn_bright_at(path: &PathBuf, hour: u8, light: &str, value: u8) -> Result<(), String> {
+/// Ogrenilen delta −20..+20 araligina kelepcelenir (PLAN-v3 §4.1/7).
+pub const DELTA_LIMIT: i32 = 20;
+
+fn learn_bright_at(
+    path: &PathBuf,
+    hour: u8,
+    light: &str,
+    delta: i8,
+    day: &str,
+) -> Result<(), String> {
+    let delta = i32::from(delta).clamp(-DELTA_LIMIT, DELTA_LIMIT);
     let mut store = load(path);
     match store
         .bright
@@ -190,28 +259,56 @@ fn learn_bright_at(path: &PathBuf, hour: u8, light: &str, value: u8) -> Result<(
         .find(|p| p.hour == hour && p.light == light)
     {
         Some(slot) => {
-            slot.total += u32::from(value);
+            slot.total += delta;
             slot.count += 1;
+            push_day(&mut slot.days, day);
         }
         None => store.bright.push(BrightPref {
             hour,
             light: light.to_string(),
-            total: u32::from(value),
+            total: delta,
             count: 1,
+            days: vec![day.to_string()],
         }),
     }
     save(path, &store)
 }
 
-fn lookup_bright_at(path: &PathBuf, hour: u8, light: &str) -> Option<(u8, u32)> {
+/// Gun listesine tekilleştirerek ekler; en fazla `MAX_DAYS` tutar.
+fn push_day(days: &mut Vec<String>, day: &str) {
+    if days.iter().any(|d| d == day) {
+        return;
+    }
+    days.push(day.to_string());
+    if days.len() > MAX_DAYS {
+        days.remove(0);
+    }
+}
+
+fn lookup_bright_at(path: &PathBuf, hour: u8, light: &str) -> Option<(i8, u32, u32)> {
     let store = load(path);
+    let level = light_level(light);
     let slot = store
         .bright
         .iter()
         .find(|p| p.hour == hour && p.light == light)
-        .or_else(|| store.bright.iter().find(|p| p.hour == hour))?;
-    let avg = (slot.total / slot.count.max(1)) as u8;
-    Some((avg, slot.count))
+        // Once ayni saat + ayni seviye (en cok gozlem), sonra ayni saat.
+        .or_else(|| {
+            store
+                .bright
+                .iter()
+                .filter(|p| p.hour == hour && light_level(&p.light) == level)
+                .max_by_key(|p| p.count)
+        })
+        .or_else(|| {
+            store
+                .bright
+                .iter()
+                .filter(|p| p.hour == hour)
+                .max_by_key(|p| p.count)
+        })?;
+    let avg = (f64::from(slot.total) / f64::from(slot.count.max(1))).round() as i8;
+    Some((avg, slot.count, slot.days.len() as u32))
 }
 
 #[cfg(test)]
@@ -229,19 +326,65 @@ mod tests {
         let p = tmp("exact");
         learn_at(&p, 18, "dim/warm", "catppuccin-macchiato", "dark").unwrap();
         assert_eq!(
-            lookup_at(&p, 18, "dim/warm"),
+            lookup_at(&p, 18, "dim/warm", "dark"),
             Some(("catppuccin-macchiato".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
 
     #[test]
-    fn falls_back_to_hour_only() {
+    fn falls_back_to_same_hour_and_level() {
         let p = tmp("hour");
         learn_at(&p, 18, "dim/warm", "tokyonight", "dark").unwrap();
+        // Ayni saat, farkli ton ama ayni seviye: tercih korunur.
         assert_eq!(
-            lookup_at(&p, 18, "bright/neutral"),
+            lookup_at(&p, 18, "dim/neutral", "dark"),
             Some(("tokyonight".into(), "dark".into()))
+        );
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn falls_back_to_same_hour_and_mode_only() {
+        let p = tmp("mode");
+        learn_at(&p, 18, "dim/warm", "tokyonight", "dark").unwrap();
+        // Seviye farkli (bright), mod ayni: mod korunur, ışık yok sayılır.
+        assert_eq!(
+            lookup_at(&p, 18, "bright/neutral", "dark"),
+            Some(("tokyonight".into(), "dark".into()))
+        );
+        // Mod uyusmuyorsa tercih DONDURULMEZ: sahne kendi temasini secer.
+        assert_eq!(lookup_at(&p, 18, "bright/neutral", "light"), None);
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn light_theme_never_leaks_into_dark_scene() {
+        // Gercek vaka (PLAN-v3 §2/A5): gece yarisinda ogrenilmis acik tema.
+        let p = tmp("midnight");
+        learn_at(&p, 0, "normal/neutral", "github", "light").unwrap();
+        learn_at(&p, 0, "dark/neutral", "tokyonight", "dark").unwrap();
+        // 00:00, olcum dark/cool: ton tutmaz, seviye tutar -> koyu tema.
+        assert_eq!(
+            lookup_at(&p, 0, "dark/cool", "dark"),
+            Some(("tokyonight".into(), "dark".into()))
+        );
+        // Seviye de tutmazsa yalniz MOD eslesir; acik tema asla donmez.
+        assert_eq!(
+            lookup_at(&p, 0, "dim/warm", "dark"),
+            Some(("tokyonight".into(), "dark".into()))
+        );
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn newest_slot_wins_in_fallback() {
+        let p = tmp("newest");
+        learn_at(&p, 18, "dim/warm", "eski", "dark").unwrap();
+        learn_at(&p, 18, "bright/cool", "yeni", "dark").unwrap();
+        assert_eq!(
+            lookup_at(&p, 18, "normal/neutral", "dark"),
+            Some(("yeni".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
@@ -260,25 +403,62 @@ mod tests {
     #[test]
     fn unknown_slot_is_none() {
         let p = tmp("unknown");
-        assert_eq!(lookup_at(&p, 9, "x"), None);
+        assert_eq!(lookup_at(&p, 9, "x", "dark"), None);
         fs::remove_file(&p).ok();
     }
 
     #[test]
-    fn learns_brightness_average_and_count() {
+    fn learns_brightness_delta_average_and_days() {
         let p = tmp("bright");
-        learn_bright_at(&p, 18, "dim/warm", 40).unwrap();
-        learn_bright_at(&p, 18, "dim/warm", 50).unwrap();
-        assert_eq!(lookup_bright_at(&p, 18, "dim/warm"), Some((45, 2)));
+        learn_bright_at(&p, 18, "dim/warm", 6, "2026-10-01").unwrap();
+        learn_bright_at(&p, 18, "dim/warm", 4, "2026-10-02").unwrap();
+        // Ayni gun ikinci gozlem gun sayisini artirmaz.
+        learn_bright_at(&p, 18, "dim/warm", 8, "2026-10-02").unwrap();
+        assert_eq!(lookup_bright_at(&p, 18, "dim/warm"), Some((6, 3, 2)));
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn brightness_delta_is_clamped() {
+        let p = tmp("bright-clamp");
+        learn_bright_at(&p, 12, "normal/neutral", 90, "2026-10-01").unwrap();
+        learn_bright_at(&p, 12, "normal/neutral", -90, "2026-10-01").unwrap();
+        // +20 ve -20 ortalamasi 0; sinir asilmadi.
+        assert_eq!(lookup_bright_at(&p, 12, "normal/neutral"), Some((0, 2, 1)));
         fs::remove_file(&p).ok();
     }
 
     #[test]
     fn brightness_falls_back_to_hour_only() {
         let p = tmp("bright-hour");
-        learn_bright_at(&p, 20, "dark/neutral", 30).unwrap();
-        assert_eq!(lookup_bright_at(&p, 20, "dim/warm"), Some((30, 1)));
+        learn_bright_at(&p, 20, "dark/neutral", -5, "2026-10-01").unwrap();
+        assert_eq!(lookup_bright_at(&p, 20, "dim/warm"), Some((-5, 1, 1)));
         assert_eq!(lookup_bright_at(&p, 9, "dim/warm"), None);
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn v1_absolute_brightness_is_dropped_on_migration() {
+        // v2.4 dosyasi: mutlak parlaklik ortalamalari + tema tercihi.
+        let p = tmp("migrate");
+        fs::write(
+            &p,
+            r#"{"prefs":[{"hour":18,"light":"dim/warm","name":"tokyonight","mode":"dark"}],
+                "bright":[{"hour":18,"light":"dim/warm","total":135,"count":3}],
+                "version":1}"#,
+        )
+        .unwrap();
+        // Eski ogrenme uygulanmaz...
+        assert_eq!(lookup_bright_at(&p, 18, "dim/warm"), None);
+        // ...tema tercihi korunur.
+        assert_eq!(
+            lookup_at(&p, 18, "dim/warm", "dark"),
+            Some(("tokyonight".into(), "dark".into()))
+        );
+        let doc: serde_json::Value =
+            serde_json::from_str(&fs::read_to_string(&p).unwrap()).unwrap();
+        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["bright"].as_array().unwrap().len(), 0);
         fs::remove_file(&p).ok();
     }
 
@@ -286,7 +466,7 @@ mod tests {
     fn corrupt_json_starts_clean_and_keeps_backup() {
         let p = tmp("corrupt");
         fs::write(&p, "{bozuk!!").unwrap();
-        assert_eq!(lookup_at(&p, 18, "dim/warm"), None);
+        assert_eq!(lookup_at(&p, 18, "dim/warm", "dark"), None);
         let bak = p.with_extension("json.bak");
         assert!(bak.exists(), "bozuk dosya yedeklenmeliydi");
         learn_at(&p, 18, "dim/warm", "vesper", "dark").unwrap();

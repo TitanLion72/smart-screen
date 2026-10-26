@@ -19,5 +19,8 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  /* Testler Node'un kendi tip sıyırmasıyla koşar (`npm test`); tarayıcı
+     derlemesine girmez ve @types/node gerektirmez. */
+  "exclude": ["src/**/*.test.ts"]
 }

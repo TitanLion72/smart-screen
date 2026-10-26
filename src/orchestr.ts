@@ -20,6 +20,19 @@ import { emit } from "@tauri-apps/api/event";
 import { sendNotification } from "@tauri-apps/plugin-notification";
 import { MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
+import {
+  extendRespect,
+  finalTarget,
+  isExternalChange,
+  isNewMeasurement,
+  learnAllowed,
+  learnDelta,
+  lightKey,
+  medianTone,
+  skipReason,
+  themeGate,
+} from "./engine";
+import type { LightLevel, Tone, WriteRecord } from "./engine";
 import { toast } from "./toast";
 import {
   FREE_MAX_PROFILES,
@@ -137,6 +150,8 @@ export interface LightCard {
 
 const CAM_MS = 5 * 60 * 1000;
 const CAM_MS_LOW = 15 * 60 * 1000;
+/** `decide_level` çıktısını doğrulamak için (Rust `Level::as_str`). */
+const LEVEL_NAMES: LightLevel[] = ["dark", "dim", "normal", "bright"];
 export const BREAK_MS = 20 * 60 * 1000;
 export const SNOOZE_MS = 5 * 60 * 1000;
 const UNDO_DEPTH = 5;
@@ -164,17 +179,17 @@ export const WARM_OPTIONS = (Object.keys(WARM_MODE_LABEL) as WarmMode[]).map((va
  * backend'dedir, burada uygulanmaz.
  */
 const WARM_ANCHORS: Array<[number, number]> = [
-  [0, 40],
-  [300, 40],
-  [360, 25],
-  [420, 10],
+  [0, 88],
+  [300, 88],
+  [360, 56],
+  [420, 22],
   [480, 0],
   [900, 0],
-  [1020, 10],
-  [1140, 25],
-  [1260, 35],
-  [1380, 40],
-  [1440, 40],
+  [1020, 22],
+  [1140, 56],
+  [1260, 78],
+  [1380, 88],
+  [1440, 88],
 ];
 
 // ---------- durum ----------
@@ -208,6 +223,11 @@ export interface AppState {
   warmKelvinHw: boolean;
   /** Son uygulanan sıcak ton şiddeti (stabilite d). */
   lastWarmApplied: number | null;
+  /**
+   * v2.5: yazımdan sonraki geri okuma farkı (beklenen − okunan mavi %).
+   * null = ölçülmedi; |fark| > 4 ise sürücü rampayı reddediyordur.
+   */
+  warmthDrift: number | null;
   readingMode: boolean;
   /** Okuma profili açılmadan önceki tema/sarılık/animasyon (geri yükleme için). */
   readingPrev: { warm: WarmMode; themeKey: string | null; animations: boolean } | null;
@@ -219,6 +239,23 @@ export interface AppState {
   pendingKey: string | null;
   pendingCount: number;
   appliedKey: string | null;
+  /** Son otomatik tema değişiminin zamanı (dwell kapısı). */
+  lastThemeAt: number | null;
+  /** Son "bekliyor" notunun anahtarı: aynı not her turda loglanmaz. */
+  lastPendingNote: string | null;
+  /** Kendi yazdığımız parlaklık ve zamanı (dış müdahaleyi ayırt eder). */
+  lastWritten: WriteRecord | null;
+  /** Dış müdahale sonrası dokunmama penceresinin bitişi. */
+  respectUntil: number;
+  /** Ekran kapalı uyarısı bir kez loglanır. */
+  screenOffLogged: boolean;
+  /** Histerezli (Rust `decide_level`) ışık seviyesi ve medyan tonu. */
+  camLevel: LightLevel;
+  camTone: Tone;
+  /** Son 5 ölçümün tonu (medyan için). */
+  camHistory: Array<{ tone: string; at: number }>;
+  /** Tema turu sayılan son ölçümün zamanı (önbellek karesi sayılmaz). */
+  lastCountedCamAt: number | null;
   lastAct: number;
   lastAppliedBright: number;
   lastMeasureAt: number | null;
@@ -268,6 +305,20 @@ function loadWarmMode(): WarmMode {
   return getSetting("warmEnabled", "0") === "1" ? "fixed" : "auto";
 }
 
+/**
+ * v2.5: sıcak ton ölçeği 0-45'ten 0-100'e taşındı ve `warmPercent` artık
+ * tavan değil şiddet. Eski varsayılan (35) yeni ölçekte çok kısık kalıyordu;
+ * bir kez 70'e taşınır. Kullanıcı sonradan kendisi değiştirdiyse dokunulmaz.
+ */
+function loadWarmPercent(): number {
+  const raw = Math.max(0, Math.min(100, Math.round(loadNumber("warmPercent", 70))));
+  if (getSetting("warmScale", "") === "2") return raw;
+  const migrated = raw <= 40 ? 70 : raw;
+  setSetting("warmPercent", String(migrated));
+  setSetting("warmScale", "2");
+  return migrated;
+}
+
 function splitList(s: string): string[] {
   return s
     .split(",")
@@ -302,10 +353,11 @@ export const S: AppState = {
   blockItems: splitList(getSetting("blocklist", DEFAULT_BLOCKLIST)),
   allowItems: splitList(getSetting("allowlist", DEFAULT_ALLOWLIST)),
   warmMode: loadWarmMode(),
-  warmPercent: Math.round(loadNumber("warmPercent", 35)),
+  warmPercent: loadWarmPercent(),
   warmKelvin: Math.max(2500, Math.min(6500, Math.round(loadNumber("warmKelvin", 6500)))),
   warmKelvinHw: false,
   lastWarmApplied: null,
+  warmthDrift: null,
   readingMode: getSetting("readingMode", "0") === "1",
   readingPrev: null,
   animations: getSetting("animations", "1") === "1",
@@ -318,6 +370,15 @@ export const S: AppState = {
   pendingKey: null,
   pendingCount: 0,
   appliedKey: null,
+  lastThemeAt: null,
+  lastPendingNote: null,
+  lastWritten: null,
+  respectUntil: 0,
+  screenOffLogged: false,
+  camLevel: "normal",
+  camTone: "neutral",
+  camHistory: [],
+  lastCountedCamAt: null,
   lastAct: 0,
   lastAppliedBright: 0,
   lastMeasureAt: null,
@@ -465,6 +526,19 @@ export function activeProfile(): Profile | null {
   return S.profiles.find((p) => p.id === S.activeId) ?? null;
 }
 
+/** Yerel saat + ofset (`2026-10-27T14:32:05+03:00`) — UTC damga teşhisi
+ *  zorlaştırıyordu (PLAN-v3 §2/A7). RFC3339, `stats.rs` aynı şekilde okur. */
+function localIso(d: Date): string {
+  const pad = (n: number): string => String(Math.abs(n)).padStart(2, "0");
+  const off = -d.getTimezoneOffset();
+  const sign = off >= 0 ? "+" : "-";
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${sign}${pad(Math.floor(Math.abs(off) / 60))}:${pad(Math.abs(off) % 60)}`
+  );
+}
+
 async function diskLog(
   note: string,
   desired: number,
@@ -472,8 +546,13 @@ async function diskLog(
   theme: string,
   level = "-",
   tone = "-",
+  read: number | null = null,
+  written: number | null = null,
 ): Promise<void> {
-  const line = `${new Date().toISOString()} | source=${S.mode}/${S.source} | level=${level} | tone=${tone} | desired=${desired} | applied=${applied} | theme=${theme} | note=${note}`;
+  const extra =
+    (read === null ? "" : ` | read=${read}`) +
+    (written === null ? "" : ` | written=${written}`);
+  const line = `${localIso(new Date())} | source=${S.mode}/${S.source} | level=${level} | tone=${tone} | desired=${desired}${extra} | applied=${applied} | theme=${theme} | note=${note}`;
   await invoke("log_tick", { line }).catch((e) => console.warn("diskLog:", e));
 }
 
@@ -592,9 +671,11 @@ export function nextWarmthChange(now: Date = new Date()): Date | null {
 }
 
 /**
- * Saat + ışık seviyesine göre otomatik şiddet; `warmPercent` tavan.
- * stabilite (d): hata durumunda sessizce 0 dönmez — null döner, çağıran
- * mevcut şiddeti korur ve hatayı bir kez loglar.
+ * Saat + ışık seviyesine göre otomatik şiddet; `warmPercent` artık **tavan
+ * değil şiddet** (PLAN-v3 §4.2/2): eğri ile çarpılır ve 3 puandan küçük
+ * değişim gamma'ya yazılmaz (yazım disiplini, §4.2/4).
+ * Hata durumunda sessizce 0 dönmez — null döner, çağıran mevcut şiddeti
+ * korur ve hatayı bir kez loglar.
  */
 let warmWarned = "";
 
@@ -607,7 +688,7 @@ async function autoWarmth(): Promise<number | null> {
       lightLevel: S.lastCam ? S.lastCam.level : "unknown",
     });
     warmWarned = "";
-    return Math.min(Number(raw) || 0, S.warmPercent);
+    return Math.max(0, Math.min(100, Number(raw) || 0));
   } catch (e) {
     const msg = String(e);
     if (warmWarned !== msg) {
@@ -619,18 +700,40 @@ async function autoWarmth(): Promise<number | null> {
 }
 
 /** Sıcak ton: kipe göre hesaplayıp gamma'ya yazar. auto = saat + ışık. */
-export async function applyWarmth(): Promise<void> {
+export async function applyWarmth(force = false): Promise<void> {
   try {
     if (S.warmMode === "off") {
       await invoke("gamma_restore");
       S.lastWarmApplied = 0;
       return;
     }
-    const percent = S.warmMode === "fixed" ? S.warmPercent : await autoWarmth();
+    let percent: number | null;
+    if (S.warmMode === "fixed") {
+      percent = S.warmPercent;
+    } else {
+      const auto = await autoWarmth();
+      // İki eksen çarpımsal: eğri × kullanıcı şiddeti.
+      percent = auto === null ? null : (auto * S.warmPercent) / 100;
+    }
     // stabilite (d): hesaplanamadıysa son uygulanan şiddet korunur.
     const value = Math.round(percent === null ? (S.lastWarmApplied ?? S.warmPercent) : percent);
+    if (!force && S.lastWarmApplied !== null && Math.abs(value - S.lastWarmApplied) < 3) return;
     await invoke("gamma_set_warmth", { percent: value });
     S.lastWarmApplied = value;
+    // v2.5: sürücü rampayı sessizce reddedebiliyor (SetDeviceGammaRamp sezgisi).
+    // Yazımdan hemen sonra geri okuruz; fark büyükse kullanıcıya görünür olsun.
+    const check = await invoke<[number, number]>("gamma_verify_warmth", { percent: value })
+      .catch(() => null);
+    if (check) {
+      const [want, got] = check;
+      S.warmthDrift = want - got;
+      if (Math.abs(want - got) > 4) {
+        log(
+          `sıcak ton sürücüde tutmadı: warmth=${value} beklenen mavi=%${want} okunan=%${got}`,
+          "warn",
+        );
+      }
+    }
   } catch (e) {
     log("ekran sarılaştırılamadı: " + String(e), "bad");
     // duzeltme v2.2 (D): sıcaklık uygulanamadıysa hata toast'u — tek sefer.
@@ -675,14 +778,14 @@ export function setWarmMode(v: WarmMode): void {
   S.warmMode = v;
   setSetting("warmMode", v);
   log("ekranı sarılaştırma: " + WARM_MODE_LABEL[v]);
-  void applyWarmth();
+  void applyWarmth(true);
   render();
 }
 
 export function setWarmPercent(v: number): void {
-  S.warmPercent = Math.max(0, Math.min(60, Math.round(v)));
+  S.warmPercent = Math.max(0, Math.min(100, Math.round(v)));
   setSetting("warmPercent", String(S.warmPercent));
-  void applyWarmth();
+  void applyWarmth(true);
   render();
 }
 
@@ -764,8 +867,10 @@ export async function pickTheme(name: string, themeMode: string): Promise<void> 
     }
     await invoke("theme_set", { name, mode: themeMode });
     S.appliedKey = `${name}|${themeMode}`;
+    S.lastThemeAt = Date.now();
     S.pendingKey = null;
     S.pendingCount = 0;
+    S.lastPendingNote = null;
     const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
     await invoke("pref_learn", { hour: new Date().getHours(), light, name, mode: themeMode });
     log(`elle tema: ${name} (${themeMode})`, "ok");
@@ -788,7 +893,9 @@ export async function undo(): Promise<void> {
   try {
     await invoke("theme_set", { name: prev.name, mode: prev.mode || null });
     await invoke("brightness_set", { value: Math.round(prev.value) });
+    S.lastWritten = { value: Math.round(prev.value), at: Date.now() };
     S.appliedKey = `${prev.name}|${prev.mode}`;
+    S.lastThemeAt = Date.now();
     S.pendingKey = null;
     S.pendingCount = 0;
     log(`geri alındı: ${prev.name}`, "ok");
@@ -877,9 +984,12 @@ function isRiskyName(name: string): boolean {
 
 export async function fixRisk(): Promise<void> {
   try {
+    const now = new Date();
     const [n, m] = await invoke<[string, string]>("decide_target", {
-      hour: new Date().getHours(),
+      hour: now.getHours(),
+      minute: now.getMinutes(),
       source: S.source,
+      level: S.lastCam ? S.lastCam.level : "normal",
     });
     await pickTheme(n, m);
     S.risk = null;
@@ -894,16 +1004,29 @@ export async function fixRisk(): Promise<void> {
 /**
  * Bilinçli parlaklık düzeltmesi: öğrenme BURADAN çağrılır.
  * Elle tema seçimi bunu çağırmaz (stabilite c).
+ *
+ * v2.5: mutlak parlaklık değil, **hedefe göre delta** öğrenilir; aksi hâlde
+ * öğrenilen ham değer yıllarca aynı kalıp sahne hedefini eziyordu
+ * (PLAN-v3 §2/A4, §4.1/7).
  */
 export async function learnBrightness(): Promise<void> {
   try {
     const current = await invoke<number>("brightness_get");
-    const hour = new Date().getHours();
-    const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
-    await invoke("pref_learn_bright", { hour, light, value: current });
+    const now = new Date();
+    const hour = now.getHours();
+    const light = lightKey(S.camLevel, S.camTone);
+    const [, , base] = await invoke<[string, string, number]>("decide_target", {
+      hour,
+      minute: now.getMinutes(),
+      source: S.source,
+      level: S.camLevel,
+    });
+    const delta = learnDelta(current, base + S.offset);
+    if (delta === null) return;
+    await invoke("pref_learn_bright", { hour, light, delta });
     await showCalibration();
     // duzeltme v2.2 (D): kalibrasyon artık sessiz değil.
-    toast.ok("Parlaklık tercihi öğrenildi");
+    toast.ok(`Parlaklık tercihi öğrenildi (${delta >= 0 ? "+" : ""}${delta})`);
   } catch {
     /* öğrenme sessizce atlanabilir */
   }
@@ -912,10 +1035,12 @@ export async function learnBrightness(): Promise<void> {
 export async function showCalibration(): Promise<void> {
   try {
     const hour = new Date().getHours();
-    const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
-    const got = await invoke<[number, number] | null>("pref_get_bright", { hour, light });
+    const light = lightKey(S.camLevel, S.camTone);
+    const got = await invoke<[number, number, number] | null>("pref_get_bright", { hour, light });
     S.calibHint = got
-      ? `Öğrenilen tercih: %${got[0]} (${got[1]} gözlem) — bu saat ve ışıkta tercihin bu`
+      ? `Öğrenilen tercih: ${got[0] >= 0 ? "+" : ""}${got[0]} puan (${got[1]} gözlem / ${got[2]} gün)${
+          learnAllowed(got[1], got[2]) ? "" : " — 3 gün dolunca uygulanır"
+        }`
       : "Öğrenilen tercih: henüz gözlem yok";
   } catch {
     /* gösterim atlanabilir */
@@ -931,10 +1056,14 @@ function inSleepWindow(hour: number): boolean {
     : hour >= S.sleepStart || hour < S.sleepEnd;
 }
 
-// duzeltme v2.2 (madde 3): sleepCap gece TAVANIDIR (üst sınır) — istenen
-// değer gece penceresinde bu sayının ÜSTÜNE çıkmaz, alt sınır değildir.
-function applySleepCap(desired: number, hour: number): number {
-  return inSleepWindow(hour) ? Math.min(desired, S.sleepCap) : desired;
+// duzeltme v2.2 (madde 3): gece tavanı (üst sınır) — istenen değer gece
+// penceresinde bu sayının ÜSTÜNE çıkmaz. Okuma kipi de tavan koyar; ikisi
+// birlikteyse düşük olan geçerlidir.
+function comfortCap(hour: number): number | null {
+  const caps: number[] = [];
+  if (inSleepWindow(hour)) caps.push(S.sleepCap);
+  if (S.readingMode) caps.push(45);
+  return caps.length > 0 ? Math.min(...caps) : null;
 }
 
 /**
@@ -943,15 +1072,28 @@ function applySleepCap(desired: number, hour: number): number {
  */
 let camWarned = "";
 
+/** Parlaklık yazımı sürücü tarafından reddedilirse tek uyarı (spam yok). */
+let brightWarned = "";
+
 async function cameraSample(
   force: boolean,
   camLimit: number,
 ): Promise<CamSample | null> {
   if (!force && S.lastCam && Date.now() - S.lastCam.at < camLimit) return S.lastCam;
   try {
-    const [lum, , level, tone] = await invoke<[number, number, string, string]>("light_sample");
+    const [lum, , rawLevel, rawTone] = await invoke<[number, number, string, string]>("light_sample");
     camWarned = "";
-    S.lastCam = { lum, level, tone, at: Date.now() };
+    const at = Date.now();
+    // Seviye histerezi Rust'ta: esik etrafındaki ±6 gürültü sahneyi oynatmaz.
+    const level = await invoke<string>("decide_level", { prev: S.camLevel, lum }).catch(
+      () => rawLevel,
+    );
+    S.camLevel = LEVEL_NAMES.includes(level as LightLevel) ? (level as LightLevel) : S.camLevel;
+    S.camHistory.push({ tone: rawTone, at });
+    if (S.camHistory.length > 5) S.camHistory.shift();
+    // Ton: son üç örneğin medyanı — tek gürültülü kare tonu çevirmez.
+    S.camTone = medianTone(S.camHistory.map((h) => h.tone));
+    S.lastCam = { lum, level: S.camLevel, tone: S.camTone, at };
     return S.lastCam;
   } catch (e) {
     const msg = String(e);
@@ -986,9 +1128,9 @@ async function readBattery(): Promise<{ pct: number; charging: boolean } | null>
 
 // ---------- refresh + tick ----------
 
-export async function refresh(): Promise<void> {
+export async function refresh(current?: number): Promise<void> {
   try {
-    const bright = await invoke<number>("brightness_get");
+    const bright = current ?? (await invoke<number>("brightness_get"));
     S.lastAppliedBright = bright;
     const [name, themeMode] = await invoke<[string, string | null]>("theme_get");
     S.appliedKey = `${name}|${themeMode ?? ""}`;
@@ -1042,6 +1184,7 @@ export async function tick(reason: string): Promise<void> {
 function resetPending(): void {
   S.pendingKey = null;
   S.pendingCount = 0;
+  S.lastPendingNote = null;
 }
 
 async function runTick(reason: string): Promise<void> {
@@ -1079,6 +1222,16 @@ async function runTick(reason: string): Promise<void> {
     resetPending();
     await diskLog(`kilitli/sabit ${reason}`, 0, S.lastAppliedBright, S.appliedKey ?? "-");
     log("kilitli ya da sabit kipte — ayar yapılmadı", "warn");
+    await refresh();
+    return;
+  }
+  // Windows kilit ekranı ön plan penceresidir: ayar turu tamamen atlanır.
+  // Eskiden burada tema/parlaklık yazılıyor, kilitten sonra ekran 0 okunup
+  // "durduk yere çok kısık" görünümü üretiyordu (PLAN-v3 §2/A6).
+  if (exe === "lockapp.exe") {
+    resetPending();
+    S.freezeReason = "ekran kilitli";
+    log("ekran kilitli — ayar yapılmadı", "warn");
     await refresh();
     return;
   }
@@ -1170,32 +1323,28 @@ async function runTick(reason: string): Promise<void> {
     } else {
       const [n, m, base] = await invoke<[string, string, number]>("decide_target", {
         hour,
+        minute,
         source: effSource,
+        level: cam ? cam.level : "normal",
       });
       name = n;
       themeMode = m;
       desired = base;
-      if (effSource === "auto" && cam) {
+      if (effSource === "auto") {
         S.light = {
-          text: `zaman + ${levelTr(cam.level)}/${toneTr(cam.tone)}`,
-          title: `zaman + ışık: ${levelTr(cam.level)}/${toneTr(cam.tone)} (ölçüm ${cam.lum.toFixed(0)})`,
+          text:
+            effMode === "auto" && cam
+              ? `zaman + ${levelTr(cam.level)}/${toneTr(cam.tone)}`
+              : "zaman",
+          title: cam
+            ? `zaman + ışık: ${levelTr(cam.level)}/${toneTr(cam.tone)} (ölçüm ${cam.lum.toFixed(0)})`
+            : `${SOURCE_LABEL[effSource]} • ${hour}:${String(minute).padStart(2, "0")}`,
           sub: `${hour}:${String(minute).padStart(2, "0")} • ışık varsayımı: ${SOURCE_LABEL[effSource]}`,
           dot: "accent",
         };
-        if (cam.level === "dark") {
-          name = "ss-night";
-          themeMode = "dark";
-          desired = 30;
-        } else if (cam.level === "bright") {
-          name = "ss-paper";
-          themeMode = "light";
-          desired = 80;
-        } else if (hour >= 18 && hour <= 21 && cam.tone === "cool") {
-          name = "ss-dusk";
-        }
       } else {
         S.light = {
-          text: effSource === "auto" ? "zaman" : SOURCE_LABEL[effSource],
+          text: SOURCE_LABEL[effSource],
           title: `${SOURCE_LABEL[effSource]} • ${hour}:${String(minute).padStart(2, "0")}`,
           sub: `${hour}:${String(minute).padStart(2, "0")} • ışık varsayımı: ${SOURCE_LABEL[effSource]}`,
           dot: "accent",
@@ -1204,11 +1353,13 @@ async function runTick(reason: string): Promise<void> {
     }
 
     // Bağlı profil açık niyettir: öğrenilmiş tercih onu ezmez.
+    const light = lightKey(level, tone);
     const remembered = bound
       ? null
       : await invoke<[string, string] | null>("pref_get", {
           hour,
-          light: `${level}/${tone}`,
+          light,
+          mode: themeMode,
         });
     if (remembered) {
       name = remembered[0];
@@ -1219,104 +1370,193 @@ async function runTick(reason: string): Promise<void> {
       themeMode = bound.themeMode;
     }
 
-    desired = applySleepCap(desired, hour);
-    if (S.readingMode) {
-      desired = Math.min(desired, 45);
-    }
-
-    // Ogrenilmis parlaklik tercihi: en az 2 gozlem varsa hedefi devralir.
-    let learned: [number, number] | null = null;
+    // Öğrenilmiş parlaklık: değer DELTA, en az 3 gözlem + 3 farklı gün
+    // (PLAN-v3 §4.1/7). Eski ±10 kelepçesi kaldırıldı.
+    let learnedDelta: number | null = null;
+    let learnedText: string | null = null;
     if (!bound) {
       try {
-        learned = await invoke<[number, number] | null>("pref_get_bright", {
+        const got = await invoke<[number, number, number] | null>("pref_get_bright", {
           hour,
-          light: `${level}/${tone}`,
+          light,
         });
+        if (got) {
+          const sign = got[0] >= 0 ? "+" : "";
+          learnedText = `${sign}${got[0]}p ${got[1]}göz/${got[2]}gün`;
+          if (learnAllowed(got[1], got[2])) learnedDelta = got[0];
+        }
       } catch {
-        learned = null;
+        learnedDelta = null;
       }
     }
-    const learnedApplied = learned !== null && learned[1] >= 2;
-    if (learnedApplied && learned) {
-      desired = Math.min(Math.max(desired, learned[0] - 10), learned[0] + 10);
-    }
+
+    // Nihai hedef: taban + delta + ofset; gece/okuma tavanı ve okunaksız
+    // kombinasyon kapısı motor kurallarıyla (engine.ts).
+    const floor = await invoke<number>("brightness_floor", { hour, minute }).catch(() => 0);
+    const cap = comfortCap(hour);
+    const target = finalTarget({
+      base: desired,
+      learnDelta: learnedDelta,
+      offset: effOffset,
+      floor,
+      cap,
+      mode: themeMode,
+    });
     if (lowPower) log("pil modu: ölçüm ve adım kısıldı", "warn");
 
+    // ---- tema: dwell + bağımsız tur ----
     const key = `${name}|${themeMode}`;
     // Kapı yalnız otomatik seçim içindir: bağlı profil açık niyettir, onu
     // ölçüm veto etmez (elle tema seçimi de serbest).
     const gated = bound ? null : gateReason(name, themeMode);
-    if (key !== appliedKeySafe() && gated) {
+    const sameKey = key === appliedKeySafe();
+    // Önbellekten dönen kare bağımsız tur saymaz (PLAN-v3 §2/A2).
+    const newMeasurement = cam !== null && isNewMeasurement(S.lastCountedCamAt, cam.at);
+    if (newMeasurement) S.lastCountedCamAt = cam.at;
+
+    // Parlaklık tur başına tek okunur (PLAN-v3 §11: tur başına ≤ 1 okuma).
+    const current = await invoke<number>("brightness_get").catch(() => null);
+    let appliedNow = current ?? S.lastAppliedBright;
+    // Ekran kapalıyken (WMI 0) tema da değiştirilmez: kilit ekranında
+    // cli.json yazıp durmak anlamsız (PLAN-v3 §2/A6).
+    const skip = skipReason({ locked: S.locked, current, desired: target });
+    const screenOff = skip !== null && skip !== "kilitli";
+
+    let themeChanged = false;
+    if (screenOff) {
+      resetPending();
+    } else if (gated) {
       if (S.lastGateWarn !== name) {
         log(`otomatik seçimde uygulanmadı: ${name} — ${gated}`, "warn");
         S.lastGateWarn = name;
       }
       resetPending();
-    } else if (key === appliedKeySafe()) {
+    } else if (sameKey) {
       resetPending();
     } else if (key === S.pendingKey) {
-      S.pendingCount += 1;
+      if (newMeasurement) S.pendingCount += 1;
     } else {
       S.pendingKey = key;
       S.pendingCount = 1;
     }
 
-    let snapped = false;
-    let appliedNow = S.lastAppliedBright;
-    if (S.pendingCount >= 2 && key !== appliedKeySafe() && !gated) {
-      const floor = await invoke<number>("brightness_floor", { hour, minute });
-      const target = Math.min(100, Math.max(floor, Math.round(desired + effOffset)));
-      const cur0 = await invoke<number>("brightness_get");
-      await pushUndo(S.appliedKey?.split("|")[0] ?? name, cur0);
-      await invoke("theme_set", { name, mode: themeMode });
-      S.appliedKey = key;
-      S.pendingKey = null;
-      S.pendingCount = 0;
-      S.lastGateWarn = "";
-      log(`tema değişti: ${name}`, "ok");
-      if (!effFixed && target !== cur0) {
-        await invoke("brightness_set", { value: Math.round(target) });
-        log(`parlaklık %${cur0} → %${target}`, "ok");
+    if (!screenOff && !gated && !sameKey && key === S.pendingKey) {
+      // "Şimdi uygula" ve açılış kullanıcı niyetidir: 10 dk dwell beklemez
+      // (QA ve kullanıcı "bastım ama hiçbir şey olmadı" demesin).
+      const manualTheme = reason === "manuel" || reason === "açılış";
+      const gate = manualTheme
+        ? { ok: true, reason: "ok" as const }
+        : themeGate({
+            now: Date.now(),
+            lastAt: S.lastThemeAt,
+            turns: S.pendingCount,
+            required: lowPower ? 2 : undefined,
+          });
+      if (gate.ok) {
+        if (S.appliedKey) await pushUndo(S.appliedKey.split("|")[0], appliedNow);
+        await invoke("theme_set", { name, mode: themeMode });
+        S.appliedKey = key;
+        S.lastThemeAt = Date.now();
+        S.lastGateWarn = "";
+        S.lastPendingNote = null;
+        resetPending();
+        log(`tema değişti: ${name}`, "ok");
+        themeChanged = true;
+      } else if (S.lastPendingNote !== key) {
+        S.lastPendingNote = key;
+        log(
+          gate.reason === "dwell"
+            ? `tema değişecek: ${name} (10 dk dolmadı)`
+            : `tema değişecek: ${name} (${S.pendingCount}/${
+                lowPower ? 2 : 3
+              } bağımsız tur)`,
+        );
       }
-      // Karar uygulanınca harici monitörlere de aynı hedef yazılır; kilit /
-      // duraklat / sabit kipte (effFixed) dahili gibi onlara da dokunulmaz.
-      if (!effFixed) await applyAutoMonitors(target);
-      appliedNow = effFixed ? cur0 : target;
-      snapped = true;
-    } else if (key !== appliedKeySafe() && !gated) {
-      log(`tema değişecek: ${name} (ikinci ölçüm bekleniyor)`);
     }
 
-    if (!snapped && !effFixed) {
-      const current = await invoke<number>("brightness_get");
-      let next = await invoke<number>("decide_brightness", {
-        current,
-        desired: Math.min(100, Math.max(0, Math.round(desired + effOffset))),
-        hour,
-        minute,
-      });
-      if (lowPower) next = Math.round(current + (next - current) / 2);
-      if (next !== current) {
-        await invoke("brightness_set", { value: Math.round(next) });
-        log(`parlaklık %${current} → %${next}`, "ok");
+    // ---- parlaklık: yumuşak adım, dış müdahale ve ekran kapalı koruması ----
+    let wroteBright = false;
+    let respected = false;
+    if (!effFixed && !skip) {
+      if (Date.now() < S.respectUntil) {
+        // Dış müdahale saygı penceresi: yazma yok, sadece bekle.
+        respected = true;
+      } else if (isExternalChange(current, S.lastWritten, Date.now())) {
+        // WMI bazen yazdığımızı bir tur gecikmeli yansıtır: kısa bir
+        // doğrulama okuması olmadan 15 dk'lık saygı penceresi yanlış açılır.
+        await new Promise((r) => setTimeout(r, 250));
+        const confirm = await invoke<number>("brightness_get").catch(() => current);
+        if (isExternalChange(confirm, S.lastWritten, Date.now())) {
+          S.respectUntil = extendRespect(S.respectUntil, Date.now());
+          respected = true;
+          log("parlaklık dışarıdan değişti — 15 dk dokunulmuyor", "warn");
+        }
+      } else if (current !== null) {
+        S.screenOffLogged = false;
+        let next = await invoke<number>("decide_brightness", {
+          current,
+          desired: target,
+          hour,
+          minute,
+        });
+        if (lowPower) next = Math.round(current + (next - current) / 2);
+        if (next !== current) {
+          try {
+            const verified = await invoke<number>("brightness_set", { value: Math.round(next) });
+            brightWarned = "";
+            S.lastWritten = { value: Math.round(verified || next), at: Date.now() };
+            appliedNow = Math.round(verified || next);
+            wroteBright = true;
+            log(`parlaklık %${current} → %${appliedNow}`, "ok");
+          } catch (e) {
+            const msg = String(e);
+            if (brightWarned !== msg) {
+              brightWarned = msg;
+              log("parlaklık yazılamadı: " + msg, "bad");
+              toastErrOnce("Parlaklık yazılamadı", msg);
+            }
+          }
+        }
       }
-      appliedNow = next;
+    } else if (skip && skip !== "kilitli") {
+      if (!S.screenOffLogged) {
+        S.screenOffLogged = true;
+        log(`parlaklık yazılmadı: ${skip}`, "warn");
+      }
+    }
+    // Harici monitörler yalnız yazma serbestken ve yazılan değerle beslenir;
+    // hedefe sıçratmak dış ekranda ani parlaklık demekti.
+    if (!effFixed && !skip && !respected && wroteBright) {
+      await applyAutoMonitors(appliedNow).catch(() => undefined);
     }
 
     const note = bound
       ? `bağlı profil ${exe} -> ${bound.name}`
-      : key !== appliedKeySafe() && gated
-        ? `reddedildi: ${gated}`
-        : S.pendingKey
-          ? `bekliyor ${S.pendingCount}/2`
-          : lowPower
-            ? "pil modu"
-            : learnedApplied
-              ? "ogrenilmis parlaklik"
-              : remembered
-                ? "ogrenilmis tercih"
-                : reason;
-    await diskLog(note, desired, appliedNow, `${name}/${themeMode}`, level, tone);
+      : skip
+        ? `${skip}`
+        : respected
+          ? "dış müdahale — saygı penceresi"
+          : gated
+            ? `reddedildi: ${gated}`
+            : themeChanged
+              ? "tema değişti"
+              : S.pendingKey
+                ? `bekliyor ${S.pendingCount}/${lowPower ? 2 : 3}`
+                : learnedText
+                  ? `öğrenilmiş delta ${learnedText}`
+                  : remembered
+                    ? "öğrenilmiş tercih"
+                    : reason;
+    await diskLog(
+      note,
+      target,
+      appliedNow,
+      `${name}/${themeMode}`,
+      level,
+      tone,
+      current,
+      wroteBright ? appliedNow : null,
+    );
 
     // Otomatik kipte sıcak ton her turda saate göre yeniden hesaplanır.
     // Diğer kiplerde tıklanınca/yanıkken değişir; kimlik rampaya sürekli
@@ -1326,9 +1566,9 @@ async function runTick(reason: string): Promise<void> {
     }
 
     S.desiredBase = desired;
-    S.targetPct = Math.min(100, Math.max(0, Math.round(desired + effOffset)));
+    S.targetPct = target;
     S.lastMeasureAt = Date.now();
-    await refresh();
+    await refresh(appliedNow);
   } catch (e) {
     log("hata: " + String(e), "bad");
     render();

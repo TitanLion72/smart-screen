@@ -17,17 +17,32 @@ pub fn get_brightness() -> Result<u8, String> {
     parse_brightness(&out).ok_or_else(|| format!("parlaklik parse edilemedi: {out:?}"))
 }
 
-/// Parlakligi yazar (0-100, clamp'lenir).
-pub fn set_brightness(value: u8) -> Result<(), String> {
-    let value = value.min(100);
+/// Parlakligi yazar ve **dogrular** (PLAN-v3 §2/A11): surucu yazimi sessizce
+/// yutarsa eskiden basarili sayiliyordu. Simdi okunan deger 2 puandan fazla
+/// saparsa iki kez daha denenir; hala tutmuyorsa hata dondurulur.
+pub fn set_brightness(value: u8) -> Result<u8, String> {
+    let want = value.min(100);
     let script = format!(
         "$m = Get-CimInstance -Namespace {NAMESPACE} -Class WmiMonitorBrightnessMethods \
          | Select-Object -First 1; \
          Invoke-CimMethod -InputObject $m -MethodName WmiSetBrightness \
-         -Arguments @{{Timeout=1; Brightness={value}}} | Out-Null"
+         -Arguments @{{Timeout=1; Brightness={want}}} | Out-Null"
     );
-    run_powershell(&script)?;
-    Ok(())
+    let mut last = want;
+    for attempt in 0..3 {
+        run_powershell(&script)?;
+        // Okuma basarisizsa (ekran uyaniyor) yazimi basarili sayariz.
+        last = get_brightness().unwrap_or(want);
+        if last.abs_diff(want) <= 2 {
+            return Ok(last);
+        }
+        if attempt < 2 {
+            std::thread::sleep(std::time::Duration::from_millis(120));
+        }
+    }
+    Err(format!(
+        "surucu parlakligi uygulamadi: yazilan {want}, okunan {last}"
+    ))
 }
 
 fn run_powershell(script: &str) -> Result<String, String> {
