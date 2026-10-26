@@ -309,6 +309,8 @@
           <button id="update-later" class="btn-toggle" type="button" aria-label="Güncellemeyi ertele">Daha sonra</button>
         </div>
 
+        <!-- ═══════════════ 1. DURUM — asimetrik ızgara (1.7fr / 1fr) ═══════════════ -->
+        <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel" tabindex="0">
         <!-- ═══════════ HERO — sahnenin yıldızı. Gerçek katmanlı 3B konsol:
              arka ışıma (-80px) · cam plaka (-20px) · içerik (0) · üst yansıma (+10px).
              Fare paralaksı .hero dönüşünü --mx/--my (−1..1) ile sürer; JS'siz 0'dır. ═══════════ -->
@@ -333,32 +335,27 @@
               <div class="hero-sub-compat" id="sub-bright" hidden>-</div>
             </div>
             <div class="hero-curve-side" aria-hidden="true">
-              <svg id="hero-curve" viewBox="0 0 264 96" preserveAspectRatio="none" focusable="false" data-now="720" data-light="40" data-bright="45" data-warm="55">
-                <line class="hc-axis" x1="16" y1="88" x2="248" y2="88" />
-                <line class="hc-grid" x1="75" y1="12" x2="75" y2="88" />
-                <line class="hc-grid" x1="133" y1="12" x2="133" y2="88" />
-                <line class="hc-grid" x1="191" y1="12" x2="191" y2="88" />
-                <path id="hc-light-path" class="hc-path hc-light" d="M16,74 C56,76 88,40 128,34 C168,28 208,58 248,68" />
-                <path id="hc-warm-path" class="hc-path hc-warm" d="M16,24 C56,22 88,56 130,62 C172,68 212,42 248,30" />
-                <path id="hc-bright-path" class="hc-path hc-bright" d="M16,70 C56,72 90,30 130,25 C172,20 212,50 248,62" />
-                <circle id="hc-light" class="hc-dot hc-light" r="3" cx="130" cy="34" />
-                <circle id="hc-warm" class="hc-dot hc-warm" r="3" cx="130" cy="62" />
-                <circle id="hc-bright" class="hc-dot hc-bright" r="3.5" cx="130" cy="25" />
-                <text class="hc-tick" x="16" y="95">00</text>
-                <text class="hc-tick" x="127" y="95">12</text>
-                <text class="hc-tick" x="240" y="95">24</text>
+              <!-- Tek eğri: gün boyunca ekran sarılığı. Çapa noktaları backend'in
+                   warmth_auto eğrisinden gelir (gerçek veri, uydurma değil). -->
+              <svg id="hero-curve" viewBox="0 0 264 104" preserveAspectRatio="none" focusable="false" data-now="720" data-warm="0">
+                <line class="hc-axis" x1="16" y1="84" x2="248" y2="84" />
+                <line class="hc-grid" x1="75" y1="10" x2="75" y2="84" />
+                <line class="hc-grid" x1="133" y1="10" x2="133" y2="84" />
+                <line class="hc-grid" x1="191" y1="10" x2="191" y2="84" />
+                <path id="hc-warm-path" class="hc-path hc-warm" d="" />
+                <line id="hc-now-line" class="hc-now-line" x1="130" y1="10" x2="130" y2="84" />
+                <circle id="hc-warm" class="hc-dot hc-warm" r="4" cx="130" cy="60" />
+                <text class="hc-tick" x="16" y="100">00</text>
+                <text class="hc-tick" x="127" y="100">12</text>
+                <text class="hc-tick" x="240" y="100">24</text>
               </svg>
               <div class="hero-legend">
-                <span class="lg"><span class="lg-dot lg-light"></span>ışık</span>
-                <span class="lg"><span class="lg-dot lg-bright"></span>parlaklık</span>
-                <span class="lg"><span class="lg-dot lg-warm"></span>sarılık</span>
+                <span class="lg"><span class="lg-dot lg-warm"></span>ekran sarılığı</span>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- ═══════════════ 1. DURUM — asimetrik ızgara (1.7fr / 1fr) ═══════════════ -->
-        <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel" tabindex="0">
           <div class="asym">
             <!-- Sol geniş kolon: monitörler tek panel, satırlar hairline ile ayrılır -->
             <div class="panel-box span-main" id="monitor-box">
@@ -446,7 +443,6 @@
             <button id="pf-add" class="btn-primary" type="button">Yeni</button>
             <button id="pf-restore" class="btn-toggle" type="button">Geri getir</button>
             <span class="spacer"></span>
-            <span class="hint">kart: ad · özet · tema seridi · aktif vurgu</span>
           </div>
 
           <div class="grid-profiles" id="profile-cards"></div>

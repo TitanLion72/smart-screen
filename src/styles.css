@@ -435,17 +435,19 @@ body {
   will-change: transform;
 }
 
-/* Arka ışıma katmanı: sahne gerisinde şampanya parıltısı */
+/* Arka ışıma katmanı: sahne gerisinde şampanya parıltısı.
+   v2.3.2: inset negatifti (-56/-36) ve 36px yatay taşma yaratıyordu
+   (scrollWidth > clientWidth → yatay kaydırma çubuğu). Artık hero'nun içinde. */
 .hero-glow {
   position: absolute;
-  inset: -56px -36px;
+  inset: 0;
   transform: translateZ(-80px);
-  border-radius: 60% 40% 50% 50% / 70% 60% 40% 30%;
+  border-radius: var(--r-lg);
   background: radial-gradient(ellipse at 50% 0%,
-      rgba(216, 185, 138, 0.16),
+      rgba(216, 185, 138, 0.18),
       rgba(192, 138, 90, 0.06) 45%,
-      transparent 68%);
-  filter: blur(28px);
+      transparent 72%);
+  filter: blur(22px);
   pointer-events: none;
 }
 
@@ -602,7 +604,22 @@ body {
 }
 
 .hc-warm {
-  stroke: var(--warning);
+  stroke: var(--accent);
+  stroke-width: 2;
+}
+
+/* "Şu an" dikey çizgisi: ince, düşük opaklık */
+.hc-now-line {
+  stroke: var(--text-3);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.55;
+}
+
+.hc-dot.hc-warm {
+  fill: var(--accent);
+  stroke: var(--bg-1);
+  stroke-width: 2;
 }
 
 .hc-dot {

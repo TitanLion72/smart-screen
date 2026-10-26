@@ -15,6 +15,28 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.3.2] - 2026-10-26
+
+Kullanıcı geri bildirimi: *"ui çok bozuk, bir kontrol etsen iyiydi"*. Haklıydı —
+2.3.0/2.3.1'in ekran görüntülerine bakmadan yayınlamıştım.
+
+### Fixed
+- **Hero her sekmede görünüyordu:** büyük durum kartı `#page-panel`'in dışında
+  tanımlıydı; Ayarlar ve Profiller'de ekranın yarısını boş yere kaplıyordu.
+  Artık yalnız Durum sekmesinde.
+- **Hero eğrisi karmaşıktı:** üç eğri (ışık/parlaklık/sarılık) üst üste biniyor,
+  "00/12/24" etiketleri çizgilerle çakışıyordu. Tek anlamlı eğri kaldı: **gün
+  boyunca ekran sarılığı**, çapa noktaları `decide.rs`'in gerçek `warmth_auto`
+  eğrisiyle birebir aynı; "şu an" kesikli çizgiyle işaretli.
+- **Yatay kaydırma çubuğu:** `.hero-glow` katmanı `inset: -56px -36px` ile 36px
+  taşıyordu → 0'a çekildi. QA artık bunu ölçüyor.
+- **Geliştirici notu ekranda:** Profiller sekmesinde "kart: ad • özet • tema
+  şeridi • aktif vurgu" yazıyordu — kaldırıldı.
+
+### Notes
+- `qa/run.mjs`: "hero yalnız Durum'da görünür" assert'i eklendi; yatay taşma
+  ölçümü zaten vardı ve bu hatayı ilk kez yakaladı.
+
 ## [2.3.1] - 2026-10-26
 
 v2.3.0'ın yayın sonrası incelemesinden çıkan düzeltmeler (sürüm notu: ilk 2.3.0

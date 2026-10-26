@@ -469,6 +469,10 @@ async function run() {
   await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, shot }) => {
     await openTab("settings");
     await checkOverflow(page, "ritim");
+    // v2.3.2: HERO yalnız Durum'da görünmeli (her sekmede ekranın yarısını
+    // kaplıyordu). Görünürlüğü doğrula — #hero-status artık #page-panel içinde.
+    const heroVisibleHere = await page.locator("#hero-status").isVisible();
+    check(!heroVisibleHere, "ritim", "hero Ayarlar sekmesinde de gorunuyor");
     const cards = await page.locator("#mode-seg .seg-item").count();
     check(cards === 4, "ritim", `kip kart sayisi=${cards} (beklenen 4)`);
     const descs = await page.locator("#mode-seg .seg-desc").allTextContents();

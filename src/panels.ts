@@ -570,66 +570,58 @@ function renderHero(): void {
 }
 
 /**
- * Hero eğrisi: ışık → parlaklık → sarılık zinciri.
- * v2.3 (reviewer #4): noktalar sabit duruyordu; artık gerçek ölçümle beslenir.
- * cx = 16 + (gün içi dakika / 1440) * 232, cy = 88 - (değer/100) * 76.
+ * Hero eğrisi: gün boyunca ekran sarılığı (tek eğri).
+ * Çapa noktaları `src-tauri/src/decide.rs` ANCHORS ile BİREBİR aynıdır —
+ * uydurma eğri çizmiyoruz, backend'in gerçek karar eğrisini gösteriyoruz.
  */
+const WARM_ANCHORS: Array<[number, number]> = [
+  [0, 40], [300, 40], [360, 25], [420, 10], [480, 0],
+  [900, 0], [1020, 10], [1140, 25], [1260, 35], [1380, 40], [1440, 40],
+];
+
+function warmAt(minute: number): number {
+  const t = Math.max(0, Math.min(1440, minute));
+  for (let i = 0; i < WARM_ANCHORS.length - 1; i++) {
+    const [t0, v0] = WARM_ANCHORS[i];
+    const [t1, v1] = WARM_ANCHORS[i + 1];
+    if (t >= t0 && t <= t1) {
+      const k = t1 === t0 ? 0 : (t - t0) / (t1 - t0);
+      return v0 + (v1 - v0) * k;
+    }
+  }
+  return WARM_ANCHORS[0][1];
+}
+
 function renderHeroCurve(): void {
   const svg = document.getElementById("hero-curve");
   if (!svg) return;
   const now = new Date();
   const minute = now.getHours() * 60 + now.getMinutes();
-  // CamSample.lum: kameradan gelen ortalama parlaklık, 0-255 aralığında
-  // (src-tauri/src/light.rs:14). Yüzdeye çevir: 255 → %100.
-  const lightPct = S.lastCam ? Math.round((S.lastCam.lum / 255) * 100) : 0;
-  const brightPct = Math.max(0, Math.min(100, Math.round(S.lastAppliedBright)));
-  const warmPct = Math.max(0, Math.min(100, Math.round(S.warmPercent)));
-  const x = (16 + (minute / 1440) * 232).toFixed(1);
-  const yOf = (v: number): string => (88 - (v / 100) * 76).toFixed(1);
-  svg.dataset.now = String(minute);
-  svg.dataset.light = String(lightPct);
-  svg.dataset.bright = String(brightPct);
-  svg.dataset.warm = String(warmPct);
-  const dots: Array<[string, number]> = [
-    ["hc-light", lightPct],
-    ["hc-bright", brightPct],
-    ["hc-warm", warmPct],
-  ];
-  for (const [id, value] of dots) {
-    const c = document.getElementById(id);
-    if (!c) continue;
-    c.setAttribute("cx", x);
-    c.setAttribute("cy", yOf(value));
+  const xOf = (m: number): number => 16 + (m / 1440) * 232;
+  const yOf = (v: number): number => 84 - (v / 45) * 74; // tavan 45 (decide.rs)
+
+  // Eğri: her 10 dakikada bir örnekle (147 nokta, düzgün).
+  const pts: string[] = [];
+  for (let m = 0; m <= 1440; m += 10) {
+    pts.push(`${xOf(m).toFixed(1)},${yOf(warmAt(m)).toFixed(1)}`);
   }
-  // Eğriler de gerçek veriye göre: bugünün 24 saatini örnekleyip polyline üret.
-  // (Sabit C-eğrileri noktalarla uyuşmuyordu — reviewer #4.)
-  const curve = (id: string, at: (hour: number) => number): void => {
-    const p = document.getElementById(id);
-    if (!p) return;
-    const pts: string[] = [];
-    for (let h = 0; h <= 24; h += 1) {
-      const px = 16 + (h / 24) * 232;
-      const py = 88 - (Math.max(0, Math.min(100, at(h))) / 100) * 76;
-      pts.push(`${px.toFixed(1)},${py.toFixed(1)}`);
-    }
-    p.setAttribute("d", `M${pts.join(" L")}`);
-  };
-  // Işık: gece düşük, gündüz yüksek (kamera ölçümüne göre ölçeklenir).
-  const lightScale = Math.max(0.15, lightPct / 100);
-  curve("hc-light-path", (h) => {
-    const sun = Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
-    return sun * 100 * lightScale;
-  });
-  // Parlaklık: ışıkla aynı yönde, gece tavanlı (uygulamanın kuralı).
-  curve("hc-bright-path", (h) => {
-    const sun = Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
-    return Math.min(brightPct + sun * 40, 100);
-  });
-  // Sarılık: gece yüksek, gündüz düşük (warmth_auto eğrisinin kabası).
-  curve("hc-warm-path", (h) => {
-    const night = 1 - Math.max(0, Math.sin(((h - 6) / 12) * Math.PI));
-    return Math.min(100, warmPct + night * 45);
-  });
+  document.getElementById("hc-warm-path")?.setAttribute("d", `M${pts.join(" L")}`);
+
+  // "Şu an" çizgisi + nokta gerçek konumda.
+  const x = xOf(minute).toFixed(1);
+  const warm = S.warmMode === "off" ? 0 : warmAt(minute);
+  const nowLine = document.getElementById("hc-now-line");
+  if (nowLine) {
+    nowLine.setAttribute("x1", x);
+    nowLine.setAttribute("x2", x);
+  }
+  const dot = document.getElementById("hc-warm");
+  if (dot) {
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", yOf(warm).toFixed(1));
+  }
+  svg.dataset.now = String(minute);
+  svg.dataset.warm = String(Math.round(warm));
 }
 
 function renderCards(): void {
