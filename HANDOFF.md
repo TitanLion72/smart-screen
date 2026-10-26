@@ -1,5 +1,66 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## V2.3 TURU (2026-10-26) — "premium 3B sahne"
+
+**Kullanıcı talimatı (birebir):** v2.2 tesliminden sonra — *"UI daha değişecek mi bu nihai
+hali mi… beğenmedim eskisine benziyor, ben baştan sona yeni istemiştim, 3dsi de az"* ·
+*"lüks hissettiren premium bir UI ayrıca"*. Karar: **3B sahne — derinlikli tek ekran** +
+**belirgin 3B (gerçek katman derinliği)**.
+
+**Kök neden (şef özeleştirisi):** v2.2 brifinde "mevcut CSS değişken sözleşmesini koru,
+4 sekmeyi koru, kart düzenini koru" yazmıştım → tasarımcı "yeniden yarat" değil "cilala"
+yaptı. Sol ray + kart yığını + koyu lacivert aynı kaldı, 3D yalnız 3°'lik hover eğimiydi.
+Bu turda bu kısıtlar kaldırıldı.
+
+**Dalga haritası:**
+- [K1] paralel: (a) premium/3B research (DeepSeek), (b) sıfırdan sahne tasarımı (glm).
+- [K2] şef birleştirme + canlı uygulamada gerçek test (stub değil).
+- [K3] reviewer + 8 bulgu düzeltmesi.
+- [K4] v2.3.0 release.
+
+### [K1] sonuç (2026-10-26)
+Araştırma ve tasarım **bağımsız olarak aynı yere çıktı**: obsidyen + şampanya palet,
+alt ortada cam dock, tam sayı Z katmanları (`translateZ` −80/−20/0/+10), hareket yalnız
+`transform`/`opacity`, metin asla dönmez (rasterleşme), blur ≤2 yüzey.
+Uygulanmayan bilinçli: WebGL/three.js (tray uygulamasında maliyet/fayda negatif),
+sürekli ambient animasyon.
+
+### [K2] UYGULAMA (2026-10-26)
+- `index.html` + `src/styles.css` sıfırdan: sol ray → **alt ortada cam dock**; 3 kademeli
+  sıcak obsidyen zemin (`#0a0908`→`#262019`); **şampanya** `#d8b98a` + bakır; altın
+  hairline; 64px/300 dev rakam + `tabular-nums`; asimetrik grid (eşit kart ızgarası yok);
+  `.app{perspective:1200px}`; `page-in` ile 3B sayfa geçişi; fare paralaksı (rAF, ~30 fps,
+  `reduced-motion`'da kapalı).
+- **146 id'nin tamamı korundu** (panels/orchestr/main `el()` çağrıları), `.tab`+`data-tab`
+  + `#page-*` sözleşmesi aynı.
+
+### [K2b] CANLI TESTTE BULUNAN GERÇEK HATALAR (QA'nın görmediği)
+Kurulu uygulama **açılışta çöküyordu**: `panels.ts` monitör satırında kaldırılan `api`
+değişkenine erişim (`ReferenceError: api is not defined`) → `renderAll` düşüyor, pencere
+boş kalıyor. QA stub'ı bu yolu çalıştırmadığı için 21 senaryo yeşil geçmişti.
+Ders: **QA yeşil ≠ uygulama açılıyor**. Her turda en az bir kez gerçek exe çalıştırılmalı.
+Ayrıca: dock içeriği örtüyordu (fixed → flex akışına alındı), toast'lar dock'ı kapatıyordu
+(`bottom: 96px`), profil çubuğu üstteki düğmeleri örtüyordu (sticky kaldırıldı), monitör
+satırında çift rozet, hata metni 52px'e sıkışıyordu, Geçmiş'e `source=vcp/vcp` sızıyordu,
+`normal`/`neutral` çevrilmiyordu.
+
+### [K3] reviewer (REVISE → 8/8 düzeltildi)
+MAJOR: `[data-accent="blue"]` CSS'te yoktu → "Mavi" seçilince `--accent` hiç değişmiyordu
+(sadece seçici noktası). MINOR: toast dock'ı örtüyordu; sekme erişilebilirliği (roving
+tabindex + ok tuşları yoktu); hero eğrisi hiç güncellenmiyordu (sabit 40/45/55);
+`--text-4` kontrastı 3.2:1 (AA altı); aktif sekmede odak halkası görünmüyordu;
+`--mx/--my` paralaksı ölüydü (JS yoktu); eski sözleşme/sticky doküman artıkları.
+
+### [K4] doğrulama + release
+- `cargo test` **171 + 2** yeşil (7 ignored) · clippy `-D warnings` **0** · `fmt` temiz
+- `npm.cmd run build` temiz · QA **21 senaryo PASS** (localStorage sızıntısı giderildi)
+- Sürüm 2.3.0 (package.json, Cargo.toml, tauri.conf.json, Cargo.lock, flyout)
+
+**Bilinçli ertelenen (v2.4+):** Authenticode imzalama (Azure Trusted Signing bireysel
+geliştirici için ABD/Kanada sınırlı → TR kapsam dışı), gerçek WebGL sahne (talep olursa),
+tray flyout'un da yeni sahne diline taşınması (şu an ayrı ve sade).
+
+
 ## V2.2 TURU (2026-10-25) — "anlaşılır dil + geri bildirim + tatlı arayüz"
 
 **Kullanıcı talimatı (birebir):** "kullanıcıların anlam veremediği, kullanıcıya uygun dil

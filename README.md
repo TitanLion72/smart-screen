@@ -29,9 +29,13 @@ bozulmaz (sert bir test var).
 
 ## Günlük kullanım (kısa)
 
+Arayüz **tek sahne**: gezinme ekranın alt ortasındaki cam dock'ta (Durum · Profiller ·
+Geçmiş · Ayarlar). Sekmeler arasında fareyle tıklayabilir ya da ok tuşlarını
+kullanabilirsin.
+
 | Bölüm | Ne işe yarar |
 |---|---|
-| **Durum** | "Şu an" kartı: gerçek parlaklık, ulaşılmak istenen değer, sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi; monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
+| **Durum** | Merkezdeki büyük rakam gerçek parlaklık; altında ulaşılmak istenen değer ve sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi (canlı); monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
 | **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
 | **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Gelişmiş** altında tema seçimi, okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
@@ -39,6 +43,10 @@ bozulmaz (sert bir test var).
 Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
 silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen
 değişiklikler sessizdir.
+
+**Görsel dil:** sıcak obsidyen zemin + şampanya vurgu, katmanlı derinlik (hero
+katmanları farklı düzlemlerde), imlece hafif tepki veren paralaks. Hareket azaltma
+(`prefers-reduced-motion`) açıksa paralaks ve geçiş animasyonları kapanır.
 
 **Tepsi (tray):** sol tık **hızlı panel**i açar (parlaklık, hızlı eylemler, Ayarlar);
 sağ tık menüsünde Ayarlar · 1 saat duraklat · Bugün kapat · Çıkış. Hızlı panel dışına
