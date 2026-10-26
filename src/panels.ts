@@ -10,7 +10,15 @@
  * index.html'in üstündeki SÖZLEŞME bloğu sınıf/id sözleşmesinin kaynağıdır.
  */
 
-import { ACCENTS, MODE_LABEL, MODE_OPTIONS, SOURCE_OPTIONS, THEMES } from "./catalog";
+import {
+  ACCENTS,
+  DEFAULT_DESIGN_THEME,
+  DESIGN_THEMES,
+  MODE_LABEL,
+  MODE_OPTIONS,
+  SOURCE_OPTIONS,
+  THEMES,
+} from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
 import { FREE_MAX_PROFILES, MAX_PROFILES, getSetting, setSetting } from "./store";
 import { toast } from "./toast";
@@ -25,7 +33,6 @@ import {
   applyKelvin,
   applyMonitorBrightness,
   applyProfile,
-  applyWarmth,
   autostartEnabled,
   deactivateLicense,
   deleteDraft,
@@ -181,6 +188,60 @@ function syncThemeChips(): void {
   });
 }
 
+// ---------- tasarım teması (görünüm) ----------
+
+/** `<html data-theme>` yazar + kalıcılaştırır. Palet CSS'te tanımlı. */
+export function setDesignTheme(id: string): void {
+  document.documentElement.dataset.theme = id;
+  setSetting("designTheme", id);
+  el("design-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
+    const on = b.dataset.design === id;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("active", on);
+  });
+}
+
+/** Açılışta kaydedilmiş temayı uygular. */
+export function initDesignTheme(): void {
+  const saved = getSetting("designTheme", DEFAULT_DESIGN_THEME);
+  const valid = DESIGN_THEMES.some((t) => t.id === saved) ? saved : DEFAULT_DESIGN_THEME;
+  document.documentElement.dataset.theme = valid;
+}
+
+function renderDesignThemes(): void {
+  const host = el("design-picker");
+  host.replaceChildren();
+  const current = document.documentElement.dataset.theme ?? DEFAULT_DESIGN_THEME;
+  for (const t of DESIGN_THEMES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "design-card";
+    b.dataset.design = t.id;
+    b.title = t.note;
+    b.setAttribute("aria-label", `${t.label} — ${t.note}`);
+    b.setAttribute("aria-pressed", t.id === current ? "true" : "false");
+    if (t.id === current) b.classList.add("active");
+
+    const strip = document.createElement("span");
+    strip.className = "design-strip";
+    strip.style.setProperty("--d-bg", t.swatch.bg);
+    strip.style.setProperty("--d-surface", t.swatch.surface);
+    strip.style.setProperty("--d-accent", t.swatch.accent);
+
+    const label = document.createElement("span");
+    label.className = "design-label";
+    label.textContent = t.label;
+
+    const note = document.createElement("span");
+    note.className = "design-note";
+    note.textContent = t.note;
+
+    b.append(strip, label, note);
+    b.addEventListener("click", () => setDesignTheme(t.id));
+    host.append(b);
+  }
+}
+
 // ---------- vurgu rengi ----------
 
 function setAccent(id: string): void {
@@ -209,6 +270,8 @@ function renderAccents(): void {
   // duzeltme v2.2 (madde 1): kayıtlı vurgu rengi açılışta uygulanır.
   const saved = getSetting("accent", "");
   if (ACCENTS.some((a) => a.id === saved)) setAccent(saved);
+  // v2.4: görünüm teması da açılışta uygulanır (palet CSS'te).
+  initDesignTheme();
 }
 
 // ---------- kontrast denetimi ----------
@@ -278,6 +341,20 @@ interface MonitorEls {
 const monEls = new Map<string, MonitorEls>();
 let monSig = "";
 
+/**
+ * Kullanıcıya gösterilecek monitör adı.
+ * Backend `friendly_name` bulamazsa `\\.\DISPLAYn` gibi ham cihaz yolunu
+ * döndürüyor; bu kullanıcıya gösterilmez (v2.4).
+ */
+function displayNameFor(info: { id: string; name: string; is_internal: boolean }): string {
+  const raw = (info.name ?? "").trim();
+  const isDevicePath = /^\\\\\.\\DISPLAY\d+$/i.test(raw) || raw.startsWith("\\\\");
+  if (raw && !isDevicePath) return raw;
+  const m = info.id.match(/DISPLAY(\d+)/i);
+  const n = m ? m[1] : "1";
+  return info.is_internal ? `Dahili ekran ${n}` : `Ekran ${n}`;
+}
+
 /** Monitör satırındaki sıcaklık rozeti: monitörün kendi ayarı / programla / HDR. */
 function paintCtBadge(ct: HTMLElement, m: (typeof S.monitors)[number]): void {
   if (m.hdr) {
@@ -315,7 +392,10 @@ function rebuildMonitorRows(): void {
     row.title = m.info.id;
     const name = document.createElement("span");
     name.className = "mon-name";
-    name.textContent = m.info.name;
+    // v2.4: backend ad bulamazsa ham cihaz yolunu (\\.\DISPLAY1) döndürüyor;
+    // kullanıcıya asla gösterilmez. "Ekran 1" gibi okunur bir ad üret.
+    name.textContent = displayNameFor(m.info);
+    name.title = m.info.id;
     const kind = document.createElement("span");
     kind.className = "badge muted";
     // duzeltme v2.3: is_internal ile api iki ayrı rozet olarak aynı bilgiyi
@@ -445,6 +525,7 @@ function renderProfiles(): void {
 // ---------- profil editörü (yalnız açıkça çizilir) ----------
 
 let pfAutolock: SwitchHandle | null = null;
+let animSwitchRef: SwitchHandle | null = null;
 let tagApps: TagHandle | null = null;
 
 export function getAppsTag(): TagHandle | null {
@@ -548,11 +629,7 @@ function renderHero(): void {
   const target = S.targetPct !== null ? `%${S.targetPct}` : "-";
   el("st-bright").textContent = bright;
   el("st-bright").title = `şu an ${bright} • ulaşmak istenen ${target}`;
-  // GERİYE UYUM: #sub-bright DOM'da hidden gelir; bilgi #hero-sub'ta birleşti.
-  el("sub-bright").textContent =
-    `Ulaşılmak istenen ${target}` +
-    (S.lowPower ? " • pil modu" : "") +
-    (S.readingMode ? " • okuma profili" : "");
+  // #sub-bright gizli ve artık yazılmıyor (v2.4, inceleme #13): bilgi #hero-sub'ta.
   // duzeltme v2.2: #hero-target ve #next-change SİLİNDİ — hedef + sonraki
   // değişim saati tek satırda #hero-sub'a birleşir.
   const parts: string[] = [`Ulaşılmak istenen ${target}`];
@@ -998,6 +1075,8 @@ function renderHistory(): void {
 
 export function renderAll(): void {
   document.documentElement.dataset.anim = S.animations ? "on" : "off";
+  // v2.4 (inceleme #1): animasyon anahtarı gerçek durumla eşitlenir.
+  animSwitchRef?.set(S.animations);
   renderHeader();
   renderHero();
   renderCards();
@@ -1035,6 +1114,7 @@ let tagBlock: TagHandle | null = null;
 export function bootWidgets(): void {
   renderThemePicker();
   renderAccents();
+  renderDesignThemes();
   renderAudit();
   buildModeCards();
   syncThemeChips();
@@ -1043,7 +1123,11 @@ export function bootWidgets(): void {
   buildTagEditor(el("allow-editor"), S.allowItems, (items) => setAllowList(items));
 
   pfAutolock = bindSwitch(btnEl("pf-autolock"), S.draft.autoLock, (v) => updateDraft({ autoLock: v }));
-  bindSwitch(btnEl("anim-switch"), S.animations, (v) => void setAnimations(v));
+  const animSwitch = bindSwitch(btnEl("anim-switch"), S.animations, (v) => void setAnimations(v));
+  // duzeltme v2.4 (inceleme #1): anahtar bir kez bağlanıyordu, renderAll onu
+  // tazelemiyordu → okuma profili kapanınca S.animations=false oluyor ama düğme
+  // "açık" görünüyordu. Artık render döngüsünde gerçek durumla eşitleniyor.
+  animSwitchRef = animSwitch;
   // duzeltme v2.2 (madde 6): mola hatırlatıcısı aç/kapa artık toast ile de görünür.
   bindSwitch(btnEl("break-switch"), S.breakEnabled, (v) => {
     setBreakEnabled(v);
@@ -1141,17 +1225,16 @@ export function wireButtons(): void {
     void learnBrightness();
   });
 
+  // v2.4 (inceleme #3): setWarmPercent zaten applyWarmth çağırıyor; buradaki
+  // ikinci çağrı her olayda gamma'yı iki kez yazıyordu.
   btnEl("warm-minus").addEventListener("click", () => {
     setWarmPercent(S.warmPercent - 5);
-    void applyWarmth();
   });
   btnEl("warm-plus").addEventListener("click", () => {
     setWarmPercent(S.warmPercent + 5);
-    void applyWarmth();
   });
   inputEl("warm-range").addEventListener("input", () => {
     setWarmPercent(Number(inputEl("warm-range").value));
-    void applyWarmth();
   });
 
   el("day-off-btn").addEventListener("click", () => toggleDayOff());

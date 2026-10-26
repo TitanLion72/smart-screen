@@ -15,6 +15,42 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.4.0] - 2026-10-26
+
+Kullanıcı: *"hala bozuk, bi de birden fazla tema desteği ekle. 3-4 farklı tasarım
+olsun premium şekilde... aynı zamanda da codebase incele"*.
+
+### Added
+- **5 premium görünüm teması** (Ayarlar → Gelişmiş → Görünüm):
+  **Obsidyen** (sıcak kömür + şampanya) · **Gece** (lacinivert + buz gümüşü) ·
+  **Orman** (koyu yeşil + adaçayı) · **Gül** (erik + gül kurusu) ·
+  **Fildişi** (aydınlık kâğıt + bronz — ilk açık tema).
+  Seçim kalıcıdır; kartlarda gerçek palet önizleme şeridi vardır.
+- `qa/audit-shots.mjs` + `qa/theme-shots.mjs`: 3 pencere boyutunda tüm sekmeleri ve
+  5 temayı yakalayan görsel denetim araçları (geliştirici).
+
+### Changed
+- **Hero tek kolona indi:** iki kolonlu düzenin sol yarısı boş kalıyordu; rakam,
+  hedef ve eğri artık tam genişlikte akıyor.
+- Hero cam plakası, arka ışıma ve dock artık **tema değişkenlerinden** türetiliyor
+  (`color-mix`) — sabit koyu renkler fildişi temayı kırıyordu.
+- Scrollbar temaya uyuyor (Windows'un gri varsayılanı gitti).
+
+### Fixed
+- **Monitör adı ham cihaz yolu gösteriyordu** (`\\.\DISPLAY1`) → "Dahili ekran 1".
+- **Animasyon anahtarı yalan söylüyordu:** okuma profili kapanınca ayar `false`
+  oluyor ama düğme "açık" kalıyordu; artık her render'da eşitleniyor.
+- **Sarılık kaydırıcısı her olayda iki kez yazıyordu** (gamma 2×) → tek çağrı.
+- **Bozuk `ss:profiles` JSON'u pencereyi düşürüyordu** → dizi değilse boş listeye düşer.
+- Eğri noktası tüm temalarda şampanya kalıyordu (çift CSS tanımı) → accent türevi.
+- Profiller sayfasındaki geliştirici notu ("kart: ad • özet...") kaldırıldı.
+- Tema kartları vurgu rengi bölümünün üstüne biniyordu → sabit yükseklik + `overflow`.
+
+### Notes
+- Kod tabanı incelemesi (15 bulgu) yapıldı; kullanıcıyı etkileyen 6'sı bu sürümde
+  kapatıldı. Kalanlar (log biçiminin 3 yerde ayrıştırılması, sarılık çapa tablosunun
+  3 kopyası, TS karar katmanının testsizliği) v2.5 için kayıtlı.
+
 ## [2.3.2] - 2026-10-26
 
 Kullanıcı geri bildirimi: *"ui çok bozuk, bir kontrol etsen iyiydi"*. Haklıydı —

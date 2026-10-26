@@ -48,6 +48,16 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
+/**
+ * v2.4 (inceleme #6): bozuk `ss:profiles` (dizi olmayan JSON) modül yüklenirken
+ * `raw.map` üzerinden throw ediyor ve pencereyi düşürüyordu — safeRender bunu
+ * kapsamıyor çünkü hata import aşamasında. Dizi değilse boş listeye düş.
+ */
+function readJsonArray<T>(key: string, fallback: T[]): T[] {
+  const raw = readJson<unknown>(key, fallback);
+  return Array.isArray(raw) ? (raw as T[]) : fallback;
+}
+
 function writeJson(key: string, value: unknown): void {
   try {
     localStorage.setItem(key, JSON.stringify(value));
@@ -108,7 +118,7 @@ function normalize(p: any): Profile | null {
 }
 
 export function loadProfiles(): Profile[] {
-  const raw = readJson<any[]>(KEY_PROFILES, []);
+  const raw = readJsonArray<any>(KEY_PROFILES, []);
   const list = raw.map(normalize).filter((p): p is Profile => p !== null);
   return list.length > 0 ? list : seedProfiles();
 }

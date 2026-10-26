@@ -35,6 +35,13 @@
    tabular-nums; başlık 20px/500; gövde 14px/1.55.
    ════════════════════════════════════════════════════════════════════ */
 
+/* ════════════════════════════════════════════════════════════════════
+   TASARIM TEMALARI (v2.4) — 4 premium palet.
+   `data-theme` <html>'e JS ile yazılır (setDesignTheme). Renk değişkenleri
+   temaya göre değişir; geometri/tipografi/hareket ortaktır.
+   Varsayılan = obsidyen (şampanya). Diğerleri yalnız renk override eder.
+   ════════════════════════════════════════════════════════════════════ */
+
 :root {
   /* zemin kademeleri — sıcak kömür */
   --bg-0: #0a0908;
@@ -112,6 +119,221 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* ═══════════ TASARIM TEMALARI (4 premium palet) ═══════════
+   Yalnız renk override edilir; geometri/tipografi ortak kalır.
+   Seçim `data-theme` ile <html>'e yazılır (panels.ts setDesignTheme). */
+
+/* 1) GECE — derin lacivert-siyah + buz gümüşü. Sakin, konsantrasyon. */
+[data-theme="gece"] {
+  --bg-0: #07090d;
+  --bg-1: #0c1016;
+  --bg-2: #090c11;
+  --surface-1: #121821;
+  --surface-2: #171f2a;
+  --surface-3: #1c2532;
+  --input: #0a0e14;
+  --border-subtle: rgba(174, 199, 226, 0.08);
+  --border-standard: rgba(174, 199, 226, 0.13);
+  --border-strong: rgba(174, 199, 226, 0.24);
+  --text-1: #eef3fa;
+  --text-2: #aebacd;
+  --text-3: #97a4b8;
+  --text-4: #7d8a9d;
+  --accent: #a9c6e0;
+  --accent-hover: #c2d8ec;
+  --accent-active: #8aa9c4;
+  --accent-soft: rgba(169, 198, 224, 0.12);
+  --accent-ring: rgba(169, 198, 224, 0.35);
+  --on-accent: #0a141f;
+  --success: #7fc9a8;
+  --success-soft: rgba(127, 201, 168, 0.12);
+  --warning: #e0c078;
+  --warning-soft: rgba(224, 192, 120, 0.12);
+  --danger: #e08a95;
+  --danger-soft: rgba(224, 138, 149, 0.12);
+  --track: #1a222d;
+}
+
+/* 2) ORMAN — derin yeşil-siyah + adaçayı. Doğal, yumuşak. */
+[data-theme="orman"] {
+  --bg-0: #070a08;
+  --bg-1: #0c110d;
+  --bg-2: #090d0a;
+  --surface-1: #121a14;
+  --surface-2: #17211a;
+  --surface-3: #1c2820;
+  --input: #0a0f0b;
+  --border-subtle: rgba(180, 205, 180, 0.08);
+  --border-standard: rgba(180, 205, 180, 0.13);
+  --border-strong: rgba(180, 205, 180, 0.24);
+  --text-1: #eff5ee;
+  --text-2: #b2c0b0;
+  --text-3: #9aa899;
+  --text-4: #808d7f;
+  --accent: #a8c8a4;
+  --accent-hover: #c2dcc0;
+  --accent-active: #8aac86;
+  --accent-soft: rgba(168, 200, 164, 0.12);
+  --accent-ring: rgba(168, 200, 164, 0.35);
+  --on-accent: #0c170d;
+  --success: #8fce94;
+  --success-soft: rgba(143, 206, 148, 0.12);
+  --warning: #ddc07a;
+  --warning-soft: rgba(221, 192, 122, 0.12);
+  --danger: #dc8b85;
+  --danger-soft: rgba(220, 139, 133, 0.12);
+  --track: #1a241b;
+}
+
+/* 3) GÜL — erik-mor zemin + gül kurusu. Sıcak, şık. */
+[data-theme="gul"] {
+  --bg-0: #0b0709;
+  --bg-1: #120c10;
+  --bg-2: #0e090c;
+  --surface-1: #1b1319;
+  --surface-2: #221820;
+  --surface-3: #2a1e27;
+  --input: #0f0a0d;
+  --border-subtle: rgba(226, 184, 200, 0.09);
+  --border-standard: rgba(226, 184, 200, 0.14);
+  --border-strong: rgba(226, 184, 200, 0.25);
+  --text-1: #f9eff4;
+  --text-2: #c6b0bb;
+  --text-3: #ab97a3;
+  --text-4: #8f7c88;
+  --accent: #e0b0c4;
+  --accent-hover: #efc9d8;
+  --accent-active: #c492a7;
+  --accent-soft: rgba(224, 176, 196, 0.12);
+  --accent-ring: rgba(224, 176, 196, 0.35);
+  --on-accent: #200f17;
+  --success: #8fc9a4;
+  --success-soft: rgba(143, 201, 164, 0.12);
+  --warning: #e2bd86;
+  --warning-soft: rgba(226, 189, 134, 0.12);
+  --danger: #e58a8a;
+  --danger-soft: rgba(229, 138, 138, 0.12);
+  --track: #241a21;
+}
+
+/* 4) FİLDİŞİ — aydınlık premium. Gündüz kullanımı, kağıt hissi.
+   Koyu temalardan tamamen farklı: açık zemin, koyu metin. */
+[data-theme="fildisi"] {
+  --bg-0: #f6f2ea;
+  --bg-1: #efe9df;
+  --bg-2: #f2ede4;
+  --surface-1: #ffffff;
+  --surface-2: #faf6ef;
+  --surface-3: #f2ebe0;
+  --input: #ffffff;
+  --border-subtle: rgba(60, 44, 26, 0.08);
+  --border-standard: rgba(60, 44, 26, 0.14);
+  --border-strong: rgba(60, 44, 26, 0.24);
+  --text-1: #241c12;
+  --text-2: #574a3a;
+  --text-3: #6b5d4c;
+  --text-4: #7d6f5d;
+  --accent: #a8763c;
+  --accent-hover: #c08c4e;
+  --accent-active: #8c5f2c;
+  --accent-soft: rgba(168, 118, 60, 0.12);
+  --accent-ring: rgba(168, 118, 60, 0.3);
+  --on-accent: #fffaf3;
+  --success: #4f8a5c;
+  --success-soft: rgba(79, 138, 92, 0.12);
+  --warning: #a97a1f;
+  --warning-soft: rgba(169, 122, 31, 0.12);
+  --danger: #a83f3f;
+  --danger-soft: rgba(168, 63, 63, 0.12);
+  --track: #e8dfd0;
+  --shadow-1: 0 1px 2px rgba(60, 44, 26, 0.08);
+  --shadow-2: 0 18px 44px rgba(60, 44, 26, 0.1);
+  --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* Görünüm (tasarım teması) seçici: önizlemeli kartlar */
+.design-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+  gap: var(--sp-2);
+  /* v2.4: kart yüksekliği sabit — akışta üst üste binmeyi önler. */
+  align-items: stretch;
+}
+
+.design-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px;
+  min-height: 92px;
+  text-align: left;
+  border: 1px solid var(--border-standard);
+  border-radius: var(--r-md);
+  background: var(--surface-1);
+  color: var(--text-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color var(--dur-2) var(--ease-out),
+    transform var(--dur-2) var(--ease-out);
+}
+
+.design-card:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-1px);
+}
+
+.design-card.active {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent-ring);
+}
+
+/* Önizleme şeridi: zemin | yüzey | vurgu — gerçek palet renkleriyle */
+.design-strip {
+  display: block;
+  flex: none;
+  height: 30px;
+  border-radius: var(--r-sm);
+  background: linear-gradient(
+    100deg,
+    var(--d-bg) 0%,
+    var(--d-surface) 58%,
+    var(--d-accent) 100%
+  );
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+
+/* Vurgu noktası: şeridin sağ ucunda, gerçek accent rengi */
+.design-strip::after {
+  content: "";
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--d-accent);
+  box-shadow: 0 0 0 2px var(--d-surface);
+}
+
+.design-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-1);
+  line-height: 1.3;
+}
+
+.design-note {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--text-4);
+}
+
+.design-card.active .design-label {
+  color: var(--accent);
+}
+
 /* Vurgu seçicileri (JS data-accent yazar).
    v2.3: palet obsidyen+şampanya olduğu için "Mavi" → sıcak gök mavisi olarak
    yeniden tonlandı. Dört id'in TAMAMI tanımlı olmalı: eksik id seçilince
@@ -167,8 +389,8 @@ body {
 /* Sahne zemini: sıcak siyah + üstte şampanya ışıması + köşe vinyeti */
 body {
   background:
-    radial-gradient(1000px 420px at 50% -140px, rgba(216, 185, 138, 0.07), transparent 65%),
-    radial-gradient(800px 600px at 100% 110%, rgba(192, 138, 90, 0.04), transparent 60%),
+    radial-gradient(1000px 420px at 50% -140px, color-mix(in srgb, var(--accent) 8%, transparent), transparent 65%),
+    radial-gradient(800px 600px at 100% 110%, color-mix(in srgb, var(--accent) 4%, transparent), transparent 60%),
     var(--bg-0);
 }
 
@@ -359,7 +581,7 @@ body {
   padding: 8px;
   border-radius: var(--r-pill);
   /* CAM — yalnızca burada ve hero plakasında */
-  background: rgba(26, 23, 20, 0.72);
+  background: color-mix(in srgb, var(--surface-2) 82%, transparent);
   backdrop-filter: blur(18px) saturate(1.3);
   -webkit-backdrop-filter: blur(18px) saturate(1.3);
   border: 1px solid var(--border-standard);
@@ -391,7 +613,7 @@ body {
 
 .dock .tab:hover {
   color: var(--text-1);
-  background: rgba(216, 185, 138, 0.08);
+  background: var(--accent-soft);
 }
 
 /* Aktif çip: dolgulu + hafif yukarı kalkmış */
@@ -400,7 +622,7 @@ body {
   color: var(--on-accent);
   transform: translateY(-4px);
   box-shadow:
-    0 10px 24px rgba(216, 185, 138, 0.22),
+    0 10px 24px color-mix(in srgb, var(--accent) 22%, transparent),
     inset 0 1px 0 rgba(255, 255, 255, 0.18);
 }
 
@@ -444,8 +666,8 @@ body {
   transform: translateZ(-80px);
   border-radius: var(--r-lg);
   background: radial-gradient(ellipse at 50% 0%,
-      rgba(216, 185, 138, 0.18),
-      rgba(192, 138, 90, 0.06) 45%,
+      color-mix(in srgb, var(--accent) 18%, transparent),
+      color-mix(in srgb, var(--accent) 6%, transparent) 45%,
       transparent 72%);
   filter: blur(22px);
   pointer-events: none;
@@ -457,16 +679,18 @@ body {
   inset: 0;
   transform: translateZ(-20px);
   border-radius: var(--r-lg);
+  /* v2.4: sabit koyu renkler temaları kırıyordu (fildişi temada koyu plaka +
+     okunmaz metin). Artık tema değişkenlerinden türetilir. */
   background: linear-gradient(180deg,
-      rgba(38, 32, 26, 0.88),
-      rgba(24, 20, 17, 0.94));
+      var(--surface-3),
+      var(--surface-1));
   backdrop-filter: blur(10px) saturate(1.15);
   -webkit-backdrop-filter: blur(10px) saturate(1.15);
   border: 1px solid var(--border-standard);
   box-shadow:
-    0 30px 70px rgba(0, 0, 0, 0.55),
+    0 30px 70px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.4);
+    inset 0 -1px 0 rgba(0, 0, 0, 0.2);
   pointer-events: none;
 }
 
@@ -487,14 +711,39 @@ body {
 }
 
 /* Ön içerik: KRİTİK METİN — transformsuz, translateZ(0) */
+/* Özel ince scrollbar — Windows'un gri varsayılanı premium dili bozuyordu. */
+.page::-webkit-scrollbar {
+  width: 8px;
+}
+
+.page::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.page::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--r-pill);
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+.page::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+  background-clip: content-box;
+}
+
+.page {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+
 .hero-body {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: var(--sp-6);
-  align-items: start;
-  padding: var(--sp-6);
-  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  padding: var(--sp-5) var(--sp-6);
+  min-height: 0;
 }
 
 .hero-text {
@@ -575,16 +824,19 @@ body {
 .hero-curve-side {
   display: flex;
   flex-direction: column;
-  gap: var(--sp-2);
+  gap: var(--sp-1);
   align-items: stretch;
   min-width: 0;
   transform: translateZ(12px);
+  margin-top: var(--sp-1);
 }
 
 #hero-curve {
   width: 100%;
-  height: 128px;
+  height: 132px;
   overflow: visible;
+  /* Etiketler çizginin ALTINDA kalsın: viewBox 0 0 264 104, eksen y=84,
+     etiket baseline y=100 → çakışma yok. */
 }
 
 .hc-path {
@@ -616,24 +868,14 @@ body {
   opacity: 0.55;
 }
 
-.hc-dot.hc-warm {
-  fill: var(--accent);
-  stroke: var(--bg-1);
-  stroke-width: 2;
-}
-
 .hc-dot {
   fill: var(--text-3);
 }
 
-.hc-dot.hc-bright {
-  fill: var(--accent);
-  stroke: var(--bg-0);
-  stroke-width: 1.5;
-}
-
 .hc-dot.hc-warm {
-  fill: var(--warning);
+  fill: var(--accent);
+  stroke: var(--surface-1);
+  stroke-width: 2;
 }
 
 .hc-grid,
@@ -896,7 +1138,7 @@ button:disabled:active {
 .btn-primary {
   background: var(--accent);
   color: var(--on-accent);
-  box-shadow: 0 2px 10px rgba(216, 185, 138, 0.18);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
 .btn-primary:hover {
@@ -1079,7 +1321,7 @@ button:disabled:active {
 }
 
 .monitor-row:hover {
-  background: rgba(216, 185, 138, 0.05);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
 }
 
 .monitor-row.active {
@@ -1208,7 +1450,7 @@ button:disabled:active {
   gap: var(--sp-2);
   padding: 7px var(--sp-3);
   font-size: 12px;
-  border-bottom: 1px solid rgba(216, 185, 138, 0.06);
+  border-bottom: 1px solid var(--border-subtle);
   animation: log-in var(--dur-in) var(--ease-out) both;
 }
 
@@ -2271,12 +2513,12 @@ button.swatch[aria-pressed="true"] {
   }
 }
 
-/* Daha çok karşıtlık istenince: hairline'lar koyulaşır. */
+/* Daha çok kontrast istenince: hairline'lar koyulaşır. */
 @media (prefers-contrast: more) {
   :root {
-    --border-subtle: rgba(216, 185, 138, 0.3);
-    --border-standard: rgba(216, 185, 138, 0.42);
-    --border-strong: rgba(216, 185, 138, 0.55);
+    --border-subtle: color-mix(in srgb, var(--accent) 28%, transparent);
+    --border-standard: color-mix(in srgb, var(--accent) 40%, transparent);
+    --border-strong: color-mix(in srgb, var(--accent) 55%, transparent);
     --text-3: #a89d8d;
     --text-4: #978d7d;
   }

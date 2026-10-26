@@ -399,10 +399,10 @@ async function run() {
     check(pill === "Akıllı", "hero", `mode-pill beklenen rozet degil: "${pill}"`);
     const why = await text(page, "#why-line");
     check(why.includes("otomatik çalışıyor"), "hero", `why-line akıyor durumunu gostermedi: "${why}"`);
-    // GERIYE UYUM: #sub-bright DOM'da var ama hidden gelir; bilgi hero-sub'ta.
-    check(await page.locator("#sub-bright").isHidden(), "hero", "sub-bright hidden gelmedi (geriye uyum)");
-    const subCompat = await text(page, "#sub-bright");
-    check(subCompat.includes("Ulaşılmak istenen"), "hero", `sub-bright hedef metni yok: "${subCompat}"`);
+    // v2.4: #sub-bright artık yazılmıyor (gizli, bilgi #hero-sub'ta birleşti).
+    check(await page.locator("#sub-bright").isHidden(), "hero", "sub-bright hidden gelmedi");
+    const heroSubText = await text(page, "#hero-sub");
+    check(heroSubText.includes("Ulaşılmak istenen"), "hero", `hero-sub hedef metni yok: "${heroSubText}"`);
     const clock = await text(page, "#clock");
     check(/^\d{2}:\d{2}$/.test(clock), "hero", `clock canli saat gostermedi: "${clock}"`);
     for (const id of ["st-light", "st-theme", "st-frozen"]) {

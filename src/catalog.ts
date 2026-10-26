@@ -102,3 +102,47 @@ export const ACCENTS: Accent[] = [
   { id: "violet", hex: "#D09A92", label: "Gül" },
   { id: "amber", hex: "#D8B98A", label: "Şampanya" },
 ];
+
+/** Tasarım teması (görünüm paleti). CSS `[data-theme]` bloklarıyla eşleşir. */
+export interface DesignTheme {
+  id: string;
+  label: string;
+  note: string;
+  /** Önizleme şeridi: zemin / yüzey / vurgu */
+  swatch: { bg: string; surface: string; accent: string };
+}
+
+export const DESIGN_THEMES: DesignTheme[] = [
+  {
+    id: "obsidyen",
+    label: "Obsidyen",
+    note: "Sıcak kömür + şampanya",
+    swatch: { bg: "#0a0908", surface: "#1a1714", accent: "#d8b98a" },
+  },
+  {
+    id: "gece",
+    label: "Gece",
+    note: "Derin lacivert + buz gümüşü",
+    swatch: { bg: "#07090d", surface: "#121821", accent: "#a9c6e0" },
+  },
+  {
+    id: "orman",
+    label: "Orman",
+    note: "Koyu yeşil + adaçayı",
+    swatch: { bg: "#070a08", surface: "#121a14", accent: "#a8c8a4" },
+  },
+  {
+    id: "gul",
+    label: "Gül",
+    note: "Erik zemin + gül kurusu",
+    swatch: { bg: "#0b0709", surface: "#1b1319", accent: "#e0b0c4" },
+  },
+  {
+    id: "fildisi",
+    label: "Fildişi",
+    note: "Aydınlık kâğıt + bronz",
+    swatch: { bg: "#f6f2ea", surface: "#ffffff", accent: "#a8763c" },
+  },
+];
+
+export const DEFAULT_DESIGN_THEME = "obsidyen";
