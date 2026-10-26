@@ -250,6 +250,15 @@ async function run() {
     // log-clear-btn onaylıdır; QA onayı otomatik verir.
     page.on("dialog", (d) => void d.accept());
     await page.addInitScript(stubScript(themeName, themeMode, exe, opts));
+    // Senaryo izolasyonu: aynı origin'de localStorage senaryolar arası sızıyordu
+    // (ör. önceki senaryoda 3 profil kalınca #pf-add disabled olup tıklanamıyordu).
+    await page.addInitScript(() => {
+      try {
+        localStorage.clear();
+      } catch {
+        /* storage kapalı */
+      }
+    });
     await page.goto(base, { waitUntil: "networkidle" });
     await page.waitForTimeout(600);
     const invocations = async () => page.evaluate(() => window.__invocations);
@@ -611,6 +620,13 @@ async function run() {
     await openTab("profiles");
     const before = await page.locator("#profile-cards .profile-card").count();
     check(before >= 2, "profil", `tohum profiller eksik (${before})`);
+    // Sticky #pf-savebar scroll sonrası üstteki düğmeyi örtebiliyor;
+    // önce hedefi görünür alana getir (kullanıcı da böyle yapar).
+    await page.locator("#page-profiles").evaluate((p) => {
+      p.scrollTop = 0;
+    });
+    await page.locator("#pf-add").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(120);
     await page.locator("#pf-add").click();
     await page.waitForTimeout(250);
     const after = await page.locator("#profile-cards .profile-card").count();

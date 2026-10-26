@@ -246,10 +246,10 @@ void invoke<boolean>("hdr_status")
 void getVersion()
   .then((v) => {
     const s = String(v ?? "").trim();
-    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.2.0";
+    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.3.0";
   })
   .catch(() => {
-    versionEl.textContent = "v2.2.0";
+    versionEl.textContent = "v2.3.0";
   });
 
 void listen<SsState>("ss:state", (ev) => applyState(ev.payload)).catch((err) =>

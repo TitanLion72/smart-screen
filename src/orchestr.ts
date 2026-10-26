@@ -443,11 +443,13 @@ const LEVEL_TR: Record<string, string> = {
   bright: "parlak",
   dim: "loş",
   dark: "karanlık",
+  normal: "normal",
   unknown: "bilinmiyor",
 };
 const TONE_TR: Record<string, string> = {
   cool: "soğuk",
   warm: "sıcak",
+  neutral: "nötr",
   unknown: "bilinmiyor",
 };
 

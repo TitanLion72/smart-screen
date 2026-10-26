@@ -103,8 +103,12 @@ function pausedNow(): boolean {
 
 export function switchTab(name: string): void {
   document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
-    t.classList.toggle("active", t.dataset.tab === name);
-    t.setAttribute("aria-selected", t.dataset.tab === name ? "true" : "false");
+    const on = t.dataset.tab === name;
+    t.classList.toggle("active", on);
+    t.setAttribute("aria-selected", on ? "true" : "false");
+    // v2.3 (reviewer #3): roving tabindex — sekme grubunda Tab bir kez durur,
+    // sekmeler arası geçiş ok tuşlarıyla yapılır (WAI-ARIA tabs deseni).
+    t.tabIndex = on ? 0 : -1;
   });
   for (const page of ["panel", "profiles", "settings", "history"]) {
     el(`page-${page}`).hidden = page !== name;
@@ -314,11 +318,10 @@ function rebuildMonitorRows(): void {
     name.textContent = m.info.name;
     const kind = document.createElement("span");
     kind.className = "badge muted";
-    kind.textContent = m.info.is_internal ? "dahili" : "harici";
-    const api = document.createElement("span");
-    api.className = "badge info";
-    // duzeltme v2.2 (B): wmi/ddc yerine insan dilinde etiket.
-    api.textContent = m.info.api === "wmi" ? "dahili panel" : "harici";
+    // duzeltme v2.3: is_internal ile api iki ayrı rozet olarak aynı bilgiyi
+    // yazıyordu ("dahili" + "dahili panel"). Harici/dahili ayrımı tek rozette;
+    // api (wmi/ddc) kullanıcı için iç detay, gösterilmez.
+    kind.textContent = m.info.is_internal ? "dahili panel" : "harici";
     const ct = document.createElement("span");
     ct.className = "ct-badge";
     const val = document.createElement("span");
@@ -326,7 +329,7 @@ function rebuildMonitorRows(): void {
     val.textContent = "%-";
     const err = document.createElement("span");
     err.className = "mon-err";
-    row.append(name, kind, api, ct, val, err);
+    row.append(name, kind, ct, val, err);
     row.addEventListener("click", () => void selectMonitor(m.info.id));
     host.append(row);
     monEls.set(m.info.id, { row, val, err, ct });
@@ -563,6 +566,40 @@ function renderHero(): void {
   el("mode-pill").textContent = MODE_LABEL[effMode()];
   el("why-line").textContent = whyText();
   setDot("dot-bright", S.freezeReason || S.locked || pausedNow() ? "warn" : "accent");
+  renderHeroCurve();
+}
+
+/**
+ * Hero eğrisi: ışık → parlaklık → sarılık zinciri.
+ * v2.3 (reviewer #4): noktalar sabit duruyordu; artık gerçek ölçümle beslenir.
+ * cx = 16 + (gün içi dakika / 1440) * 232, cy = 88 - (değer/100) * 76.
+ */
+function renderHeroCurve(): void {
+  const svg = document.getElementById("hero-curve");
+  if (!svg) return;
+  const now = new Date();
+  const minute = now.getHours() * 60 + now.getMinutes();
+  // CamSample.lum: 0-1000 arası ışık düzeyi (level metin, lum sayı).
+  const lightPct = S.lastCam ? Math.round(Math.min(100, S.lastCam.lum / 10)) : 0;
+  const brightPct = Math.max(0, Math.min(100, Math.round(S.lastAppliedBright)));
+  const warmPct = Math.max(0, Math.min(100, Math.round(S.warmPercent)));
+  const x = (16 + (minute / 1440) * 232).toFixed(1);
+  const yOf = (v: number): string => (88 - (v / 100) * 76).toFixed(1);
+  svg.dataset.now = String(minute);
+  svg.dataset.light = String(lightPct);
+  svg.dataset.bright = String(brightPct);
+  svg.dataset.warm = String(warmPct);
+  const dots: Array<[string, number]> = [
+    ["hc-light", lightPct],
+    ["hc-bright", brightPct],
+    ["hc-warm", warmPct],
+  ];
+  for (const [id, value] of dots) {
+    const c = document.getElementById(id);
+    if (!c) continue;
+    c.setAttribute("cx", x);
+    c.setAttribute("cy", yOf(value));
+  }
 }
 
 function renderCards(): void {
@@ -1200,5 +1237,26 @@ function wireKelvin(): void {
       kelvinTimer = 0;
     }
     commitKelvin(k);
+  });
+
+  // v2.3 (reviewer #3): dock sekmeleri arasında ok tuşlarıyla gezinme
+  // (roving tabindex'in tamamlayıcısı — WAI-ARIA tabs deseni).
+  el("tab-panel").parentElement?.addEventListener("keydown", (e) => {
+    const key = (e as KeyboardEvent).key;
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(key)) return;
+    const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>(".dock .tab"));
+    const idx = tabs.findIndex((t) => t.classList.contains("active"));
+    if (idx < 0) return;
+    let next = idx;
+    if (key === "ArrowRight") next = (idx + 1) % tabs.length;
+    else if (key === "ArrowLeft") next = (idx - 1 + tabs.length) % tabs.length;
+    else if (key === "Home") next = 0;
+    else next = tabs.length - 1;
+    const target = tabs[next];
+    const name = target.dataset.tab;
+    if (!name) return;
+    e.preventDefault();
+    switchTab(name);
+    target.focus();
   });
 }

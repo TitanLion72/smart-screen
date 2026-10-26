@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   ══════════════════════════════════════════════════════════════════════════
-  SÖZLEŞME v2.2 — smart-screen DOM sözleşmesi (arayüz kabuğu v3 tasarımı)
+  SÖZLEŞME v2.3 — smart-screen DOM sözleşmesi (3B sahne tasarımı)
   ══════════════════════════════════════════════════════════════════════════
   Bu blok, `src/main.ts` + `src/panels.ts`'i yazacak ajanın tek kaynağıdır.
   Aşağıdaki her id bu dosyada TAM BİR KEZ bulunur; `el(id)` eksik id'de throw
@@ -11,8 +11,8 @@
   - Sekme sırası: Durum · Profiller · Geçmiş · Ayarlar. `.tab` düğmeleri
     `data-tab="panel|profiles|settings|history"` taşır (DEĞİŞMEZ — switchTab
     bu değere göre `#page-<ad>` gösterir/gizler, `.active` + `aria-selected`
-    tutar). Etiketler HER genişlikte görünür (dar pencerede ray daralır,
-    etiket gizlenmez).
+    tutar). Gezinme altta yüzen cam dock'tur (v2.3: sol ray kaldırıldı);
+    etiketler her genişlikte görünür.
   - Durum rozetleri header'da: `#profile-pill`, `#break-pill`, `#mode-badge`.
     Saat `#clock` da header'dadır.
   - `setDot(id, cls)` çağrıları: `dot-bright`, `dot-light`, `dot-frozen`
@@ -23,7 +23,7 @@
   - JS ile üretilen iç yapıların sınıf sözleşmesi (CSS bunları stiller):
       .log-row > .dot(.ok/.warn/.bad) + düz metin + .log-time      (#log içine)
       .log-empty                                                  (#log içine)
-      .monitor-row(.active/.bad/.hdr) > .mon-name + .badge.muted + .badge.info
+      .monitor-row(.active/.bad/.hdr) > .mon-name + .badge.muted + .ct-badge + .mon-val + .mon-err
         + .ct-badge(.hdr) + .mon-val + .mon-err                    (#monitor-list)
         (opsiyonel: satır içine .mon-slider gelebilir — CSS hazır)
       .profile-card(.active) > .pc-strip + .pc-name + .pc-meta    (#profile-cards)
@@ -89,7 +89,7 @@
   #break-pill      | span.badge | 20-20-20 durum rozeti                 | text + className "badge warn|muted|info"
   #mode-badge      | span.badge | çalışma durumu (İzliyor/Kilitli/Duraklatıldı) | text + className "badge " + (kilit/duraklatma ? warn)
   #clock           | span.clock | canlı saat (header'da, dakikada bir)  | text ("21:04")
-  #app-ver         | span       | sürüm numarası (ray altı)             | text (örn "1.4.0")
+  #app-ver         | span       | sürüm numarası (üst şerit)            | text (örn "1.4.0")
   #toast-host      | div        | toast kapsayıcısı (BOŞ kap)           | toast.ts doldurur; elle dokunma
 
   ─────────────────────────── 1. DURUM (#page-panel) ───────────────────────────
@@ -142,7 +142,7 @@
   #monitor-minus   | button     | −10 adım                               | click → azalt
   #monitor-plus    | button     | +10 adım                               | click → artır
   #monitor-pro-lock| div        | Pro kilidi görünümü (kilit ikonu + "Pro" rozeti) | hidden; harici yazma Pro kapalıyken göster
-  #monitor-mode-note | div.hint | YENİ: tek gri not — "Dahili ekranda programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor" | statik (opsiyonel, JS ezbilir)
+  #monitor-mode-note | div.hint | YENİ: tek gri not — "Dahili ekranda programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor" | statik (opsiyonel, JS ezebilir)
 
   #auto-seg        | div.seg.auto-seg | YENİ: otomatik ayar seçici (tek segment) | role="group" aria-label="Otomatik ayar"; 4 düğme:
   #auto-on         | button.seg-item | YENİ: "Açık" (data-auto="on")     | click → duraklatma/kilidi kaldır (bağlanacak)
@@ -175,7 +175,7 @@
   #pf-bind-current | button     | "Ön plandakini bağla"                  | click → ön plan exe'sini ekle; disabled = !licensePro
   #pf-autolock-label | span     | "Engelli uygulamada otomatik kilit"    | —
   #pf-autolock     | button.switch | otomatik kilit anahtarı             | bindSwitch
-  #pf-savebar      | div.pf-savebar | YENİ: yapışkan alt çubuk           | position: sticky; bottom: 0
+  #pf-savebar      | div.pf-savebar | kaydet/çoğalt/sil çubuğu          | normal akış (v2.3: sticky kaldırıldı, içeriği örtüyordu)
   #pf-dirty        | span.pf-dirty | YENİ: "Kaydedilmedi" göstergesi    | hidden (varsayılan); draft kirliyse JS açar
   #pf-save         | button.btn-primary | "Kaydet"                        | click → saveDraft()
   #pf-duplicate    | button.btn-toggle | "Çoğalt"                        | click → profili kopyala
@@ -266,9 +266,9 @@
     <!-- Toast kapsayıcısı: toast.ts doldurur, elle dokunulmaz -->
     <div id="toast-host"></div>
 
+    <!-- SAHNE: tek perspektifli 3B dünya. Gezinme altta yüzen cam dock'ta. -->
     <div class="app">
-      <!-- ═══ Sol dikey ray — etiketler HER genişlikte görünür ═══ -->
-      <nav class="rail" role="tablist" aria-orientation="vertical" aria-label="Bölümler">
+      <header class="topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true"></span>
           <span class="brand-text">
@@ -276,69 +276,63 @@
             <span class="brand-sub">ekran konforu</span>
           </span>
         </div>
+        <span class="topbar-spacer"></span>
+        <span id="profile-pill" class="badge info">İş</span>
+        <span id="break-pill" class="badge muted">20-20-20</span>
+        <span id="mode-badge" class="badge">Hazırlanıyor</span>
+        <span id="clock" class="clock">--:--</span>
+        <span class="ver">v<span id="app-ver">-</span></span>
+      </header>
 
-        <button type="button" class="tab active" data-tab="panel" id="tab-panel" role="tab" aria-selected="true" aria-controls="page-panel">
-          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span class="tab-label">Durum</span>
-        </button>
-        <button type="button" class="tab" data-tab="profiles" id="tab-profiles" role="tab" aria-selected="false" aria-controls="page-profiles">
-          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6 3-6 3-6-3 6-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
-          <span class="tab-label">Profiller</span>
-        </button>
-        <button type="button" class="tab" data-tab="history" id="tab-history" role="tab" aria-selected="false" aria-controls="page-history">
-          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-          <span class="tab-label">Geçmiş</span>
-        </button>
-        <button type="button" class="tab" data-tab="settings" id="tab-settings" role="tab" aria-selected="false" aria-controls="page-settings">
-          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h2.5M7 11.5h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="4.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="11.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-          <span class="tab-label">Ayarlar</span>
-        </button>
-
-        <div class="rail-foot">
-          <span class="hint">sürüm <span id="app-ver">-</span></span>
+      <main class="stage">
+        <!-- Uyarı bantları: görünürse en tepede durur (tüm sekmelerde) -->
+        <div id="risk-band" class="band danger" hidden>
+          <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5l6 11H2l6-11z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.8" fill="currentColor"/></svg>
+          <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
+          <span class="spacer"></span>
+          <button id="risk-fix-btn" class="btn-toggle" type="button">Güvenli temaya dön</button>
         </div>
-      </nav>
 
-      <div class="main">
-        <header class="app-header">
-          <span class="header-title">Ekran konforu</span>
-          <span class="header-spacer"></span>
-          <span id="profile-pill" class="badge info">İş</span>
-          <span id="break-pill" class="badge muted">20-20-20</span>
-          <span id="mode-badge" class="badge">Hazırlanıyor</span>
-          <span id="clock" class="clock">--:--</span>
-        </header>
+        <div id="break-band" class="band warn" hidden>
+          <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span id="break-text">20 dakika doldu — 20 saniye uzaklara bak.</span>
+          <span class="spacer"></span>
+          <button id="break-done" class="btn-primary" type="button">Baktım</button>
+          <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
+        </div>
 
-        <!-- ═══════════════ 1. DURUM ═══════════════ -->
-        <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel" tabindex="0">
-          <!-- Uyarı bantları: görünürse en tepede durur -->
-          <div id="risk-band" class="band danger" hidden>
-            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.5l6 11H2l6-11z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M8 6.5v3.2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="11.6" r="0.8" fill="currentColor"/></svg>
-            <span id="risk-text">Yüksek kontrastlı tema — gece göz yorar.</span>
-            <span class="spacer"></span>
-            <button id="risk-fix-btn" class="btn-toggle" type="button">Güvenli temaya dön</button>
-          </div>
+        <div id="update-band" class="band info" hidden role="status">
+          <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span id="update-text">-</span>
+          <span class="spacer"></span>
+          <button id="update-install" class="btn-primary" type="button" aria-label="Güncellemeyi şimdi kur">Şimdi kur</button>
+          <button id="update-later" class="btn-toggle" type="button" aria-label="Güncellemeyi ertele">Daha sonra</button>
+        </div>
 
-          <div id="break-band" class="band warn" hidden>
-            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <span id="break-text">20 dakika doldu — 20 saniye uzaklara bak.</span>
-            <span class="spacer"></span>
-            <button id="break-done" class="btn-primary" type="button">Baktım</button>
-            <button id="break-snooze" class="btn-toggle" type="button">Ertele 5 dk</button>
-          </div>
+        <!-- ═══════════ HERO — sahnenin yıldızı. Gerçek katmanlı 3B konsol:
+             arka ışıma (-80px) · cam plaka (-20px) · içerik (0) · üst yansıma (+10px).
+             Fare paralaksı .hero dönüşünü --mx/--my (−1..1) ile sürer; JS'siz 0'dır. ═══════════ -->
+        <div class="hero" id="hero-status" aria-live="polite">
+          <div class="hero-glow" aria-hidden="true"></div>
+          <div class="hero-glass" aria-hidden="true"></div>
+          <div class="hero-shine" aria-hidden="true"></div>
 
-          <div id="update-band" class="band info" hidden role="status">
-            <svg class="band-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
-            <span id="update-text">-</span>
-            <span class="spacer"></span>
-            <button id="update-install" class="btn-primary" type="button" aria-label="Güncellemeyi şimdi kur">Şimdi kur</button>
-            <button id="update-later" class="btn-toggle" type="button" aria-label="Güncellemeyi ertele">Daha sonra</button>
-          </div>
-
-          <!-- HERO: şu anki durum. Kritik metin dönüştürülmemiş katmandadır;
-               arka ışık/effects katmanı (.hero-tilt) hover'da hafifçe eğilir. -->
-          <div class="hero" id="hero-status" aria-live="polite">
-            <div class="hero-tilt" aria-hidden="true">
+          <div class="hero-body">
+            <div class="hero-text">
+              <div class="card-label">Şu anki parlaklık</div>
+              <div class="hero-value">
+                <span class="dot accent" id="dot-bright"></span>
+                <span id="st-bright" class="hero-num">-</span>
+                <span class="badge info" id="mode-pill">-</span>
+              </div>
+              <div class="hero-sub" id="hero-sub">Ulaşılmak istenen - </div>
+              <div class="hero-why">
+                <svg class="hero-why-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="4.9" r="0.9" fill="currentColor"/></svg>
+                <span id="why-line">ışık ölçümüne göre akıyor</span>
+              </div>
+              <div class="hero-sub-compat" id="sub-bright" hidden>-</div>
+            </div>
+            <div class="hero-curve-side" aria-hidden="true">
               <svg id="hero-curve" viewBox="0 0 264 96" preserveAspectRatio="none" focusable="false" data-now="720" data-light="40" data-bright="45" data-warm="55">
                 <line class="hc-axis" x1="16" y1="88" x2="248" y2="88" />
                 <line class="hc-grid" x1="75" y1="12" x2="75" y2="88" />
@@ -354,97 +348,94 @@
                 <text class="hc-tick" x="127" y="95">12</text>
                 <text class="hc-tick" x="240" y="95">24</text>
               </svg>
-            </div>
-
-            <div class="hero-body">
-              <div class="hero-text">
-                <div class="card-label">Şu anki parlaklık</div>
-                <div class="hero-value">
-                  <span class="dot accent" id="dot-bright"></span>
-                  <span id="st-bright" class="hero-num">-</span>
-                  <span class="badge info" id="mode-pill">-</span>
-                </div>
-                <div class="hero-sub" id="hero-sub">Ulaşılmak istenen - </div>
-                <div class="hero-why">
-                  <svg class="hero-why-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.2v3.6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="8" cy="4.9" r="0.9" fill="currentColor"/></svg>
-                  <span id="why-line">ışık ölçümüne göre akıyor</span>
-                </div>
-                <div class="hero-sub-compat" id="sub-bright" hidden>-</div>
-              </div>
-              <div class="hero-curve-side" aria-hidden="true">
-                <div class="hero-legend">
-                  <span class="lg"><span class="lg-dot lg-light"></span>ışık</span>
-                  <span class="lg"><span class="lg-dot lg-bright"></span>parlaklık</span>
-                  <span class="lg"><span class="lg-dot lg-warm"></span>sarılık</span>
-                </div>
+              <div class="hero-legend">
+                <span class="lg"><span class="lg-dot lg-light"></span>ışık</span>
+                <span class="lg"><span class="lg-dot lg-bright"></span>parlaklık</span>
+                <span class="lg"><span class="lg-dot lg-warm"></span>sarılık</span>
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Durum kartları: ışık / tema / ayar durumu (nokta + metin) -->
-          <div class="cards">
-            <div class="card">
-              <div class="card-label">Işık</div>
-              <div class="card-value"><span class="dot" id="dot-light"></span><span id="st-light">-</span></div>
-              <div class="card-sub" id="sub-light">-</div>
+        <!-- ═══════════════ 1. DURUM — asimetrik ızgara (1.7fr / 1fr) ═══════════════ -->
+        <section class="page" id="page-panel" role="tabpanel" aria-labelledby="tab-panel" tabindex="0">
+          <div class="asym">
+            <!-- Sol geniş kolon: monitörler tek panel, satırlar hairline ile ayrılır -->
+            <div class="panel-box span-main" id="monitor-box">
+              <div class="box-title">Monitörler</div>
+              <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
+              <div class="monitor-ctrl" id="monitor-ctrl" hidden>
+                <label class="sr-only" for="monitor-bright">Monitör parlaklığı</label>
+                <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
+                <span id="monitor-bright-val" class="monitor-val">%-</span>
+                <div class="stepper">
+                  <button id="monitor-minus" class="btn-toggle" type="button" aria-label="Parlaklığı azalt">−</button>
+                  <button id="monitor-plus" class="btn-toggle" type="button" aria-label="Parlaklığı artır">+</button>
+                </div>
+              </div>
+              <div class="pro-lock" id="monitor-pro-lock" hidden>
+                <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+                <span class="badge pro">Pro</span>
+                <span class="hint">Harici monitörü buradan ayarlamak Pro sürümde.</span>
+              </div>
+              <div class="hint" id="monitor-mode-note">Dahili ekranda ayar programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor.</div>
             </div>
-            <div class="card">
-              <div class="card-label">Tema</div>
-              <div class="card-value"><span class="dot accent" id="dot-theme"></span><span id="st-theme">-</span></div>
-              <div class="card-sub" id="sub-theme">-</div>
-            </div>
-            <div class="card">
-              <div class="card-label">Ayar durumu</div>
-              <div class="card-value"><span class="dot ok" id="dot-frozen"></span><span id="st-frozen">-</span></div>
-              <div class="card-sub" id="sub-frozen">-</div>
-            </div>
-          </div>
 
-          <!-- Monitörler: satır = ad + dahili/harici + yüzde -->
-          <div class="panel-box" id="monitor-box">
-            <div class="box-title">Monitörler</div>
-            <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
-            <div class="monitor-ctrl" id="monitor-ctrl" hidden>
-              <label class="sr-only" for="monitor-bright">Monitör parlaklığı</label>
-              <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
-              <span id="monitor-bright-val" class="monitor-val">%-</span>
-              <div class="stepper">
-                <button id="monitor-minus" class="btn-toggle" type="button" aria-label="Parlaklığı azalt">−</button>
-                <button id="monitor-plus" class="btn-toggle" type="button" aria-label="Parlaklığı artır">+</button>
+            <!-- Sağ ince kolon: ışık / tema / ayar durumu (kart değil, hairline satırlar) -->
+            <div class="panel-box span-side">
+              <div class="box-title">Durum</div>
+              <div class="st-row">
+                <span class="dot" id="dot-light"></span>
+                <div class="st-body">
+                  <div class="st-label">Işık</div>
+                  <div class="st-val" id="st-light">-</div>
+                  <div class="st-sub" id="sub-light">-</div>
+                </div>
+              </div>
+              <div class="st-row">
+                <span class="dot accent" id="dot-theme"></span>
+                <div class="st-body">
+                  <div class="st-label">Tema</div>
+                  <div class="st-val" id="st-theme">-</div>
+                  <div class="st-sub" id="sub-theme">-</div>
+                </div>
+              </div>
+              <div class="st-row">
+                <span class="dot ok" id="dot-frozen"></span>
+                <div class="st-body">
+                  <div class="st-label">Ayar durumu</div>
+                  <div class="st-val" id="st-frozen">-</div>
+                  <div class="st-sub" id="sub-frozen">-</div>
+                </div>
               </div>
             </div>
-            <div class="pro-lock" id="monitor-pro-lock" hidden>
-              <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-              <span class="badge pro">Pro</span>
-              <span class="hint">Harici monitörü buradan ayarlamak Pro sürümde.</span>
-            </div>
-            <div class="hint" id="monitor-mode-note">Dahili ekranda ayar programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor.</div>
-          </div>
 
-          <!-- Otomatik ayar seçici + hızlı eylemler -->
-          <div class="quickbar">
-            <span class="quickbar-label">Otomatik ayar</span>
-            <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
-              <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
-              <button id="pause-btn" class="seg-item" type="button" data-auto="hour" aria-pressed="false">1 saat</button>
-              <button id="day-off-btn" class="seg-item" type="button" data-auto="day" aria-pressed="false">Bugün</button>
-              <button id="lock-btn" class="seg-item" type="button" data-auto="lock" aria-pressed="false">Kilitli</button>
+            <!-- Sol geniş kolon (2. satır): olay akışı -->
+            <div class="panel-box span-main">
+              <div class="box-title">Olay akışı</div>
+              <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
+              <div class="toolbar">
+                <span class="hint">en son 5 olay görünür — tam liste Geçmiş'te</span>
+                <span class="spacer"></span>
+                <button id="log-all-link" class="linklike" type="button">Tümü → Geçmiş</button>
+              </div>
             </div>
-            <button id="now-btn" class="btn-primary" type="button">Şimdi yeniden ayarla</button>
-            <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
-            <span class="spacer"></span>
-            <span class="hint" id="break-countdown">-</span>
-            <span class="hint">son ölçüm <span id="last-measure">-</span></span>
-          </div>
 
-          <!-- Olay akışı: son ~5 satır görünür -->
-          <div class="panel-box">
-            <div class="box-title">Olay akışı</div>
-            <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
-            <div class="toolbar">
-              <span class="hint">en son 5 olay görünür — tam liste Geçmiş'te</span>
-              <span class="spacer"></span>
-              <button id="log-all-link" class="linklike" type="button">Tümü → Geçmiş</button>
+            <!-- Sağ ince kolon (2. satır): otomatik ayar + hızlı eylemler -->
+            <div class="panel-box span-side">
+              <div class="box-title">Otomatik ayar</div>
+              <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
+                <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
+                <button id="pause-btn" class="seg-item" type="button" data-auto="hour" aria-pressed="false">1 saat</button>
+                <button id="day-off-btn" class="seg-item" type="button" data-auto="day" aria-pressed="false">Bugün</button>
+                <button id="lock-btn" class="seg-item" type="button" data-auto="lock" aria-pressed="false">Kilitli</button>
+              </div>
+              <button id="now-btn" class="btn-primary" type="button">Şimdi yeniden ayarla</button>
+              <button id="undo-btn" class="btn-toggle" type="button">Geri al</button>
+              <div class="side-meta">
+                <span class="hint" id="break-countdown">-</span>
+                <span class="hint">son ölçüm <span id="last-measure">-</span></span>
+              </div>
             </div>
           </div>
         </section>
@@ -507,7 +498,8 @@
             </div>
           </div>
 
-          <!-- Yapışkan alt çubuk: kaydedilmemiş değişiklik gözden kaçmaz -->
+          <!-- Yapışkan alt çubuk: kaydedilmemiş değişiklik gözden kaçmaz
+               (dock'un üstünde tutulur — bottom offset CSS'te). -->
           <div class="pf-savebar" id="pf-savebar">
             <span class="pf-dirty" id="pf-dirty" hidden>
               <span class="dot warn" aria-hidden="true"></span>
@@ -522,38 +514,41 @@
 
         <!-- ═══════════════ 3. GEÇMİŞ ═══════════════ -->
         <section class="page" id="page-history" hidden role="tabpanel" aria-labelledby="tab-history" tabindex="0">
-          <div class="summary-row">
-            <div class="card summary-card">
+          <!-- Özet şeridi: tek panel, hücreler hairline ile ayrılır (kart yığını değil) -->
+          <div class="panel-box sum-strip">
+            <div class="sum-cell">
               <div class="card-label">Bugün tema değişimi</div>
-              <div class="card-value"><span id="sum-changes">0</span></div>
+              <div class="sum-val"><span id="sum-changes">0</span></div>
             </div>
-            <div class="card summary-card">
+            <div class="sum-cell">
               <div class="card-label">Ortalama parlaklık</div>
-              <div class="card-value"><span id="sum-avg">-</span></div>
+              <div class="sum-val"><span id="sum-avg">-</span></div>
             </div>
-            <div class="card summary-card">
+            <div class="sum-cell">
               <div class="card-label">Ayar yapılmayan ölçüm</div>
-              <div class="card-value"><span id="sum-frozen">0</span></div>
+              <div class="sum-val"><span id="sum-frozen">0</span></div>
             </div>
           </div>
 
-          <div class="panel-box chart-box">
-            <div class="box-title">Son 12 saat</div>
-            <svg id="chart" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-label="Parlaklık grafiği"></svg>
-            <div class="hint">Çubuk: uygulanan ortalama · kesik çizgi: ulaşmak istenen ortalama · soluk çubuk: o saatte kayıt yok</div>
-          </div>
+          <div class="asym">
+            <div class="panel-box span-main chart-box">
+              <div class="box-title">Son 12 saat</div>
+              <svg id="chart" viewBox="0 0 720 180" preserveAspectRatio="none" role="img" aria-label="Parlaklık grafiği"></svg>
+              <div class="hint">Çubuk: uygulanan ortalama · kesik çizgi: ulaşmak istenen ortalama · soluk çubuk: o saatte kayıt yok</div>
+            </div>
 
-          <div class="panel-box log-history">
-            <div class="box-title">Kayıtlar</div>
-            <div id="hist-panel" class="hist timeline" role="log" aria-label="Ölçüm kayıtları"></div>
-            <div class="toolbar">
-              <button id="hist-refresh" class="btn-toggle" type="button">Yenile</button>
-              <button id="log-clear-btn" class="btn-toggle btn-danger" type="button">Kayıtları temizle</button>
+            <div class="panel-box span-side log-history">
+              <div class="box-title">Kayıtlar</div>
+              <div id="hist-panel" class="hist timeline" role="log" aria-label="Ölçüm kayıtları"></div>
+              <div class="toolbar">
+                <button id="hist-refresh" class="btn-toggle" type="button">Yenile</button>
+                <button id="log-clear-btn" class="btn-toggle btn-danger" type="button">Kayıtları temizle</button>
+              </div>
             </div>
           </div>
         </section>
 
-        <!-- ═══════════════ 4. AYARLAR ═══════════════ -->
+        <!-- ═══════════════ 4. AYARLAR — asimetrik ızgara ═══════════════ -->
         <section class="page" id="page-settings" hidden role="tabpanel" aria-labelledby="tab-settings" tabindex="0">
           <div class="panel-box">
             <div class="box-title">Çalışma biçimi</div>
@@ -568,112 +563,117 @@
             </div>
           </div>
 
-          <div class="panel-box">
-            <div class="box-title">Ekranı sarılaştırma</div>
-            <div class="seg" id="warm-seg" role="group" aria-label="Sarılaştırma biçimi"></div>
-            <div class="day-strip" id="day-strip" aria-hidden="true">
-              <div class="day-now" id="day-now"></div>
-              <div class="day-ticks">
-                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
-              </div>
-            </div>
-            <div class="field">
-              <span class="field-label">Sarılık düzeyi <span class="hint">otomatikte üst sınır</span></span>
-              <div class="warm-ctrl">
-                <div class="stepper">
-                  <button id="warm-minus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini azalt">−</button>
-                  <span id="warm-val">35</span>
-                  <button id="warm-plus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini artır">+</button>
+          <div class="asym">
+            <div class="panel-box span-main">
+              <div class="box-title">Ekranı sarılaştırma</div>
+              <div class="seg" id="warm-seg" role="group" aria-label="Sarılaştırma biçimi"></div>
+              <div class="day-strip" id="day-strip" aria-hidden="true">
+                <div class="day-now" id="day-now"></div>
+                <div class="day-ticks">
+                  <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
                 </div>
-                <label class="sr-only" for="warm-range">Sarılık düzeyi</label>
-                <input id="warm-range" type="range" min="0" max="60" step="5" value="35" aria-label="Sarılık düzeyi" />
               </div>
-            </div>
-            <div class="hint" id="warm-preview-note">Canlı önizleme açıktır — düzey değişince ekran anında sarılır.</div>
+              <div class="field">
+                <span class="field-label">Sarılık düzeyi <span class="hint">otomatikte üst sınır</span></span>
+                <div class="warm-ctrl">
+                  <div class="stepper">
+                    <button id="warm-minus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini azalt">−</button>
+                    <span id="warm-val">35</span>
+                    <button id="warm-plus" class="btn-toggle" type="button" aria-label="Sarılık düzeyini artır">+</button>
+                  </div>
+                  <label class="sr-only" for="warm-range">Sarılık düzeyi</label>
+                  <input id="warm-range" type="range" min="0" max="60" step="5" value="35" aria-label="Sarılık düzeyi" />
+                </div>
+              </div>
+              <div class="hint" id="warm-preview-note">Canlı önizleme açıktır — düzey değişince ekran anında sarılır.</div>
 
-            <div class="warm-kelvin">
-              <div class="warm-k-head">
-                <span class="field-label">Ekran rengi sıcaklığı</span>
-                <span class="warm-k-val">
-                  <span id="warm-kelvin-val">6500 K</span>
-                  <span id="warm-kelvin-name" class="warm-k-name">Varsayılan</span>
-                </span>
+              <div class="warm-kelvin">
+                <div class="warm-k-head">
+                  <span class="field-label">Ekran rengi sıcaklığı</span>
+                  <span class="warm-k-val">
+                    <span id="warm-kelvin-val">6500 K</span>
+                    <span id="warm-kelvin-name" class="warm-k-name">Varsayılan</span>
+                  </span>
+                </div>
+                <div class="warm-grad" id="warm-grad" aria-hidden="true"></div>
+                <label class="sr-only" for="warm-kelvin">Ekran rengi sıcaklığı</label>
+                <input id="warm-kelvin" type="range" min="2500" max="6500" step="100" value="6500" aria-label="Ekran rengi sıcaklığı" />
+                <div class="chips warm-presets" id="warm-presets" role="group" aria-label="Hazır sıcaklıklar">
+                  <button class="chip" type="button" data-k="2500">Mum</button>
+                  <button class="chip" type="button" data-k="2700">Ampul</button>
+                  <button class="chip" type="button" data-k="3400">Halojen</button>
+                  <button class="chip" type="button" data-k="4200">Florasan</button>
+                  <button class="chip" type="button" data-k="5500">Gündüz</button>
+                </div>
+                <div class="warm-k-foot">
+                  <button id="warm-reset" class="linklike" type="button">6500 K'ye dön</button>
+                  <span class="hint" id="warm-tech-note" title="Renk sıcaklığı ekranı karartmadan renkleri sıcak tonlara kaydırır; parlaklık bundan bağımsız ayarlanır. Sarılık kapatılınca öğrenilen renk dengesi geri gelir."><span class="info-ic" aria-hidden="true">ⓘ</span> Sıcaklık ekranı karartmadan renkleri kaydırır.</span>
+                </div>
               </div>
-              <div class="warm-grad" id="warm-grad" aria-hidden="true"></div>
-              <label class="sr-only" for="warm-kelvin">Ekran rengi sıcaklığı</label>
-              <input id="warm-kelvin" type="range" min="2500" max="6500" step="100" value="6500" aria-label="Ekran rengi sıcaklığı" />
-              <div class="chips warm-presets" id="warm-presets" role="group" aria-label="Hazır sıcaklıklar">
-                <button class="chip" type="button" data-k="2500">Mum</button>
-                <button class="chip" type="button" data-k="2700">Ampul</button>
-                <button class="chip" type="button" data-k="3400">Halojen</button>
-                <button class="chip" type="button" data-k="4200">Florasan</button>
-                <button class="chip" type="button" data-k="5500">Gündüz</button>
+
+              <div class="hint warm-hdr" id="warm-hdr-note" hidden>
+                HDR açıkken ekran sarılaştırılamıyor — <a id="warm-hdr-link" href="#">HDR ayarlarını aç</a>
               </div>
-              <div class="warm-k-foot">
-                <button id="warm-reset" class="linklike" type="button">6500 K'ye dön</button>
-                <span class="hint" id="warm-tech-note" title="Renk sıcaklığı ekranı karartmadan renkleri sıcak tonlara kaydırır; parlaklık bundan bağımsız ayarlanır. Sarılık kapatılınca öğrenilen renk dengesi geri gelir."><span class="info-ic" aria-hidden="true">ⓘ</span> Sıcaklık ekranı karartmadan renkleri kaydırır.</span>
-              </div>
+              <div class="hint" id="calib-hint">Öğrenilen tercih: henüz gözlem yok</div>
             </div>
 
-            <div class="hint warm-hdr" id="warm-hdr-note" hidden>
-              HDR açıkken ekran sarılaştırılamıyor — <a id="warm-hdr-link" href="#">HDR ayarlarını aç</a>
+            <div class="panel-box span-side">
+              <div class="box-title">Gece koruması</div>
+              <div class="field-grid">
+                <label class="field">Başlangıç saati
+                  <input id="sleep-start" type="number" min="0" max="23" placeholder="22" />
+                  <span class="hint">gece başlangıcı (0–23)</span>
+                </label>
+                <label class="field">Bitiş saati
+                  <input id="sleep-end" type="number" min="0" max="23" placeholder="6" />
+                  <span class="hint">sabah bitişi (0–23)</span>
+                </label>
+                <label class="field">Gece tavanı
+                  <span class="unit-input">
+                    <input id="sleep-cap" type="number" min="5" max="60" placeholder="30" />
+                    <span class="unit">%</span>
+                  </span>
+                  <span class="hint">gece bu değerin üstüne çıkmaz</span>
+                </label>
+              </div>
+              <div class="hint">Gece boyunca parlaklık bu tavanın üstüne çıkmaz; 00:00–01:30 dışında %0 yazılmaz.</div>
             </div>
-            <div class="hint" id="calib-hint">Öğrenilen tercih: henüz gözlem yok</div>
           </div>
 
-          <div class="panel-box">
-            <div class="box-title">Gece koruması</div>
-            <div class="field-grid">
-              <label class="field">Başlangıç saati
-                <input id="sleep-start" type="number" min="0" max="23" placeholder="22" />
-                <span class="hint">gece başlangıcı (0–23)</span>
+          <div class="asym">
+            <div class="panel-box span-main">
+              <div class="box-title">Uygulamalar</div>
+              <label class="field">Video / oyun / PDF — ayar yapılmaz
+                <div class="tag-editor" id="block-editor"></div>
               </label>
-              <label class="field">Bitiş saati
-                <input id="sleep-end" type="number" min="0" max="23" placeholder="6" />
-                <span class="hint">sabah bitişi (0–23)</span>
+              <label class="field">İş uygulamaları — tam ekranda dokunulmaz
+                <div class="tag-editor" id="allow-editor"></div>
               </label>
-              <label class="field">Gece tavanı
-                <span class="unit-input">
-                  <input id="sleep-cap" type="number" min="5" max="60" placeholder="30" />
-                  <span class="unit">%</span>
-                </span>
-                <span class="hint">gece bu değerin üstüne çıkmaz</span>
-              </label>
+              <div class="toolbar">
+                <button id="add-current-btn" class="btn-toggle" type="button">Ön plandaki uygulamayı listeye ekle</button>
+              </div>
+              <div class="hint">Ön planda bu uygulamalardan biri varken ayar yapılmaz — bu kural her zaman önde gelir.</div>
             </div>
-            <div class="hint">Gece boyunca parlaklık bu tavanın üstüne çıkmaz; 00:00–01:30 dışında %0 yazılmaz.</div>
-          </div>
 
-          <div class="panel-box">
-            <div class="box-title">20-20-20 mola</div>
-            <div class="switch-line">
-              <span>20-20-20 hatırlatıcı</span>
-              <button id="break-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+            <div class="stack-side">
+              <div class="panel-box">
+                <div class="box-title">20-20-20 mola</div>
+                <div class="switch-line">
+                  <span>20-20-20 hatırlatıcı</span>
+                  <button id="break-switch" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+                </div>
+                <div class="hint" id="break-next">sonraki mola: -</div>
+                <div class="hint">Uyarı bir kez çıkar; "Baktım" ya da "Ertele" diyene kadar tekrar etmez.</div>
+              </div>
+              <div class="panel-box">
+                <div class="box-title">Okuma profili</div>
+                <div class="switch-line">
+                  <span>Sıcak, kısık okuma görünümü</span>
+                  <button id="read-btn" class="btn-toggle" type="button" aria-pressed="false">Aç / kapat</button>
+                </div>
+                <div class="hint">Ekranı okuma için yumuşatır; ölçüm ve karar akışı devam eder.</div>
+              </div>
             </div>
-            <div class="hint" id="break-next">sonraki mola: -</div>
-            <div class="hint">Uyarı bir kez çıkar; "Baktım" ya da "Ertele" diyene kadar tekrar etmez.</div>
-          </div>
-
-          <div class="panel-box">
-            <div class="box-title">Okuma profili</div>
-            <div class="switch-line">
-              <span>Sıcak, kısık okuma görünümü</span>
-              <button id="read-btn" class="btn-toggle" type="button" aria-pressed="false">Aç / kapat</button>
-            </div>
-            <div class="hint">Ekranı okuma için yumuşatır; ölçüm ve karar akışı devam eder.</div>
-          </div>
-
-          <div class="panel-box">
-            <div class="box-title">Uygulamalar</div>
-            <label class="field">Video / oyun / PDF — ayar yapılmaz
-              <div class="tag-editor" id="block-editor"></div>
-            </label>
-            <label class="field">İş uygulamaları — tam ekranda dokunulmaz
-              <div class="tag-editor" id="allow-editor"></div>
-            </label>
-            <div class="toolbar">
-              <button id="add-current-btn" class="btn-toggle" type="button">Ön plandaki uygulamayı listeye ekle</button>
-            </div>
-            <div class="hint">Ön planda bu uygulamalardan biri varken ayar yapılmaz — bu kural her zaman önde gelir.</div>
           </div>
 
           <details class="panel-box advanced" id="advanced">
@@ -744,7 +744,27 @@
             </div>
           </details>
         </section>
-      </div>
+      </main>
+
+      <!-- ═══ Yüzen cam dock — ekranın alt ortası. Sol ray yok. ═══ -->
+      <nav class="dock" role="tablist" aria-label="Bölümler">
+        <button type="button" class="tab active" data-tab="panel" id="tab-panel" role="tab" aria-selected="true" aria-controls="page-panel">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M12.6 3.4l-1.4 1.4M4.8 11.2l-1.4 1.4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="tab-label">Durum</span>
+        </button>
+        <button type="button" class="tab" data-tab="profiles" id="tab-profiles" role="tab" aria-selected="false" aria-controls="page-profiles">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2l6 3-6 3-6-3 6-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><path d="M2 8.5l6 3 6-3M2 11.5l6 3 6-3" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/></svg>
+          <span class="tab-label">Profiller</span>
+        </button>
+        <button type="button" class="tab" data-tab="history" id="tab-history" role="tab" aria-selected="false" aria-controls="page-history">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5V8l2.5 1.8" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+          <span class="tab-label">Geçmiş</span>
+        </button>
+        <button type="button" class="tab" data-tab="settings" id="tab-settings" role="tab" aria-selected="false" aria-controls="page-settings">
+          <svg class="tab-ic" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 4.5h8M12.5 4.5H14M2 11.5h2.5M7 11.5h7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/><circle cx="11" cy="4.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="5.5" cy="11.5" r="1.8" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+          <span class="tab-label">Ayarlar</span>
+        </button>
+      </nav>
     </div>
   </body>
 </html>

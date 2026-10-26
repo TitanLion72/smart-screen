@@ -518,7 +518,7 @@ fn note_status(device: &str, supported: bool, hdr: bool) {
 
 fn log_note(note: &str) {
     crate::logger::log_tick(&format!(
-        "{} | source=vcp/vcp | level=info | tone=- | desired=- | applied=- | \
+        "{} | source=color/color | level=info | tone=- | desired=- | applied=- | \
          theme=- | note={note}",
         chrono::Utc::now().to_rfc3339()
     ));

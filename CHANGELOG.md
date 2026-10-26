@@ -1,4 +1,4 @@
-﻿# Değişiklik Günlüğü
+# Değişiklik Günlüğü
 
 Bu projenin dikkate değer değişiklikleri bu dosyada tutulur.
 
@@ -13,7 +13,50 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 ## [Unreleased]
 
-_(hen�z yay�nlanmad�)_
+_(henüz yayınlanmadı)_
+
+## [2.3.0] - 2026-10-26
+
+v2.3 turu — "premium 3B sahne". Arayüz bu kez **mekânsal dille** yeniden yazıldı;
+önceki kart yığını ve sol ray tamamen kalktı. Bu tur da final değildir.
+
+### Changed
+- **Tek sahne, katmanlı derinlik:** sol dikey ray kaldırıldı; gezinme ekranın alt
+  ortasında **yüzen cam dock**. Sahne gerçek 3B (`perspective: 1200px`); hero
+  katmanları farklı Z düzlemlerinde (ışıma −80px, cam plaka −20px, içerik 0,
+  yansıma +10px). Sayfalar derinlikten öne süzülerek açılır.
+- **Premium palet:** sıcak obsidyen zemin (`#0a0908` → `#262019`), **şampanya**
+  vurgu (`#d8b98a`) + bakır; hairline'lar altın tonunda. Mavi ağırlıklı koyu tema gitti.
+- **Tipografi:** 64px/300 ağırlık dev parlaklık rakamı, sıkı harf aralığı, tüm
+  sayılarda `tabular-nums` (değer oynarken genişlik zıplamaz).
+- **Asimetrik yerleşim:** eşit kart ızgarası yerine geniş ana kolon + ince yan kolon.
+- **Fare paralaksı:** hero katmanları imlece göre hafifçe döner (rAF + ~30 fps sınırı;
+  `prefers-reduced-motion` açıksa kapalı).
+- **Hero eğrisi gerçek veriye bağlandı:** ışık/parlaklık/sarılık noktaları sabit
+  değerlerden kurtuldu; gün içi saate ve son ölçüme göre konumlanır.
+- **Vurgu renkleri** yeni palete taşındı: Mavi · Yeşil · Gül · Şampanya (dördü de
+  eksiksiz tanımlı; "Mavi" seçilince tema gerçekten değişiyor).
+
+### Fixed
+- **Uygulama açılışta çöküyordu:** monitör satırı yenilenirken tanımsız değişkene
+  erişim (`api is not defined`) pencereyi düşürüyordu; QA bunu görmemişti.
+- **Yüzen dock içeriği örtüyordu:** alttaki düğmeler/paneller tıklanamıyordu. Dock
+  artık kendi alanında (fixed değil, akışta).
+- **Toast'lar dock'ı kapatıyordu:** sağdaki iki sekmeye 4 saniye tıklanamıyordu.
+- **Profil çubuğu ("Kaydet/Çoğalt/Sil") üstteki düğmeleri örtüyordu** → yapışkanlık
+  kaldırıldı.
+- Monitör satırında **aynı bilgi iki rozet** olarak yazılıyordu ("dahili" + "dahili
+  panel") → tek rozet.
+- Monitör hatası metni 52px'e sıkışıp kırpılıyordu → sütun düzeni düzeltildi.
+- Geçmiş'e **`source=vcp/vcp`** gibi iç jargon sızıyordu → insan diline çevrildi.
+- "normal / nötr" ışık değerleri Türkçeye çevrilmiyordu.
+- İkincil metin kontrastı WCAG AA altındaydı (`--text-4`) → eşiğin üstüne çekildi.
+- Aktif dock sekmesinde odak halkası görünmüyordu (aynı rengin üstüne aynı renk).
+- Sekmelerde **ok tuşlarıyla gezinme** ve roving tabindex eklendi (WAI-ARIA tabs).
+
+### Notes
+- `qa/run.mjs`: senaryolar arası `localStorage` sızıntısı giderildi (önceki senaryonun
+  3 profili `#pf-add`'i devre dışı bırakıyordu).
 
 ## [2.2.0] - 2026-10-26
 

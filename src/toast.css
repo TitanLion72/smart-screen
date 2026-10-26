@@ -20,7 +20,9 @@
 
   position: fixed;
   right: 16px;
-  bottom: 16px;
+  /* v2.3: dock alt-ortada flex akışında; toast'ı dock'ın üstüne kaldır ki
+     sağdaki sekmeler 4 sn boyunca tıklanamaz kalmasın. */
+  bottom: 96px;
   z-index: 1000;
   display: flex;
   flex-direction: column; /* JS prepend eder → yeni toast her zaman üstte */

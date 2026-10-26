@@ -321,4 +321,46 @@ window.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("visibilitychange", () => {
     if (!document.hidden && Date.now() - O.S.lastAct > WATCH_MS) void O.tick("odak");
   });
+
+  // ---------- 3B paralaks (hero katmanları) ----------
+  // v2.3 (reviewer #8): --mx/--my CSS'te tanımlıydı ama hiç yazılmıyordu.
+  // rAF + 30fps sınırı: sürekli açık uygulamada GPU'yu boşa yormayalım.
+  // prefers-reduced-motion: reduce ise hiç bağlanmaz.
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let lastParallax = 0;
+  let pending: { x: number; y: number } | null = null;
+  const applyParallax = (): void => {
+    pending = null;
+    const now = performance.now();
+    if (now - lastParallax < 33) return; // ~30fps
+    lastParallax = now;
+    if (!pointer) return;
+    document.documentElement.style.setProperty("--mx", pointer.x.toFixed(3));
+    document.documentElement.style.setProperty("--my", pointer.y.toFixed(3));
+  };
+  let pointer: { x: number; y: number } | null = null;
+  const onMove = (e: PointerEvent): void => {
+    if (reduceMotion.matches) return;
+    // -1..1 normalize: sahne merkezine göre
+    pointer = {
+      x: (e.clientX / window.innerWidth) * 2 - 1,
+      y: (e.clientY / window.innerHeight) * 2 - 1,
+    };
+    if (pending === null) {
+      pending = pointer;
+      requestAnimationFrame(applyParallax);
+    }
+  };
+  const onLeave = (): void => {
+    pointer = null;
+    document.documentElement.style.setProperty("--mx", "0");
+    document.documentElement.style.setProperty("--my", "0");
+  };
+  if (!reduceMotion.matches) {
+    document.addEventListener("pointermove", onMove, { passive: true });
+    document.addEventListener("pointerleave", onLeave);
+  }
+  reduceMotion.addEventListener("change", () => {
+    onLeave();
+  });
 });
