@@ -674,8 +674,8 @@ function renderHeroCurve(): void {
   if (!svg) return;
   const now = new Date();
   const minute = now.getHours() * 60 + now.getMinutes();
-  const xOf = (m: number): number => 16 + (m / 1440) * 232;
-  const yOf = (v: number): number => 84 - (v / 45) * 74; // tavan 45 (decide.rs)
+  const xOf = (m: number): number => (m / 1440) * 264;
+  const yOf = (v: number): number => 82 - (v / 45) * 74; // tavan 45 (decide.rs), eksen y=82
 
   // Eğri: her 10 dakikada bir örnekle (147 nokta, düzgün).
   const pts: string[] = [];
@@ -702,17 +702,19 @@ function renderHeroCurve(): void {
 }
 
 function renderCards(): void {
-  el("st-light").textContent = S.light.text;
+  // Ölçüm gelmeden "-" göstermek kartı bozuk gibi gösteriyordu (v2.4.1).
+  el("st-light").textContent = S.light.text === "-" ? "Henüz ölçülmedi" : S.light.text;
   el("st-light").title = S.light.title;
-  el("sub-light").textContent = S.light.sub;
+  el("sub-light").textContent = S.light.sub === "-" ? "kamera ilk turda okur" : S.light.sub;
   setDot("dot-light", S.light.dot);
 
   const [themeName, themeMode] = splitKey(S.appliedKey);
-  el("st-theme").textContent = themeName;
-  el("st-theme").title = `${themeName} (${themeMode ?? "-"})`;
-  el("sub-theme").textContent =
-    `biçim: ${themeMode ?? "-"}` +
-    (S.pendingKey ? " • değişecek (ikinci ölçüm bekleniyor)" : "");
+  const noTheme = !themeName || themeName === "-";
+  el("st-theme").textContent = noTheme ? "Henüz uygulanmadı" : themeName;
+  el("st-theme").title = noTheme ? "İlk ölçümden sonra tema uygulanır" : `${themeName} (${themeMode ?? "-"})`;
+  el("sub-theme").textContent = noTheme
+    ? "ilk ölçümde seçilir"
+    : `biçim: ${themeMode ?? "-"}` + (S.pendingKey ? " • değişecek (ikinci ölçüm bekleniyor)" : "");
   setDot("dot-theme", S.risk ? "bad" : S.pendingKey ? "warn" : "accent");
 
   const frozen = S.freezeReason;
@@ -904,8 +906,11 @@ function renderLicense(): void {
 
 function drawChart(stats: StatsSummary | null): void {
   const svg = el("chart");
-  if (!stats) {
-    svg.innerHTML = "";
+  if (!stats || stats.buckets.length === 0) {
+    // Boş grafik "bozuk" görünüyordu; neden boş olduğunu yaz (v2.4.1).
+    svg.innerHTML =
+      `<text x="360" y="94" fill="var(--text-4)" font-size="13" text-anchor="middle" font-family="inherit">` +
+      `Henüz grafik verisi yok — birkaç dakika içinde dolar</text>`;
     return;
   }
   const W = 720;
@@ -1065,9 +1070,17 @@ function renderHistory(): void {
       }
     }
     drawChart(S.stats);
-    el("sum-changes").textContent = S.stats ? String(S.stats.themeChangesToday) : "-";
-    el("sum-avg").textContent = S.stats && S.stats.ticksToday > 0 ? `%${S.stats.avgAppliedToday}` : "-";
-    el("sum-frozen").textContent = S.stats ? String(S.stats.frozenTicksToday) : "-";
+    // "-" boş görünüyordu; ilk ölçüm gelmeden anlamlı durum yaz (v2.4.1).
+    const ticks = S.stats?.ticksToday ?? 0;
+    el("sum-changes").textContent = ticks > 0 ? String(S.stats?.themeChangesToday ?? 0) : "—";
+    el("sum-avg").textContent =
+      ticks > 0 ? `%${S.stats?.avgAppliedToday ?? 0}` : "henüz yok";
+    el("sum-frozen").textContent = ticks > 0 ? String(S.stats?.frozenTicksToday ?? 0) : "—";
+    // Boş durum ipucu: sayı yoksa altında neden olduğunu söyle.
+    const summaryHint = ticks > 0 ? "" : "İlk ölçümden sonra dolar";
+    for (const id of ["sum-changes", "sum-avg", "sum-frozen"]) {
+      el(id).title = summaryHint;
+    }
   }
 }
 

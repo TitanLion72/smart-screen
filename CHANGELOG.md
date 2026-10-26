@@ -15,6 +15,30 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.4.1] - 2026-10-26
+
+Kullanıcı maksimize pencerede ekran görüntüsü gönderdi: *"şöyle bi bakınca düzeltmişsin
+gibi görünüyo mu... şu boşlukları kaç kere söylemem lazım"*. Haklıydı — 720/800/1000 px
+test ediyordum, **1920'ye hiç bakmamıştım**.
+
+### Fixed
+- **Maksimize pencerede devasa boşluk:** içerik 1920px'e yayılıyor, sol kolon kısa
+  kalıp sağda ~400px ölü alan bırakıyordu. İçerik şeridi **1180px** ile sınırlandı
+  ve ortalandı.
+- **Hero eğrisi 6 kat geriliyordu:** saat etiketleri SVG içindeydi; geniş pencerede
+  devasa ve okunmaz oluyordu. Etiketler SVG dışına alındı (00 · 06 · 12 · 18 · 24).
+- **Geçmiş sayfasında alt yarı boştu:** grafik artık kalan yüksekliği dolduruyor.
+- **"Durum" kartı "-" gösteriyordu** (ekran kilitliyken tur donuyor): artık
+  "Henüz ölçülmedi" / "ilk ölçümde seçilir" gibi anlamlı boş durum metni var.
+- **Geçmiş özet kartları "-"** → "henüz yok" + açıklama; boş grafiğe
+  "Henüz grafik verisi yok" yazısı.
+- Monitörler paneli artık **tam genişlik** (yarım kolonda kısa kalıp boşluk bırakıyordu);
+  altında dengeli iki kolon: olay akışı | durum + otomatik ayar.
+
+### Notes
+- `qa/audit-shots.mjs` artık **1920×1040 ve 1440×900** boyutlarını da yakalıyor —
+  bu sınıf hata bir daha gözden kaçmasın.
+
 ## [2.4.0] - 2026-10-26
 
 Kullanıcı: *"hala bozuk, bi de birden fazla tema desteği ekle. 3-4 farklı tasarım

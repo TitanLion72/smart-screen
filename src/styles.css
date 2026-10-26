@@ -500,6 +500,11 @@ body {
   gap: var(--sp-5);
   padding: var(--sp-5) var(--sp-6) 0;
   transform-style: preserve-3d;
+  /* v2.4.1: maksimize pencerede (1920px) içerik uçsuz bucaksız geriliyordu —
+     hero eğrisi 6 kat yatıyor, kartlar devleşiyordu. İçerik şeridini sınırla. */
+  width: 100%;
+  max-width: 1180px;
+  margin-inline: auto;
 }
 
 /* ═══════════════ Sayfalar: 3B katman olarak açılır ═══════════════ */
@@ -519,6 +524,18 @@ body {
 
 .page > * {
   flex: none;
+}
+
+/* v2.4.1: Geçmiş sayfası kalan yüksekliği kullanır (altta ölü alan kalmaz). */
+#page-history {
+  display: flex;
+  flex-direction: column;
+}
+
+#page-history .asym {
+  flex: 1 1 auto;
+  min-height: 0;
+  align-items: stretch;
 }
 
 /* hidden kalkınca sayfa derinlikten öne süzülür (JS hidden toggle'ına
@@ -545,6 +562,15 @@ body {
   grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
   gap: var(--sp-5);
   align-items: start;
+}
+
+/* Sağ kolonda iki kart üst üste: kolon yüksekliği sol tarafla dengelenir,
+   tek kart kalıp altında ölü alan bırakmaz (v2.4.1). */
+.col-stack {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-5);
+  min-width: 0;
 }
 
 .span-main {
@@ -821,6 +847,18 @@ body {
 }
 
 /* Eğri tarafı: dekoratif katman — içerik düzleminin hafif önünde */
+/* Eğri etiketleri HTML'de: SVG içinde olsaydı geniş pencerede 6 kat gerilip
+   devleşiyordu (1920px'de okunmaz). */
+.hc-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px 0 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+}
+
 .hero-curve-side {
   display: flex;
   flex-direction: column;
@@ -1609,16 +1647,37 @@ button:disabled:active {
   color: var(--text-1);
 }
 
+.chart-box {
+  display: flex;
+  flex-direction: column;
+  /* v2.4.1: grafik kalan yüksekliği doldurur — Geçmiş'te alt yarı boş kalıyordu. */
+  flex: 1 1 auto;
+  min-height: 300px;
+}
+
 .chart-box svg {
   width: 100%;
-  height: 190px;
+  flex: 1 1 auto;
+  min-height: 240px;
+  height: auto;
   background: var(--input);
   border: 1px solid var(--border-subtle);
   border-radius: var(--r-sm);
 }
 
+/* Geçmiş kayıt listesi: grafikle aynı yükseklikte dursun, altında ölü alan
+   kalmasın (v2.4.1). */
 .log-history {
   min-height: 260px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Geçmiş kayıt listesi: grafikle aynı yükseklikte dursun, altında ölü alan
+   kalmasın (v2.4.1). */
+.log-history .hist {
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 /* Zaman çizelgesi: JS düz <div> satırları basar, CSS çizelgeye çevirir. */

@@ -336,19 +336,18 @@
             </div>
             <div class="hero-curve-side" aria-hidden="true">
               <!-- Tek eğri: gün boyunca ekran sarılığı. Çapa noktaları backend'in
-                   warmth_auto eğrisinden gelir (gerçek veri, uydurma değil). -->
-              <svg id="hero-curve" viewBox="0 0 264 104" preserveAspectRatio="none" focusable="false" data-now="720" data-warm="0">
-                <line class="hc-axis" x1="16" y1="84" x2="248" y2="84" />
-                <line class="hc-grid" x1="75" y1="10" x2="75" y2="84" />
-                <line class="hc-grid" x1="133" y1="10" x2="133" y2="84" />
-                <line class="hc-grid" x1="191" y1="10" x2="191" y2="84" />
+                   warmth_auto eğrisinden gelir (gerçek veri, uydurma değil).
+                   Saat etiketleri SVG dışında: geniş pencerede gerilmesin. -->
+              <svg id="hero-curve" viewBox="0 0 264 84" preserveAspectRatio="none" focusable="false" data-now="720" data-warm="0">
+                <line class="hc-axis" x1="0" y1="82" x2="264" y2="82" />
+                <line class="hc-grid" x1="66" y1="6" x2="66" y2="82" />
+                <line class="hc-grid" x1="132" y1="6" x2="132" y2="82" />
+                <line class="hc-grid" x1="198" y1="6" x2="198" y2="82" />
                 <path id="hc-warm-path" class="hc-path hc-warm" d="" />
-                <line id="hc-now-line" class="hc-now-line" x1="130" y1="10" x2="130" y2="84" />
-                <circle id="hc-warm" class="hc-dot hc-warm" r="4" cx="130" cy="60" />
-                <text class="hc-tick" x="16" y="100">00</text>
-                <text class="hc-tick" x="127" y="100">12</text>
-                <text class="hc-tick" x="240" y="100">24</text>
+                <line id="hc-now-line" class="hc-now-line" x1="130" y1="6" x2="130" y2="82" />
+                <circle id="hc-warm" class="hc-dot hc-warm" r="3" cx="130" cy="50" />
               </svg>
+              <div class="hc-ticks"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
               <div class="hero-legend">
                 <span class="lg"><span class="lg-dot lg-warm"></span>ekran sarılığı</span>
               </div>
@@ -356,58 +355,30 @@
           </div>
         </div>
 
+          <!-- Monitörler: TAM GENİŞLİK. Satırlar zaten geniş; yarım kolonda
+               kısa kalıp altında büyük boşluk bırakıyordu (v2.4.1). -->
+          <div class="panel-box" id="monitor-box">
+            <div class="box-title">Monitörler</div>
+            <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
+            <div class="monitor-ctrl" id="monitor-ctrl" hidden>
+              <label class="sr-only" for="monitor-bright">Monitör parlaklığı</label>
+              <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
+              <span id="monitor-bright-val" class="monitor-val">%-</span>
+              <div class="stepper">
+                <button id="monitor-minus" class="btn-toggle" type="button" aria-label="Parlaklığı azalt">−</button>
+                <button id="monitor-plus" class="btn-toggle" type="button" aria-label="Parlaklığı artır">+</button>
+              </div>
+            </div>
+            <div class="pro-lock" id="monitor-pro-lock" hidden>
+              <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span class="badge pro">Pro</span>
+              <span class="hint">Harici monitörü buradan ayarlamak Pro sürümde.</span>
+            </div>
+            <div class="hint" id="monitor-mode-note">Dahili ekranda ayar programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor.</div>
+          </div>
+
           <div class="asym">
-            <!-- Sol geniş kolon: monitörler tek panel, satırlar hairline ile ayrılır -->
-            <div class="panel-box span-main" id="monitor-box">
-              <div class="box-title">Monitörler</div>
-              <div id="monitor-list" class="monitor-list" role="group" aria-label="Bağlı monitörler" aria-live="polite"></div>
-              <div class="monitor-ctrl" id="monitor-ctrl" hidden>
-                <label class="sr-only" for="monitor-bright">Monitör parlaklığı</label>
-                <input id="monitor-bright" type="range" min="0" max="100" step="1" aria-label="Monitör parlaklığı" />
-                <span id="monitor-bright-val" class="monitor-val">%-</span>
-                <div class="stepper">
-                  <button id="monitor-minus" class="btn-toggle" type="button" aria-label="Parlaklığı azalt">−</button>
-                  <button id="monitor-plus" class="btn-toggle" type="button" aria-label="Parlaklığı artır">+</button>
-                </div>
-              </div>
-              <div class="pro-lock" id="monitor-pro-lock" hidden>
-                <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
-                <span class="badge pro">Pro</span>
-                <span class="hint">Harici monitörü buradan ayarlamak Pro sürümde.</span>
-              </div>
-              <div class="hint" id="monitor-mode-note">Dahili ekranda ayar programla yapılıyor; harici ekranda monitörün kendi ayarı kullanılıyor.</div>
-            </div>
-
-            <!-- Sağ ince kolon: ışık / tema / ayar durumu (kart değil, hairline satırlar) -->
-            <div class="panel-box span-side">
-              <div class="box-title">Durum</div>
-              <div class="st-row">
-                <span class="dot" id="dot-light"></span>
-                <div class="st-body">
-                  <div class="st-label">Işık</div>
-                  <div class="st-val" id="st-light">-</div>
-                  <div class="st-sub" id="sub-light">-</div>
-                </div>
-              </div>
-              <div class="st-row">
-                <span class="dot accent" id="dot-theme"></span>
-                <div class="st-body">
-                  <div class="st-label">Tema</div>
-                  <div class="st-val" id="st-theme">-</div>
-                  <div class="st-sub" id="sub-theme">-</div>
-                </div>
-              </div>
-              <div class="st-row">
-                <span class="dot ok" id="dot-frozen"></span>
-                <div class="st-body">
-                  <div class="st-label">Ayar durumu</div>
-                  <div class="st-val" id="st-frozen">-</div>
-                  <div class="st-sub" id="sub-frozen">-</div>
-                </div>
-              </div>
-            </div>
-
-            <!-- Sol geniş kolon (2. satır): olay akışı -->
+            <!-- Sol: olay akışı -->
             <div class="panel-box span-main">
               <div class="box-title">Olay akışı</div>
               <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
@@ -418,10 +389,39 @@
               </div>
             </div>
 
-            <!-- Sağ ince kolon (2. satır): otomatik ayar + hızlı eylemler -->
-            <div class="panel-box span-side">
-              <div class="box-title">Otomatik ayar</div>
-              <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
+            <!-- Sağ: durum + otomatik ayar üst üste (kolon yüksekliği dengelenir) -->
+            <div class="col-stack">
+              <div class="panel-box">
+                <div class="box-title">Durum</div>
+                <div class="st-row">
+                  <span class="dot" id="dot-light"></span>
+                  <div class="st-body">
+                    <div class="st-label">Işık</div>
+                    <div class="st-val" id="st-light">Ölçüm bekleniyor</div>
+                    <div class="st-sub" id="sub-light">-</div>
+                  </div>
+                </div>
+                <div class="st-row">
+                  <span class="dot accent" id="dot-theme"></span>
+                  <div class="st-body">
+                    <div class="st-label">Tema</div>
+                    <div class="st-val" id="st-theme">Ölçüm bekleniyor</div>
+                    <div class="st-sub" id="sub-theme">-</div>
+                  </div>
+                </div>
+                <div class="st-row">
+                  <span class="dot ok" id="dot-frozen"></span>
+                  <div class="st-body">
+                    <div class="st-label">Ayar durumu</div>
+                    <div class="st-val" id="st-frozen">Ölçüm bekleniyor</div>
+                    <div class="st-sub" id="sub-frozen">-</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="panel-box">
+                <div class="box-title">Otomatik ayar</div>
+                <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
                 <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
                 <button id="pause-btn" class="seg-item" type="button" data-auto="hour" aria-pressed="false">1 saat</button>
                 <button id="day-off-btn" class="seg-item" type="button" data-auto="day" aria-pressed="false">Bugün</button>
@@ -433,6 +433,7 @@
                 <span class="hint" id="break-countdown">-</span>
                 <span class="hint">son ölçüm <span id="last-measure">-</span></span>
               </div>
+            </div>
             </div>
           </div>
         </section>

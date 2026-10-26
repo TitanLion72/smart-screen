@@ -92,6 +92,9 @@ const sizes = [
   { w: 800, h: 600, tag: "800" },
   { w: 1000, h: 720, tag: "1000" },
   { w: 720, h: 560, tag: "720" },
+  // v2.4.1: maksimize pencere — asıl kırılma burada oluyordu.
+  { w: 1920, h: 1040, tag: "1920" },
+  { w: 1440, h: 900, tag: "1440" },
 ];
 const tabs = ["panel", "profiles", "history", "settings"];
 
