@@ -1,5 +1,27 @@
 # HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
 
+## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
+
+v2.3.0 ve v2.3.1 "QA 21 senaryo PASS" diyerek yayınlandı; kullanıcı **"ui çok bozuk"**
+dedi ve haklıydı. Somut bozukluklar: hero her sekmede görünüyordu (ekranın yarısını
+kaplıyordu), eğri çizgileri birbirine giriyordu, yatay kaydırma çubuğu vardı, ekranda
+geliştirici notu duruyordu.
+
+**Neden kaçtı:** QA DOM'u ölçer (id var mı, taşma var mı, tıklanabiliyor mu). "Bu ekran
+çirkin mi / anlamsız mı / yarım mı" ölçmez. `checkOverflow` uzun süre `body.scrollHeight`
+ölçtüğü için hiçbir şeyi yakalamıyordu.
+
+**Kural (bağlayıcı):**
+1. Her arayüz turundan sonra `qa/shots/*.png` dosyalarına **kendi gözünle** bak —
+   en az Durum, Profiller, Ayarlar, Geçmiş + flyout. Onaylamadan release yok.
+2. Her turda **gerçek exe'yi çalıştır** (stub QA yetmez). Kurulu exe açılışta çökerse
+   QA yeşil olsa da sürüm çöptür (v2.3.0'da `api is not defined` böyle kaçtı).
+3. Bir bölümün **nerede** durduğunu doğrula: hero `#page-panel` içinde mi, dock içeriği
+   örtüyor mu, sekmede olmaması gereken şey var mı.
+4. Taşma assert'i `scrollWidth/scrollHeight` + kırpılan öğe listesi ile ölçülür
+   (`body.scrollHeight` işe yaramaz).
+
+
 ## V2.3 TURU (2026-10-26) — "premium 3B sahne"
 
 **Kullanıcı talimatı (birebir):** v2.2 tesliminden sonra — *"UI daha değişecek mi bu nihai
