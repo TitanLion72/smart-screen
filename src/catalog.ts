@@ -141,8 +141,56 @@ export const DESIGN_THEMES: DesignTheme[] = [
     id: "fildisi",
     label: "Fildişi",
     note: "Aydınlık kâğıt + bronz",
-    swatch: { bg: "#f6f2ea", surface: "#ffffff", accent: "#a8763c" },
+    swatch: { bg: "#f6f2ea", surface: "#ffffff", accent: "#94632d" },
+  },
+  {
+    id: "kagit",
+    label: "Kâğıt",
+    note: "Nötr sıcak açık + kiremit",
+    swatch: { bg: "#faf8f4", surface: "#ffffff", accent: "#b4553a" },
+  },
+  {
+    id: "grafit",
+    label: "Grafit",
+    note: "Nötr soğuk koyu + gök mavisi",
+    swatch: { bg: "#14161a", surface: "#1d2026", accent: "#6ea8d8" },
   },
 ];
 
 export const DEFAULT_DESIGN_THEME = "obsidyen";
+
+/**
+ * ŞABLON — ikinci bağımsız eksen (v2.6). `data-theme` rengi, `data-template`
+ * geometri/tipografi/gezinmeyi belirler; ikisi çarpılabilir (4 × 7 = 28).
+ * CSS karşılığı `src/templates.css`, seçim `setTemplate` ile `<html>`'e yazılır.
+ */
+export interface Template {
+  id: string;
+  label: string;
+  note: string;
+}
+
+export const TEMPLATES: Template[] = [
+  {
+    id: "bento",
+    label: "Bento",
+    note: "Mozaik kutular, en net hiyerarşi",
+  },
+  {
+    id: "sahne",
+    label: "Sahne",
+    note: "Cam yüzey + 3B derinlik",
+  },
+  {
+    id: "dergi",
+    label: "Dergi",
+    note: "Editoryal, serif, kâğıt hissi",
+  },
+  {
+    id: "konsol",
+    label: "Konsol",
+    note: "Enstrüman paneli, mono sayılar",
+  },
+];
+
+export const DEFAULT_TEMPLATE = "bento";

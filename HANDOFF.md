@@ -22,6 +22,54 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.6.0 TURU (2026-10-27) — "tasarım sistemi": 4 düzen × 7 palet
+
+**Kullanıcı:** *"senden bir öncekiler asla benzemeyen"* · *"en iyi landingpage gibi"* ·
+*"3b sahneli ama yormayan"* · birden fazla tasarım şablonu + renk kombinasyonu.
+
+**Karar (onaylı):** iki bağımsız eksen — `data-template` (4) × `data-theme` (7 palet).
+Varsayılan **bento**. `data-theme` sözleşmesi v2.4'ten beri korunuyor (kayıtlı ayar, QA,
+`[data-accent]` seçicileri, `drawChart` buna bağlı).
+
+**Yeni dosya: `src/templates.css`.** Şablon katmanı. Kural: burada **renk hex'i yok**;
+şablon blokları yalnız token yazar (`--card-r`, `--panel-pad`, `--num-font`, `--grain`,
+`--hero-glass-on`, `--hero-parallax`…), bileşen kuralları bu token'ları bir kez tüketir.
+`tools/check-tokens.mjs` hem hex yasağını hem 4×7 kontrastı ölçer — iddia test edilebilir
+hâle geldi.
+
+**Dört şablonun karakteri (kopyala-yapıştır değil, gerçekten farklı):**
+| | geometri | tipografi | gezinme | süs |
+|---|---|---|---|---|
+| bento | 2 sütun üst + 3 kart alt, kalın yarıçap (24) | sans, 60px | dolu çip dock | yüzey farkı |
+| sahne | tek kolon, cam plaka | sans, 64px/300 | yüzen cam dock | 3B paralaks + glow |
+| dergi | kart yok, hairline kurallar | **serif**, 84px italic alt satır | alt kural + sekme altı çizgi | kâğıt grain 0.03 |
+| konsol | 1px ızgara zemin, 3 sütun | **mono**, büyük harf etiket | bölmeli düz çubuk | LED noktası, motion 0 |
+
+**Dikey bütçe (PLAN-v3 §7) — asıl iş buradaydı.** İlk denemede Durum sayfası 183–454px
+kaydırıyordu. Ölçümle (QA `measure` çıktısı) sebep bulundu: hero+monitörler dikey
+yığıldığında 460px, alt sıra 470px, bütçe 578px. Çözüm: 1040px üstünde hero + monitörler
+**yan yana**, alt satırda üç kart yan yana (`.col-stack` → `display: contents`); kartlar
+kendi içinde kayar. Sonuç: **4 şablonun hepsi 0px**. ≤1020px'te tek kolona iner.
+
+**Yol boyunca bulunan gerçek hatalar (QA karelerinden, gözle):**
+1. **Toast düğmeyi süresiz kilitliyordu.** `#pf-save` 30 sn tıklanamadı: fare toast'ın
+   üstünde kaldıkça sayaç duruyor (WCAG 2.2.1), duraklama sınırsızdı. `MAX_PAUSE_MS=12s`
+   bekçisi eklendi. Bu bir QA artefaktı değil, gerçek kullanıcı hatasıydı.
+2. **Monitör adı "Gene..." diye kırpılıyordu** (sağ kolon 1040'ta ~%40). Dar kolonda iki
+   satırlık düzene geçildi; ≤1020'de tek satıra döner.
+3. **Konsol'da hero alt satırı kesiliyordu** (uppercase mono, `white-space:nowrap`).
+4. **Fildişi vurgusu AA altıydı** (`on-accent/accent` = 3.80). `#a8763c` → `#94632d` (4.95).
+   check-tokens bunu yakaladı.
+
+**Doğrulama:** `npm test` 12/12 · `check-tokens` **PASS** (7 palet, 28 ölçüm, 4 şablon) ·
+`cargo test` 193 · clippy 0 · fmt temiz · build temiz · QA **PASS** (28 matris + bütçe +
+760×600 taşma) · **32 kare gözle incelendi**.
+
+**Bilinçli ertelenen (v2.7):** tray flyout'un yeni dile taşınması, Geçmiş/Profiller/Ayarlar
+sayfalarının şablon duyarlı yerleşimi (bugün ortak token'larla giyiniyorlar), "ışığa göre
+görünüm" otomatiği (palet üçlüsü), gerçek WebGL sahne.
+
+
 ## V2.5.0 TURU (2026-10-27) — "güven": parlaklık düzensizliği + işlevsiz sıcak ton
 
 **Kullanıcı (birebir):** *"pek stabil çalışmıyor bazen durduk yere çok kısık bazen durduk

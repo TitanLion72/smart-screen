@@ -1232,6 +1232,10 @@ async function runTick(reason: string): Promise<void> {
     resetPending();
     S.freezeReason = "ekran kilitli";
     log("ekran kilitli — ayar yapılmadı", "warn");
+    // v2.6: bu tur da diske yazılır. Eskiden yazılmıyordu ve "24 saat log"
+    // kanıtı kilitli saatlerde tamamen kör kalıyordu (tur var, iz yok).
+    // Yalnız dosya yazımı — parlaklık/tema/gamma'ya dokunulmaz.
+    await diskLog("ekran kilitli", 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
     await refresh();
     return;
   }

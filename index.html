@@ -1,11 +1,17 @@
 <!doctype html>
 <!--
   ══════════════════════════════════════════════════════════════════════════
-  SÖZLEŞME v2.3 — smart-screen DOM sözleşmesi (3B sahne tasarımı)
+  SÖZLEŞME v2.6 — smart-screen DOM sözleşmesi (şablon × palet)
   ══════════════════════════════════════════════════════════════════════════
   Bu blok, `src/main.ts` + `src/panels.ts`'i yazacak ajanın tek kaynağıdır.
   Aşağıdaki her id bu dosyada TAM BİR KEZ bulunur; `el(id)` eksik id'de throw
   eder. Biçim:  #id | tür | amaç | etkileşim / beklenti
+
+  İKİ EKSEN (v2.6):
+  - `<html data-template>` = ŞABLON (bento · sahne · dergi · konsol) — geometri,
+    tipografi, gezinme biçimi. CSS: `src/templates.css`, JS: `panels.setTemplate`.
+  - `<html data-theme>`    = PALET (7 renk) — yalnız renk. CSS: `src/styles.css`.
+  İkisi serbestçe çarpılır; hiçbir bileşen kendi rengini seçmez.
 
   GENEL KURALLAR
   - Sekme sırası: Durum · Profiller · Geçmiş · Ayarlar. `.tab` düğmeleri
@@ -234,6 +240,10 @@
   #audit-refresh   | button     | "Yeniden ölç"                          | click → loadAudit()
   #gate-switch     | button.switch | "Okunaksız olanı otomatik seçimde engelle" | bindSwitch; aria-checked QA'da okunur
   #theme-picker    | div.chips  | güvenli tema çipleri (JS üretir)       | çip click → pickTheme(); .active = appliedKey
+  #template-picker | div.design-picker | şablon kartları (JS üretir, 4)   | .design-card[data-template] click → setTemplate(); data-template <html>
+  #design-picker   | div.design-picker | palet kartları (JS üretir, 7)    | .design-card[data-design] click → setDesignTheme(); data-theme <html>
+  #appearance-box  | div.panel-box | Ayarlar > Görünüm (Gelişmiş dışında) | içinde şablon + palet + vurgu seçicileri
+  #mast-date       | span.mast-date | dergi şablonunun masthead tarihi | text ("Cuma 27 Ekim"); yalnız dergi'de görünür
   #accent-picker   | div.accent-picker | vurgu rengi noktaları (JS üretir) | .swatch click → data-accent set
   #night-btn       | button     | "Windows gece ışığı"                   | click → Windows ayar sayfası açar
   #lic-box         | div.panel-box | lisans kartı                        | —
@@ -253,10 +263,11 @@
   "text"=yalnız JS textContent · "hidden"=JS .hidden toggler.
   ══════════════════════════════════════════════════════════════════════════
 -->
-<html lang="tr">
+<html lang="tr" data-template="bento" data-theme="obsidyen">
   <head>
     <meta charset="UTF-8" />
     <link rel="stylesheet" href="/src/styles.css" />
+    <link rel="stylesheet" href="/src/templates.css" />
     <link rel="stylesheet" href="/src/toast.css" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>smart-screen</title>
@@ -282,6 +293,7 @@
         <span id="break-pill" class="badge muted">20-20-20</span>
         <span id="mode-badge" class="badge">Hazırlanıyor</span>
         <span id="clock" class="clock">--:--</span>
+        <span id="mast-date" class="mast-date" aria-hidden="true"></span>
         <span class="ver">v<span id="app-ver">-</span></span>
       </header>
 
@@ -681,6 +693,25 @@
             </div>
           </div>
 
+          <!-- v2.6: Görünüm artık Gelişmiş'in içinde değil — ürünün kimliği
+               burada (4 düzen × 7 palet). Gelişmiş'te kalırsa kimse bulamaz. -->
+          <div class="panel-box" id="appearance-box">
+            <div class="box-title">Görünüm</div>
+            <div class="field">
+              <span class="field-label">Düzen</span>
+              <div class="design-picker template-picker" id="template-picker" role="group" aria-label="Şablon"></div>
+              <div class="hint">Düzen geometriyi, görünüm renkleri değiştirir — ikisi serbestçe birleşir.</div>
+            </div>
+            <div class="field">
+              <span class="field-label">Renkler</span>
+              <div class="design-picker" id="design-picker" role="group" aria-label="Görünüm teması"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">Vurgu rengi</span>
+              <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
+            </div>
+          </div>
+
           <details class="panel-box advanced" id="advanced">
             <summary class="box-title">Gelişmiş</summary>
             <div class="advanced-body">
@@ -708,16 +739,6 @@
               <div class="box-title sub">Tema ve güvenlik</div>
               <div class="chips" id="theme-picker" role="group" aria-label="Güvenli temalar"></div>
               <div class="hint">Dışarıdan riskli tema seçilirse Durum'da uyarı çıkar.</div>
-
-              <div class="field">
-                <span class="field-label">Görünüm</span>
-                <div class="design-picker" id="design-picker" role="group" aria-label="Görünüm teması"></div>
-              </div>
-
-              <div class="field">
-                <span class="field-label">Vurgu rengi</span>
-                <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
-              </div>
 
               <div class="toolbar">
                 <button id="night-btn" class="btn-toggle" type="button">Windows gece ışığı</button>

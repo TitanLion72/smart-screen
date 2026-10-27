@@ -13,10 +13,12 @@
 import {
   ACCENTS,
   DEFAULT_DESIGN_THEME,
+  DEFAULT_TEMPLATE,
   DESIGN_THEMES,
   MODE_LABEL,
   MODE_OPTIONS,
   SOURCE_OPTIONS,
+  TEMPLATES,
   THEMES,
 } from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
@@ -186,6 +188,60 @@ function syncThemeChips(): void {
   document.querySelectorAll<HTMLButtonElement>("#theme-picker .chip").forEach((b) => {
     b.classList.toggle("active", S.appliedKey === `${b.dataset.name}|${b.dataset.mode}`);
   });
+}
+
+// ---------- şablon (v2.6, ikinci eksen) ----------
+
+/**
+ * `<html data-template>` yazar + kalıcılaştırır. Şablon yalnız geometri,
+ * tipografi ve gezinmeyi değiştirir; renk `data-theme` paletinden gelir.
+ */
+export function setTemplate(id: string): void {
+  const valid = TEMPLATES.some((t) => t.id === id) ? id : DEFAULT_TEMPLATE;
+  document.documentElement.dataset.template = valid;
+  setSetting("template", valid);
+  el("template-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
+    const on = b.dataset.template === valid;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("active", on);
+  });
+}
+
+/** Açılışta kaydedilmiş şablonu uygular (varsayılan bento). */
+export function initTemplate(): void {
+  const saved = getSetting("template", DEFAULT_TEMPLATE);
+  const valid = TEMPLATES.some((t) => t.id === saved) ? saved : DEFAULT_TEMPLATE;
+  document.documentElement.dataset.template = valid;
+}
+
+function renderTemplates(): void {
+  const host = el("template-picker");
+  host.replaceChildren();
+  const current = document.documentElement.dataset.template ?? DEFAULT_TEMPLATE;
+  for (const t of TEMPLATES) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "design-card template-card";
+    b.dataset.template = t.id;
+    b.title = t.note;
+    b.setAttribute("aria-label", `${t.label} — ${t.note}`);
+    b.setAttribute("aria-pressed", t.id === current ? "true" : "false");
+    if (t.id === current) b.classList.add("active");
+
+    // İskelet önizleme: şablonun kendi geometrisini 3-4 blokla anlatır.
+    const sk = document.createElement("span");
+    sk.className = `tpl-skel tpl-${t.id}`;
+    sk.setAttribute("aria-hidden", "true");
+    sk.append(document.createElement("i"), document.createElement("i"), document.createElement("i"));
+
+    const label = document.createElement("span");
+    label.className = "design-label";
+    label.textContent = t.label;
+
+    b.append(sk, label);
+    b.addEventListener("click", () => setTemplate(t.id));
+    host.append(b);
+  }
 }
 
 // ---------- tasarım teması (görünüm) ----------
@@ -817,6 +873,13 @@ function renderQuickbar(): void {
     ? hhmm(new Date(S.lastMeasureAt))
     : "-";
   el("clock").textContent = hhmm(new Date());
+  // v2.6: dergi şablonunun masthead tarihi. Yalnız o şablonda görünür
+  // (CSS `display`), ama içerik her şablonda doğru kalsın diye yazılır.
+  el("mast-date").textContent = new Intl.DateTimeFormat("tr-TR", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  }).format(new Date());
 }
 
 // ---------- sıcak ton bölümü ----------
@@ -1123,6 +1186,8 @@ export function bootWidgets(): void {
   renderThemePicker();
   renderAccents();
   renderDesignThemes();
+  initTemplate();
+  renderTemplates();
   renderAudit();
   buildModeCards();
   syncThemeChips();

@@ -44,4 +44,8 @@ jobs:
         with:
           node-version: 20
       - run: npm.cmd install
+      - name: Birim testleri (karar motoru)
+        run: npm.cmd test
+      - name: Tasarım token'lari (hex yasagi + kontrast)
+        run: npm.cmd run check:tokens
       - run: npm.cmd run build

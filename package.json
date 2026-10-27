@@ -1,13 +1,14 @@
 {
   "name": "smart-screen",
   "private": true,
-  "version": "2.5.0",
+  "version": "2.6.0",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "node --test src/engine.test.ts",
+    "check:tokens": "node tools/check-tokens.mjs",
     "preview": "vite preview",
     "tauri": "tauri"
   },

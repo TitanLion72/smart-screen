@@ -15,6 +15,43 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.6.0] - 2026-10-27
+
+Kullanıcı: *"senden bir öncekiler asla benzemeyen"*, *"en iyi landingpage gibi"*,
+*"3B sahneli ama yormayan"*, **birden fazla tasarım şablonu + renk kombinasyonu**.
+Bu sürüm görünümü iki bağımsız eksene ayırır: **4 düzen × 7 palet = 28 görünüm**,
+hepsi aynı DOM üzerinde.
+
+### Added
+- **4 düzen (şablon).** Ayarlar › Görünüm'den seçilir, `data-template` ile `<html>`'e
+  yazılır, kalıcıdır. Varsayılan **Bento**.
+  - **Bento** — asimetrik mozaik, dolu yüzeyler, kalın yarıçap; 1040×740'ta Durum
+    sayfası **kaydırmıyor** (hero + monitörler yan yana, altta üç kart).
+  - **Sahne** — cam hero + 3B paralaks + yüzen dock (v2.3'ün rafine hâli).
+  - **Dergi** — masthead, serifdisplay, kart yok yalnız hairline kurallar, kâğıt dokusu,
+    üst hizalı ince gezinme.
+  - **Konsol** — mono readout, 1px ızgara, LED noktaları, hareket yok.
+- **2 yeni palet:** **Kâğıt** (nötr sıcak açık + kiremit) ve **Grafit** (nötr soğuk
+  koyu + gök mavisi). Toplam 7 palet.
+- **Şablon seçici** (Ayarlar › Görünüm): her kart şablonun geometrisini 3 blokla
+  gösteren iskelet önizleme taşır.
+- **`tools/check-tokens.mjs`** — tasarım sisteminin bekçisi: bileşen katmanında
+  (`templates.css`) ham renk yasak, 7 paletin 4 kritik kontrast oranı WCAG 2.1 ile
+  ölçülür. `npm run check:tokens`, CI'da çalışır.
+
+### Changed
+- **Görünüm artık Gelişmiş'in içinde değil.** Ürünün kimliği oradaydı ama kapalı bir
+  `<details>` içinde saklıydı; kimse bulamıyordu. Ayarlar sayfasında kendi kartına taşındı.
+- **Fildişi paletinin vurgusu koyulaştırıldı** (`#a8763c` → `#94632d`): beyaz metinle
+  oranı 3.80 idi, AA sınırı 4.5'in altında. Artık 4.95.
+- Durum sayfası 1040×740'ta kaydırmıyor; kartlar kendi içinde kayar, tam liste Geçmiş'te.
+- Monitör satırı dar kolonda iki satıra iner (ad kırpılması bitti: "Generic PnP Monitor").
+
+### Fixed
+- **Toast bir düğmenin üstüne denk gelince onu süresiz kilitliyordu.** Fare toast'ın
+  üzerinde durdukça sayaç duruyordu (WCAG 2.2.1 gereği) ama duraklama sınırsızdı;
+  altındaki düğme tıklanamıyordu. Artık duraklama en fazla 12 saniye.
+
 ## [2.5.0] - 2026-10-27
 
 Kullanıcı iki şeyi net söyledi: *"pek stabil çalışmıyor, bazen durduk yere çok kısık bazen

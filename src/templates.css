@@ -1,0 +1,962 @@
+/* ════════════════════════════════════════════════════════════════════
+   smart-screen — şablon katmanı v2.6 (src/templates.css)
+
+   İKİ BAĞIMSIZ EKSEN:
+     data-theme    → PALET (renk). 7 palet, palet blokları `styles.css`'te.
+     data-template → ŞABLON (geometri + tipografi + gezinme). Bu dosya.
+
+   `data-theme` sözleşmesi v2.4'ten beri korunuyor; `data-template` yeni.
+   `<html data-template="bento" data-theme="obsidyen">` — JS `setTemplate` yazar.
+
+   KURAL: bu dosyada renk HEX'i YOKTUR. Renk yalnız paletten (var(--...))
+   veya `color-mix()` ile türetilir. `tools/check-tokens.mjs` bunu denetler.
+   İstisna: fiziksel ölçek gradyanları (gün çizgisi, Kelvin şeridi) palete
+   bağlı değildir — onlar `styles.css`'te `physical:` işaretiyle durur.
+
+   DÖRT ŞABLON (hepsi aynı DOM'u giyer):
+     sahne  — mevcut dil: cam hero, 3B paralaks, yüzen dock. "maksimum ifade"
+     dergi  — editoryal: masthead, serif display, kart yok, hairline kurallar
+     konsol — enstrüman: mono readout, 1px ızgara, LED, motion ≈ 0
+     bento  — mozaik: asimetrik 4 kutu, dolu yüzey, kalın yarıçap (VARSAYILAN)
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── yeni token'lar (tüm şablonların ortak sözlüğü) ─────────────────── */
+:root {
+  /* şablonun karakteri: yarıçap, iç boşluk, aralık */
+  --card-r: var(--r-lg);
+  --panel-pad: var(--sp-5);
+  --panel-gap: var(--sp-5);
+  /* panel yüzeyi: şablon "kart" mı "kural" mı istiyor */
+  --panel-bg: var(--surface-1);
+  --panel-border: 1px solid var(--border-subtle);
+  --panel-shadow: var(--shadow-1), var(--inner-top);
+  --panel-rule: 0;
+  /* tipografi */
+  --display-font: var(--font-sans);
+  --num-font: var(--font-sans);
+  --num-weight: 300;
+  --num-tracking: -2px;
+  --label-track: 0.14em;
+  /* çatı ölçüleri */
+  --topbar-h: 52px;
+  --dock-h: 40px;
+  --hero-h: auto;
+  /* doku: 0 = temiz, 1 = tam grain */
+  --grain: 0;
+  /* hero süsleri: 1 = açık, 0 = kapalı (şablon kapatır) */
+  --hero-glass-on: 1;
+  --hero-parallax: 1;
+  /* eğri/ışıma renk rampası — palet override eder, bileşen hex içermez */
+  --curve-a: var(--accent);
+  --curve-b: color-mix(in srgb, var(--accent) 55%, var(--text-1));
+  --curve-c: color-mix(in srgb, var(--accent) 28%, transparent);
+  --glow-a: color-mix(in srgb, var(--accent) 18%, transparent);
+  --glow-b: color-mix(in srgb, var(--accent) 4%, transparent);
+}
+
+/* ── 1) SAHNE — bugünkü dilin rafine hâli ──────────────────────────── */
+[data-template="sahne"] {
+  --card-r: var(--r-lg);
+  --panel-pad: var(--sp-5);
+  --panel-gap: var(--sp-5);
+  --hero-fs: 64px;
+  --num-weight: 300;
+  --num-tracking: -2px;
+  --label-track: 0.14em;
+  --topbar-h: 52px;
+  --dock-h: 40px;
+  --hero-glass-on: 1;
+  --hero-parallax: 1;
+  --grain: 0;
+}
+
+/* ── 2) DERGI — editoryal, kâğıt hissi ─────────────────────────────── */
+[data-template="dergi"] {
+  --card-r: 2px;
+  --panel-pad: 18px;
+  --panel-gap: var(--sp-5);
+  --hero-fs: 72px;
+  --display-font: Georgia, "Cambria", "Times New Roman", serif;
+  --num-font: Georgia, "Cambria", "Times New Roman", serif;
+  --num-weight: 400;
+  --num-tracking: -1.5px;
+  --label-track: 0.2em;
+  --topbar-h: 56px;
+  --dock-h: 36px;
+  --panel-bg: transparent;
+  --panel-border: 0;
+  --panel-shadow: none;
+  --panel-rule: 1px;
+  --hero-glass-on: 0;
+  --hero-parallax: 0;
+  --grain: 0.03;
+  --r-sm: 2px;
+  --r-md: 2px;
+  --r-lg: 2px;
+}
+
+/* ── 3) KONSOL — enstrüman paneli ──────────────────────────────────── */
+[data-template="konsol"] {
+  --card-r: 4px;
+  --panel-pad: var(--sp-4);
+  --panel-gap: var(--sp-3);
+  --hero-fs: 56px;
+  --display-font: var(--font-mono);
+  --num-font: var(--font-mono);
+  --num-weight: 500;
+  --num-tracking: -1px;
+  --label-track: 0.08em;
+  --topbar-h: 44px;
+  --dock-h: 34px;
+  --panel-bg: var(--bg-1);
+  --panel-border: 1px solid var(--border-standard);
+  --panel-shadow: none;
+  --panel-rule: 0;
+  --hero-glass-on: 0;
+  --hero-parallax: 0;
+  --grain: 0;
+  --r-sm: 4px;
+  --r-md: 4px;
+  --r-lg: 4px;
+  --dur-1: 0ms;
+  --dur-2: 0ms;
+  --dur-in: 0ms;
+  --dur-out: 0ms;
+}
+
+/* ── 4) BENTO — mozaik (varsayılan) ────────────────────────────────── */
+[data-template="bento"] {
+  --card-r: 24px;
+  --panel-pad: var(--sp-5);
+  --panel-gap: var(--sp-4);
+  --hero-fs: 60px;
+  --num-weight: 300;
+  --num-tracking: -2.5px;
+  --label-track: 0.12em;
+  --topbar-h: 44px;
+  --dock-h: 44px;
+  --panel-bg: var(--surface-2);
+  --panel-border: 1px solid var(--border-subtle);
+  --panel-shadow: none;
+  --panel-rule: 0;
+  --hero-glass-on: 0;
+  --hero-parallax: 0;
+  --grain: 0;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ORTAK UYGULAMA — token'ları gerçek bileşenlere bağlar.
+   Şablon blokları token yazar; burada tek kez tüketilir.
+   ════════════════════════════════════════════════════════════════════ */
+
+.topbar {
+  height: var(--topbar-h);
+}
+
+.page {
+  gap: var(--panel-gap);
+}
+
+.panel-box {
+  background: var(--panel-bg);
+  border: var(--panel-border);
+  border-radius: var(--card-r);
+  box-shadow: var(--panel-shadow);
+  padding: var(--panel-pad);
+}
+
+.box-title,
+.card-label {
+  letter-spacing: var(--label-track);
+}
+
+.hero {
+  border-radius: var(--card-r);
+  /* paralaks yalnız sahne'de: diğer şablonlarda dönüş yok */
+  transform: rotateX(calc(var(--my) * -2deg * var(--hero-parallax)))
+    rotateY(calc(var(--mx) * 3deg * var(--hero-parallax)));
+}
+
+.hero-glass {
+  border-radius: var(--card-r);
+  opacity: var(--hero-glass-on);
+}
+
+.hero-glow {
+  border-radius: var(--card-r);
+}
+
+.hero-num {
+  font-family: var(--num-font);
+  font-weight: var(--num-weight);
+  letter-spacing: var(--num-tracking);
+}
+
+.dock .tab {
+  height: var(--dock-h);
+}
+
+/* Kâğıt dokusu: yarı saydam nokta DesenSVG — yalnız --grain > 0 olan şablonda */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E");
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ŞABLON YAPISAL FARKLARI
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── DERGI: masthead + serif headline + kart yok, kural var ─────────── */
+
+[data-template="dergi"] body {
+  background: var(--bg-0);
+}
+
+[data-template="dergi"] .topbar {
+  background: transparent;
+  border-bottom: 2px solid var(--border-strong);
+  padding-inline: var(--sp-6);
+}
+
+[data-template="dergi"] .brand-name {
+  font-family: var(--display-font);
+  font-size: 15px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-1);
+}
+
+[data-template="dergi"] .brand-sub {
+  display: none;
+}
+
+/* Masthead tarihi: yalnız dergi'de görünür (SÖZLEŞME: #mast-date) */
+.mast-date {
+  display: none;
+  font-family: var(--display-font);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text-2);
+}
+
+[data-template="dergi"] .mast-date {
+  display: inline;
+}
+
+[data-template="dergi"] .app {
+  perspective: none;
+}
+
+[data-template="dergi"] .hero {
+  background: transparent;
+  border-bottom: 2px solid var(--border-strong);
+  border-radius: 0;
+  padding-bottom: var(--sp-3);
+}
+
+[data-template="dergi"] .hero-glow,
+[data-template="dergi"] .hero-glass,
+[data-template="dergi"] .hero-shine {
+  display: none;
+}
+
+[data-template="dergi"] .hero-body {
+  padding: var(--sp-2) 0 var(--sp-3);
+  align-items: end;
+}
+
+[data-template="dergi"] .hero-text {
+  gap: 6px;
+}
+
+[data-template="dergi"] .card-label {
+  color: var(--accent);
+}
+
+[data-template="dergi"] .hero-num {
+  /* display ölçeği: sayfanın tek kahramanı */
+  font-size: clamp(56px, 9vw, 84px);
+  line-height: 0.95;
+}
+
+[data-template="dergi"] .hero-sub {
+  font-family: var(--display-font);
+  font-size: 16px;
+  font-style: italic;
+  color: var(--text-2);
+}
+
+[data-template="dergi"] .hero-why {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+[data-template="dergi"] .panel-box {
+  border-top: 1px solid var(--border-standard);
+  border-radius: 0;
+  padding: var(--panel-pad) 0 0;
+}
+
+[data-template="dergi"] .panel-box.inner {
+  border-top: 0;
+  padding: 0;
+}
+
+[data-template="dergi"] .box-title {
+  color: var(--text-1);
+  font-family: var(--display-font);
+  font-size: 12px;
+  font-variant: small-caps;
+  text-transform: none;
+  letter-spacing: 0.1em;
+}
+
+[data-template="dergi"] .box-title::before {
+  display: none;
+}
+
+[data-template="dergi"] .asym {
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: var(--sp-6);
+}
+
+/* nav: yüzen çip değil, alt hizalı ince kural çubuğu */
+[data-template="dergi"] .dock {
+  align-self: stretch;
+  margin: 0;
+  padding: 0 var(--sp-6);
+  gap: var(--sp-5);
+  border-radius: 0;
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 0;
+  border-top: 1px solid var(--border-standard);
+  box-shadow: none;
+  height: calc(var(--dock-h) + 8px);
+}
+
+[data-template="dergi"] .dock .tab {
+  padding: 0 2px;
+  border-radius: 0;
+  color: var(--text-3);
+  font-family: var(--display-font);
+  font-size: 12px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+[data-template="dergi"] .dock .tab:hover {
+  background: transparent;
+  color: var(--text-1);
+}
+
+[data-template="dergi"] .dock .tab.active {
+  background: transparent;
+  color: var(--text-1);
+  transform: none;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+[data-template="dergi"] .dock .tab.active:focus-visible {
+  outline-color: var(--accent);
+}
+
+[data-template="dergi"] .tab-ic {
+  display: none;
+}
+
+[data-template="dergi"] .dock .tab:first-child {
+  margin-left: 0;
+}
+
+[data-template="dergi"] .dock::before {
+  content: "";
+  flex: 1;
+}
+
+/* ── KONSOL: readout + 1px ızgara + mono ───────────────────────────── */
+
+[data-template="konsol"] body {
+  background:
+    linear-gradient(to right, var(--border-subtle) 1px, transparent 1px) 0 0 / 32px 100%,
+    var(--bg-0);
+}
+
+[data-template="konsol"] .app {
+  perspective: none;
+}
+
+[data-template="konsol"] .topbar {
+  background: var(--bg-1);
+  border-bottom: 1px solid var(--border-standard);
+  gap: var(--sp-3);
+}
+
+[data-template="konsol"] .brand-name,
+[data-template="konsol"] .brand-sub {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+[data-template="konsol"] .brand-mark {
+  border-radius: 2px;
+}
+
+[data-template="konsol"] .hero {
+  background: var(--bg-1);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--card-r);
+  /* readout: sol kenarda LED şerit */
+  padding-left: var(--sp-4);
+  border-left: 3px solid var(--accent);
+}
+
+[data-template="konsol"] .hero-glow,
+[data-template="konsol"] .hero-glass,
+[data-template="konsol"] .hero-shine {
+  display: none;
+}
+
+[data-template="konsol"] .hero-body {
+  padding: var(--sp-4) var(--sp-4) var(--sp-4) var(--sp-2);
+  align-items: center;
+  gap: var(--sp-5);
+}
+
+[data-template="konsol"] .card-label {
+  font-family: var(--font-mono);
+  color: var(--accent);
+  font-size: 10px;
+}
+
+[data-template="konsol"] .hero-num {
+  font-size: var(--hero-fs);
+  letter-spacing: -1px;
+}
+
+[data-template="konsol"] .hero-value .dot {
+  border-radius: 2px;
+  width: 8px;
+  height: 8px;
+}
+
+[data-template="konsol"] .hero-sub {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-2);
+}
+
+/* 1040×740'ta hero hücresi dikeyde geniş: readout üstte dursun, altında
+   boş bir uçurum kalmasın (ilk hâlde eğri tepede, alt yarısı boştu). */
+[data-template="konsol"] #page-panel .hero-body {
+  align-content: center;
+}
+
+[data-template="konsol"] #page-panel .hero-sub {
+  white-space: normal;
+  text-transform: none;
+  letter-spacing: 0.02em;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+[data-template="konsol"] .hero-why {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+[data-template="konsol"] .box-title {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+}
+
+[data-template="konsol"] .box-title::before {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
+  opacity: 1;
+}
+
+[data-template="konsol"] .panel-box {
+  gap: var(--sp-2);
+}
+
+[data-template="konsol"] .st-row,
+[data-template="konsol"] .monitor-row {
+  border-color: var(--border-standard);
+}
+
+[data-template="konsol"] .dock {
+  align-self: center;
+  gap: 0;
+  padding: 0;
+  border-radius: var(--card-r);
+  background: var(--bg-1);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-standard);
+  box-shadow: none;
+}
+
+[data-template="konsol"] .dock .tab {
+  border-radius: 0;
+  padding: 0 var(--sp-4);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  border-right: 1px solid var(--border-subtle);
+}
+
+[data-template="konsol"] .dock .tab:last-child {
+  border-right: 0;
+}
+
+[data-template="konsol"] .dock .tab.active {
+  background: transparent;
+  color: var(--accent);
+  transform: none;
+  box-shadow: inset 0 -2px 0 var(--accent);
+}
+
+[data-template="konsol"] .dock .tab.active:focus-visible {
+  outline-color: var(--accent);
+  outline-offset: -4px;
+}
+
+[data-template="konsol"] .page:not([hidden]) {
+  animation: none;
+}
+
+/* ── BENTO: asimetrik mozaik, kaydırmasız ──────────────────────────── */
+
+[data-template="bento"] body {
+  background:
+    radial-gradient(760px 420px at 78% -180px, var(--glow-b), transparent 70%),
+    var(--bg-0);
+}
+
+[data-template="bento"] .app {
+  perspective: none;
+}
+
+[data-template="bento"] .topbar {
+  background: transparent;
+  border-bottom: 0;
+  padding-inline: var(--sp-5);
+}
+
+[data-template="bento"] .stage {
+  padding: var(--sp-3) var(--sp-5) 0;
+}
+
+/* Bento: yalnız görsel dil (dolu yüzey, kalın yarıçap, cam yok).
+   Yerleşim ortak `#page-panel` ızgarasından gelir. */
+[data-template="bento"] .hero {
+  background: var(--panel-bg);
+  border: var(--panel-border);
+  border-radius: var(--card-r);
+  overflow: hidden;
+}
+
+[data-template="bento"] .hero-glow {
+  opacity: 0.85;
+  filter: blur(30px);
+}
+
+[data-template="bento"] .hero-glass {
+  display: none;
+}
+
+[data-template="bento"] .hero-body {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: space-between;
+  align-items: stretch;
+  gap: var(--sp-3);
+  padding: var(--panel-pad);
+  height: 100%;
+}
+
+[data-template="bento"] .hero-text {
+  gap: 6px;
+}
+
+[data-template="bento"] .hero-curve-side {
+  min-width: 0;
+}
+
+[data-template="bento"] .hero-num {
+  font-size: clamp(48px, 6vw, var(--hero-fs));
+}
+
+[data-template="bento"] .panel-box {
+  overflow: hidden;
+}
+
+[data-template="bento"] .dock {
+  margin: 6px auto 16px;
+  padding: 6px;
+  border-radius: var(--r-pill);
+  background: var(--surface-2);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid var(--border-subtle);
+  box-shadow: none;
+}
+
+[data-template="bento"] .dock .tab.active {
+  transform: none;
+  box-shadow: none;
+}
+
+[data-template="bento"] .page:not([hidden]) {
+  animation: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-template="sahne"] .hero {
+    transform: none;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DURUM SAYFASI DİKEY BÜTÇESİ (PLAN-v3 §7)
+
+   1040×740'ta sayfa kaydırmamalı. Bugünkü DOM'da ikinci sıra tek kolonda
+   iki kart üst üste (olay akışı + otomatik ayar) + yanda durum kartı =
+   ~470px; hero+monitörler ~260px → toplam 1032px, bütçe 578px. Kırpma ya
+   da sayfa kaydırması kaçınılmazdı.
+
+   Çözüm: `.col-stack` `display: contents` olur, üç kart YAN YANA gelir.
+   Bilgi kaybı yok, sıra değişmiyor (okuma sırası: akış → otomatik → durum).
+   Kartlar kendi içinde kaydırır; sayfa kaydırmaz.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* Dar bütçe: Durum sayfası 740px'e sığsın diye iç boşluk ve satır
+   yükseklikleri bir kademe küçültülür (diğer sayfalar ferah kalır). */
+#page-panel {
+  --panel-pad: 16px;
+  --panel-gap: 16px;
+  /* Satırlar BOUNDED: sayfa kaydırmaz, kart kendi içinde kaydırır.
+     Üst satır hero + monitörler YAN YANA: dikeyde ~180px tasarruf,
+     alt satırdaki üç karta yer açar (1040×740 bütçesi). */
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-areas:
+    "hero monitors"
+    "asym asym";
+  gap: var(--panel-gap);
+  overflow: hidden;
+}
+
+#page-panel > .hero {
+  grid-area: hero;
+  min-height: 0;
+}
+
+#page-panel > #monitor-box {
+  grid-area: monitors;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+#page-panel > .asym {
+  grid-area: asym;
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+  align-items: stretch;
+  gap: var(--panel-gap);
+  min-height: 0;
+}
+
+#page-panel .asym > .col-stack {
+  display: contents;
+}
+
+#page-panel .asym > .span-side {
+  grid-column: auto;
+}
+
+#page-panel .asym .panel-box {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+#page-panel .log {
+  max-height: none;
+  flex: 1 1 auto;
+  min-height: 66px;
+}
+
+#page-panel .hero-body {
+  padding: var(--sp-4) var(--sp-5);
+  gap: var(--sp-4);
+}
+
+#page-panel .hero-curve-side svg {
+  max-height: 56px;
+}
+
+#page-panel .panel-box {
+  gap: var(--sp-2);
+}
+
+#page-panel .box-title {
+  font-size: 10px;
+}
+
+#page-panel .st-row {
+  padding: 6px 0;
+}
+
+#page-panel .monitor-row {
+  padding: 6px 0;
+}
+
+#page-panel .seg-item {
+  height: 30px;
+}
+
+#page-panel .hero-sub,
+#page-panel .hero-why {
+  font-size: 13px;
+}
+
+/* Hero alt satırı hiçbir şablonda kırpılmasın (konsol'da uppercase mono
+   yüzünden "%30 · 17:00'da değişecek" kesiliyordu). */
+#page-panel .hero-sub {
+  white-space: normal;
+  text-overflow: clip;
+}
+
+/* Monitör notu ("dahili panel programla / harici kendi ayarı") satır başına
+   zaten yazılıyor; Durum'da ikinci kez yer kaplamasın. */
+#page-panel #monitor-mode-note {
+  display: none;
+}
+
+/* Durum kartının alt satırları ikincil: 740px'te bir kademe küçülür. */
+#page-panel .st-sub {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* Monitör satırı: sağ kolon dar (1040×740'ta ~%40). Tek satırda ad + iki
+   rozet + yüzde sığmıyor, ad "Gene..." diye kırpılıyordu. İki satıra al:
+   üstte ad ve yüzde, altta rozetler. Bilgi kaybı yok.
+   YALNIZ geniş pencerede: ≤1020'de tek kolon var, tek satır düzeni sığıyor. */
+@media (min-width: 1021px) {
+  #page-panel .monitor-row {
+    grid-template-columns: minmax(0, 1fr) auto 48px;
+    grid-template-areas:
+      "name name val"
+      "kind ct   err";
+    row-gap: 3px;
+    align-items: baseline;
+    padding: 6px;
+  }
+
+  #page-panel .mon-name {
+    grid-area: name;
+  }
+
+  #page-panel .monitor-row > .badge {
+    grid-area: kind;
+  }
+
+  #page-panel .monitor-row > .ct-badge {
+    grid-area: ct;
+  }
+
+  #page-panel .mon-val {
+    grid-area: val;
+  }
+
+  #page-panel .mon-err {
+    grid-area: err;
+  }
+}
+
+#page-panel .monitor-row [grid-area="err"]:empty {
+  display: none;
+}
+
+/* Üç kolonda "Tümü → Geçmiş" satırı sığsın: ipucunu kısalt, düğme küçül. */
+#page-panel .asym .toolbar {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ŞABLON SEÇİCİ — Ayarlar > Düzen
+   Her kart şablonun gerçek geometrisini 3 blokla gösterir; renk paletten
+   gelir (kart kendi paletini taklit etmez, palet kartı ayrı).
+   ════════════════════════════════════════════════════════════════════ */
+
+.template-picker {
+  grid-template-columns: repeat(auto-fit, minmax(104px, 1fr));
+}
+
+.template-card {
+  min-height: 84px;
+  gap: 6px;
+  padding: 7px;
+}
+
+.tpl-skel {
+  display: grid;
+  gap: 3px;
+  height: 36px;
+  flex: none;
+  padding: 4px;
+  border-radius: 5px;
+  background: var(--bg-2);
+  border: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+
+.tpl-skel i {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  background: var(--border-strong);
+}
+
+/* sahne: geniş hero + iki alt kutu, yuvarlak */
+.tpl-sahne {
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1.5fr 1fr;
+}
+
+.tpl-sahne i {
+  border-radius: 4px;
+}
+
+.tpl-sahne i:first-child {
+  grid-column: 1 / -1;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-ring);
+}
+
+/* dergi: masthead kuralı + tek sütun metin satırları, keskin */
+.tpl-dergi {
+  grid-template-columns: 1fr;
+  grid-template-rows: 1px 1.6fr 1fr 1px;
+  gap: 4px;
+  padding: 5px 6px;
+}
+
+.tpl-dergi i {
+  border-radius: 0;
+  background: var(--border-standard);
+}
+
+.tpl-dergi i:nth-child(2) {
+  background: var(--accent-soft);
+}
+
+/* konsol: üç eşit sütun, ızgara çizgileri */
+.tpl-konsol {
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr;
+  gap: 2px;
+  border-radius: 2px;
+  background: var(--bg-1);
+}
+
+.tpl-konsol i {
+  border-radius: 1px;
+  background: transparent;
+  border: 1px solid var(--border-standard);
+}
+
+.tpl-konsol i:first-child {
+  border-left: 2px solid var(--accent);
+}
+
+/* bento: 2×2 mozaik, kalın yarıçap, dolu yüzey */
+.tpl-bento {
+  grid-template-columns: 1.2fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  background: transparent;
+  border: 0;
+}
+
+.tpl-bento i {
+  border-radius: 6px;
+  background: var(--surface-3);
+}
+
+.tpl-bento i:first-child {
+  background: var(--accent-soft);
+}
+
+.template-card .design-label {
+  font-size: 11px;
+}
+
+
+/* ════════════════════════════════════════════════════════════════════
+   DAR PENCERE (≤1020px) — Durum sayfası tek kolona iner.
+   Dosyanın SONUNDA olmalı: yukarıdaki #page-panel ızgara kuralını ezmeli.
+   Kart içi kaydırma yalnız geniş pencerede anlamlı.
+   ════════════════════════════════════════════════════════════════════ */
+@media (max-width: 1020px) {
+  #page-panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  #page-panel > .hero,
+  #page-panel > #monitor-box,
+  #page-panel > .asym {
+    flex: none;
+  }
+
+  #page-panel > #monitor-box {
+    overflow: visible;
+  }
+
+  #page-panel > .asym {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  #page-panel .asym > .col-stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--panel-gap);
+  }
+
+  #page-panel .asym .panel-box {
+    overflow: visible;
+  }
+
+  /* Tek kolonda monitör satırı eski tek satır düzenine döner: yer var. */
+  #page-panel .monitor-row {
+    grid-template-columns: minmax(0, 1fr) auto auto 52px minmax(0, 1.1fr);
+    grid-template-areas: none;
+    row-gap: 0;
+  }
+
+  #page-panel .monitor-row > * {
+    grid-area: auto;
+  }
+}

@@ -30,6 +30,17 @@ const DEFAULT_MS: Record<"ok" | "info" | "err", number> = {
 // ikiden fazlası kuyruğa girer, ekran nefes alır.
 const MAX_VISIBLE = 2;
 
+/**
+ * v2.6: DOM'u kilitleyen toast.
+ *
+ * Kural (HANDOFF v2.2): hover/focus sayacı durdurur (WCAG 2.2.1). Ama toast
+ * kalıcı bir düğmenin üstüne denk gelirse kullanıcı fareyi oradan geçirmeden
+ * tıklayamıyor, sayaç hiç işlemiyor → düğme süresiz kilitleniyordu (QA'da
+ * `#pf-save` tam olarak böyle 30 sn boyunca tıklanamadı). Bu yüzden duraklama
+ * artık SINIRSIZ değil: en fazla bu kadar sonra toast kapanır.
+ */
+const MAX_PAUSE_MS = 12_000;
+
 type Tone = "ok" | "info" | "err" | "busy";
 
 interface Live {
@@ -38,6 +49,8 @@ interface Live {
   remain: number;
   deadline: number;
   timer: number | null;
+  /** Hover/focus duraklatmasının sınırsız kalmaması için bekçi zamanlayıcı. */
+  pauseGuard: number | null;
   paused: boolean;
   indefinite: boolean;
   mounted: boolean;
@@ -95,11 +108,21 @@ function pauseTimer(t: Live): void {
   t.timer = null;
   t.remain = Math.max(0, t.deadline - Date.now());
   t.paused = true;
+  // Bekçi: fare toast'ın üstünde kalsa bile bir noktadan sonra kapanır.
+  if (t.pauseGuard !== null) window.clearTimeout(t.pauseGuard);
+  t.pauseGuard = window.setTimeout(() => {
+    t.pauseGuard = null;
+    if (!t.closed) close(t);
+  }, MAX_PAUSE_MS);
 }
 
 function resumeTimer(t: Live): void {
   if (t.indefinite || !t.paused || t.closed) return;
   t.paused = false;
+  if (t.pauseGuard !== null) {
+    window.clearTimeout(t.pauseGuard);
+    t.pauseGuard = null;
+  }
   armTimer(t);
 }
 
@@ -135,6 +158,7 @@ function close(t: Live): void {
   if (t.closed) return;
   t.closed = true;
   if (t.timer !== null) window.clearTimeout(t.timer);
+  if (t.pauseGuard !== null) window.clearTimeout(t.pauseGuard);
   const wasVisible = visible.includes(t);
   const idx = visible.indexOf(t);
   if (idx >= 0) visible.splice(idx, 1);
@@ -217,6 +241,7 @@ function build(tone: Tone, msg: string, opts?: ToastOpts): Live {
     remain: 0,
     deadline: 0,
     timer: null,
+    pauseGuard: null,
     paused: false,
     indefinite: tone === "busy" || Boolean(opts?.action),
     mounted: false,

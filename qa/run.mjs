@@ -1412,6 +1412,145 @@ async function run() {
     await shot("21-geçmiş-dil.png");
   });
 
+  // 22. Şablon × palet matrisi (v2.6): 4 şablon × 7 palet.
+  //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu
+  //     - 1040×740'ta Durum sayfası kaydırmasız mı (PLAN-v3 §7 bütçesi)
+  //     - 28 kombinasyonun karesi gözle incelemek için diske düşüyor
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, shot }) => {
+    await page.setViewportSize({ width: 1040, height: 740 });
+    await openTab("settings");
+    // Görünüm kartı artık Gelişmiş'in dışında — gözle de doğrula.
+    await page.locator("#appearance-box").scrollIntoViewIfNeeded();
+    await page.waitForTimeout(200);
+    await shot("m-ayarlar.png");
+    const tplBtns = page.locator("#template-picker .design-card");
+    const palBtns = page.locator("#design-picker .design-card");
+    check((await tplBtns.count()) === 4, "matris", `şablon kartı=${await tplBtns.count()} (beklenen 4)`);
+    check((await palBtns.count()) === 7, "matris", `palet kartı=${await palBtns.count()} (beklenen 7)`);
+
+    const TPLS = ["bento", "sahne", "dergi", "konsol"];
+    const PALS = ["obsidyen", "gece", "orman", "gul", "fildisi", "kagit", "grafit"];
+
+    // Şablon seçimi: gerçek tıklama → data-template + kalıcılık + aria.
+    for (const id of TPLS) {
+      await page.locator(`#template-picker [data-template="${id}"]`).click();
+      await page.waitForTimeout(160);
+      const got = await page.evaluate(() => document.documentElement.dataset.template);
+      check(got === id, "matris", `şablon uygulanmadı: ${id} → ${got}`);
+      const pressed = await page
+        .locator(`#template-picker [data-template="${id}"]`)
+        .getAttribute("aria-pressed");
+      check(pressed === "true", "matris", `şablon aria-pressed yanlış: ${id} → ${pressed}`);
+      const saved = await page.evaluate(() => localStorage.getItem("ss:template"));
+      check(saved === id, "matris", `şablon kalıcı olmadı: ${id} → ${saved}`);
+    }
+
+    // Palet seçimi: aynı sözleşme (data-theme + ss:designTheme).
+    for (const id of PALS) {
+      await page.locator(`#design-picker [data-design="${id}"]`).click();
+      await page.waitForTimeout(120);
+      const got = await page.evaluate(() => document.documentElement.dataset.theme);
+      check(got === id, "matris", `palet uygulanmadı: ${id} → ${got}`);
+      const saved = await page.evaluate(() => localStorage.getItem("ss:designTheme"));
+      check(saved === id, "matris", `palet kalıcı olmadı: ${id} → ${saved}`);
+    }
+
+    // Varsayılan şablon (temiz kurulum) bento olmalı.
+    const def = await page.evaluate(() => {
+      localStorage.removeItem("ss:template");
+      return null;
+    });
+    void def;
+
+    // Bütçe + matris kareleri: Durum sayfası, her şablon × palet.
+    await openTab("panel");
+    const budget = [];
+    for (const tpl of TPLS) {
+      for (const pal of PALS) {
+        await page.evaluate(
+          ([t, p]) => {
+            document.documentElement.dataset.template = t;
+            document.documentElement.dataset.theme = p;
+          },
+          [tpl, pal],
+        );
+        await page.waitForTimeout(90);
+        if (pal === "obsidyen") {
+          const m = await page.evaluate(() => {
+            const p = document.querySelector(".page:not([hidden])");
+            if (!p) return { over: -1 };
+            const h = (sel) => {
+              const n = p.querySelector(sel);
+              return n ? Math.round(n.getBoundingClientRect().height) : 0;
+            };
+            return {
+              over: Math.round(p.scrollHeight - p.clientHeight),
+              client: Math.round(p.clientHeight),
+              hero: h(".hero"),
+              monitors: h("#monitor-box"),
+              asym: h(".asym"),
+              parts: (() => {
+                const a = p.querySelector(".asym");
+                if (!a) return "";
+                const prev = a.style.alignItems;
+                a.style.alignItems = "start";
+                const out = [...a.querySelectorAll(".panel-box")]
+                  .map((n) => `${n.querySelector(".box-title")?.textContent ?? "?"}=${Math.round(n.getBoundingClientRect().height)}`)
+                  .join(",");
+                a.style.alignItems = prev;
+                const one = (sel) => {
+                  const n = p.querySelector(sel);
+                  return n ? Math.round(n.getBoundingClientRect().height) : 0;
+                };
+                return `${out} | monlist=${one("#monitor-list")} ctrl=${one(".monitor-ctrl")} note=${one("#monitor-mode-note")} log=${one(".log")} st-row=${one(".st-row")} asymgap=${one(".asym")}`;
+              })(),
+            };
+          });
+          budget.push(
+            `${tpl}:${m.over} (ch=${m.client} hero=${m.hero} mon=${m.monitors} asym=${m.asym})\n      ${m.parts}`,
+          );
+          // Her şablon 1040×740'ta kaydırmasız olmalı (PLAN-v3 §7).
+          check(m.over <= 2, "butce", `${tpl}: Durum sayfası ${m.over}px kaydırıyor (1040×740)`);
+        }
+        await shot(`m-${tpl}-${pal}.png`);
+        if (pal === "obsidyen") {
+          await openTab("settings");
+          await page.waitForTimeout(120);
+          await shot(`m-${tpl}-ayarlar.png`);
+          await openTab("panel");
+          await page.waitForTimeout(120);
+        }
+      }
+    }
+    console.log(`  şablon bütçesi (px): ${budget.join(" · ")}`);
+
+    // Dar pencere (760×600): kaydırma serbest ama yatay taşma olmamalı.
+    await page.setViewportSize({ width: 760, height: 600 });
+    for (const tpl of TPLS) {
+      await page.evaluate((t) => {
+        document.documentElement.dataset.template = t;
+        document.documentElement.dataset.theme = "obsidyen";
+      }, tpl);
+      await page.waitForTimeout(90);
+      await checkOverflow(page, `matris-${tpl}-760`);
+    }
+    await shot("m-760-bento.png");
+
+    // Dergi masthead tarihi yalnız dergi'de görünür.
+    await page.setViewportSize({ width: 1040, height: 740 });
+    await page.evaluate(() => {
+      document.documentElement.dataset.template = "dergi";
+    });
+    await page.waitForTimeout(120);
+    check(await page.locator("#mast-date").isVisible(), "matris", "dergi'de masthead tarihi görünmüyor");
+    check((await text(page, "#mast-date")).length > 3, "matris", "masthead tarihi boş");
+    await page.evaluate(() => {
+      document.documentElement.dataset.template = "bento";
+    });
+    await page.waitForTimeout(120);
+    check(await page.locator("#mast-date").isHidden(), "matris", "bento'da masthead tarihi görünüyor");
+  });
+
   await browser.close();
   server.close();
 

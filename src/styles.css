@@ -233,11 +233,13 @@
   --text-2: #574a3a;
   --text-3: #6b5d4c;
   --text-4: #7d6f5d;
-  --accent: #a8763c;
-  --accent-hover: #c08c4e;
-  --accent-active: #8c5f2c;
-  --accent-soft: rgba(168, 118, 60, 0.12);
-  --accent-ring: rgba(168, 118, 60, 0.3);
+  /* v2.6: vurgu #a8763c idi ama beyaz metinle oranı 3.80 < 4.5 (AA altı).
+     Bir kademe koyulaştırıldı: on-accent 4.95, zemine karşı 4.61. */
+  --accent: #94632d;
+  --accent-hover: #a9743a;
+  --accent-active: #7f5527;
+  --accent-soft: rgba(148, 99, 45, 0.12);
+  --accent-ring: rgba(148, 99, 45, 0.3);
   --on-accent: #fffaf3;
   --success: #4f8a5c;
   --success-soft: rgba(79, 138, 92, 0.12);
@@ -249,6 +251,73 @@
   --shadow-1: 0 1px 2px rgba(60, 44, 26, 0.08);
   --shadow-2: 0 18px 44px rgba(60, 44, 26, 0.1);
   --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 5) KÂĞIT — nötr sıcak açık. Saf beyaz değil, mürekkep hissi.
+   v2.6: fildişinden farkı vurgunun bronz değil kiremit olması ve
+   zeminin sarıya değil gri-sıcağa kaçması. */
+[data-theme="kagit"] {
+  --bg-0: #faf8f4;
+  --bg-1: #f3f0ea;
+  --bg-2: #f7f4ee;
+  --surface-1: #ffffff;
+  --surface-2: #fdfbf7;
+  --surface-3: #f4f0e8;
+  --input: #ffffff;
+  --border-subtle: rgba(40, 34, 28, 0.08);
+  --border-standard: rgba(40, 34, 28, 0.15);
+  --border-strong: rgba(40, 34, 28, 0.28);
+  --text-1: #1c1a17;
+  --text-2: #4d4842;
+  --text-3: #625c55;
+  --text-4: #746d65;
+  --accent: #b4553a;
+  --accent-hover: #c96848;
+  --accent-active: #96432d;
+  --accent-soft: rgba(180, 85, 58, 0.12);
+  --accent-ring: rgba(180, 85, 58, 0.3);
+  --on-accent: #fffaf7;
+  --success: #467f52;
+  --success-soft: rgba(70, 127, 82, 0.12);
+  --warning: #8f6a1c;
+  --warning-soft: rgba(143, 106, 28, 0.12);
+  --danger: #9c3b36;
+  --danger-soft: rgba(156, 59, 54, 0.12);
+  --track: #eae3d8;
+  --shadow-1: 0 1px 2px rgba(40, 34, 28, 0.07);
+  --shadow-2: 0 18px 44px rgba(40, 34, 28, 0.1);
+  --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+/* 6) GRAFİT — nötr soğuk koyu. Renk iddiası yok, içerik önde. */
+[data-theme="grafit"] {
+  --bg-0: #14161a;
+  --bg-1: #191c21;
+  --bg-2: #16181d;
+  --surface-1: #1d2026;
+  --surface-2: #23272e;
+  --surface-3: #2a2f37;
+  --input: #14171b;
+  --border-subtle: rgba(180, 194, 212, 0.08);
+  --border-standard: rgba(180, 194, 212, 0.14);
+  --border-strong: rgba(180, 194, 212, 0.26);
+  --text-1: #e6e9ee;
+  --text-2: #aab3c0;
+  --text-3: #949daa;
+  --text-4: #7c8592;
+  --accent: #6ea8d8;
+  --accent-hover: #8cbfe8;
+  --accent-active: #558cba;
+  --accent-soft: rgba(110, 168, 216, 0.12);
+  --accent-ring: rgba(110, 168, 216, 0.35);
+  --on-accent: #08131c;
+  --success: #74c29a;
+  --success-soft: rgba(116, 194, 154, 0.12);
+  --warning: #dcb96f;
+  --warning-soft: rgba(220, 185, 111, 0.12);
+  --danger: #e08a8a;
+  --danger-soft: rgba(224, 138, 138, 0.12);
+  --track: #23272e;
 }
 
 /* Görünüm (tasarım teması) seçici: önizlemeli kartlar */
