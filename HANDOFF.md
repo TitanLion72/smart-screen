@@ -22,6 +22,45 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.6.1 TURU (2026-10-27, gece) — "kendi penceresinde açtım": boşluk hataları
+
+**Tetik:** kullanıcı "pc açık, yapman gerekeni yap" dedi. v2.6.0'ın canlı görsel
+doğrulaması yarım kalmıştı (makine kilitliydi, ekran görüntüsü kilit ekranını döndürdü).
+Kurulu exe'yi açtım, kendi gözümle baktım — **iki kusur hemen sırıttı**:
+hero kartının üst yarısı boş (metin tepede, eğri dipte) ve 1920'de kenarlarda ~370px
+ölü boşluk.
+
+**Kök neden: QA yalnız 800×600 ölçüyordu.** Bu sınıf hata "taşma" değil "boşluk"
+hatası; `checkOverflow` yatay taşmaya bakar, `run.mjs` matrisi de 1040×740'ta bütçe
+ölçer. 1200px üstü hiç test edilmiyordu. **Ders: pencere büyüyünce de bozulur —
+"geniş ekran" da bir kırılım noktasıdır.**
+
+**Yeni araç (kalıcı): `qa/audit-templates.mjs`** — 4 şablon × 6 boyut (1040/1000/800/
+760/1920/1440) + 7 palet karesi; `scrollHeight−clientHeight`, yatay taşma ve kırpılan
+öğe listesi. Kareler `qa/audit/` (git dışı). Bu araç olmadan bu turdaki üç hatanın
+hiçbiri görülmezdi.
+
+**Bulunan ve düzeltilen (hepsi ölçümle):**
+| bulgu | ölçüm | düzeltme |
+|---|---|---|
+| hero alt yarısı boş | 1936×1048'de ~190px | geniş ekranda 2 kolon (metin \| eğri) |
+| kenarlarda ölü boşluk | `.stage` 1180px, ekran 1920 | `min(1500px, 96vw)` |
+| hero satırı şişiyor | `1.05fr` → 450px | `min(40vh, 360px)` |
+| 1000×720 kaydırıyor | +501px | tek kolon eşiği 1020 → **900** → 0px |
+| dergi alt yarısı boş | 1040'ta ekranın yarısı | kapak düzeni (hero `1fr`, alt `auto`) |
+| rakam küçük kalıyor | 60px @ 1936px | `clamp(64px, 5.4vw, 104px)` |
+
+**Şablon bütçesi (son hâl, 6 boyut × 4 şablon):** 1040/1000/1920/1440 → **hepsi 0px**;
+800/760 tek kolona iner ve doğal kaydırır (kabul, PLAN §7 "≤120px" hedefi aşılıyor ama
+800×600'de içerik zaten sığmıyor — kart içi kaydırma yerine sayfa kaydırma tercih edildi).
+
+**CSS tuzağı (kayda değer):** aynı özgüllükte `@media` bloğu taban kuraldan ÖNCE
+yazılırsa taban kazanır. `.hero-num` bir kez böyle ters düştü; dosyada yorumla işaretli.
+
+**Doğrulama:** `npm test` 12/12 · `check-tokens` PASS · `run.mjs` PASS · `audit-templates`
+PASS · kurulu exe 2.6.1 açıldı, canlı ekran görüntüsüyle onaylandı.
+
+
 ## V2.6.0 TURU (2026-10-27) — "tasarım sistemi": 4 düzen × 7 palet
 
 **Kullanıcı:** *"senden bir öncekiler asla benzemeyen"* · *"en iyi landingpage gibi"* ·

@@ -15,6 +15,29 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.6.1] - 2026-10-27
+
+v2.6.0 yayınlandıktan sonra uygulama **kendi penceresinde** açıldı ve iki görsel kusur
+hemen sırıttı — QA bunları ölçmüyordu, çünkü ikisi de "boşluk" hatasıydı, "taşma" değil.
+
+### Fixed
+- **Büyük pencerede hero'nun yarısı boştu.** 1936×1048'de metin tepede, eğri dipte
+  kalıyordu (~190px ölü boşluk). Geniş ekranda hero iki kolona döndü (metin solda, eğri
+  sağda) ve rakam 60px'te oyuncak gibi kalmak yerine 64–104px arası ölçekleniyor.
+- **İçerik şeridi 1180px'e sıkışıyordu** — 1920'de kenarlarda ~370px ölü boşluk vardı.
+  `min(1500px, 96vw)`.
+- **Hero satırı `fr` ile şişiyordu:** üst satır artık `min(40vh, 360px)` ile sınırlı,
+  büyüyen pay alt satırdaki kartlara gidiyor.
+- **1000×720'de sayfa 501px kaydırıyordu.** Tek kolon eşiği 1020 → **900px**: yaygın
+  bir boyutta gereksiz yere tek kolona düşüyordu. Artık 1000'de de ızgara → 0px.
+- **Dergi şablonunda alt yarı boştu.** Kapak düzeni: hero kalan yüksekliği alır, alt
+  bölüm içeriği kadar kalır.
+
+### Added
+- **`qa/audit-templates.mjs`** — 4 şablon × 6 boyut matrisi + 7 palet karesi; taşma
+  ve kırpılma ölçer. `qa/run.mjs` yalnız 800×600 ölçüyordu, bu yüzden "geniş ekranda
+  boşluk" sınıfı hata hiçbir assert'e takılmıyordu.
+
 ## [2.6.0] - 2026-10-27
 
 Kullanıcı: *"senden bir öncekiler asla benzemeyen"*, *"en iyi landingpage gibi"*,

@@ -570,9 +570,11 @@ body {
   padding: var(--sp-5) var(--sp-6) 0;
   transform-style: preserve-3d;
   /* v2.4.1: maksimize pencerede (1920px) içerik uçsuz bucaksız geriliyordu —
-     hero eğrisi 6 kat yatıyor, kartlar devleşiyordu. İçerik şeridini sınırla. */
+     hero eğrisi 6 kat yatıyor, kartlar devleşiyordu. İçerik şeridini sınırla.
+     v2.6.1: 1180px fazla dardı — 1920'de kenarlarda ~370px ölü boşluk
+     kalıyordu. 1500px + %96 tavan: geniş ekranda dolu, dar ekranda taşmasız. */
   width: 100%;
-  max-width: 1180px;
+  max-width: min(1500px, 96vw);
   margin-inline: auto;
 }
 

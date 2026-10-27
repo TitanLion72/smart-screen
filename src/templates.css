@@ -284,6 +284,19 @@ body::after {
   line-height: 0.95;
 }
 
+/* Dergi'de üst bant "kapak" gibi nefes alsın: 1040×740'ta alt bölüm
+   (olay akışı + ayarlar) kısa kaldığında sayfa yarısı boş görünüyordu. */
+[data-template="dergi"] .hero {
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+[data-template="dergi"] .hero-body {
+  flex: 1;
+}
+
 [data-template="dergi"] .hero-sub {
   font-family: var(--display-font);
   font-size: 16px;
@@ -323,6 +336,24 @@ body::after {
 [data-template="dergi"] .asym {
   grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
   gap: var(--sp-6);
+}
+
+/* Dergi'nin üst bandı içeriğe göre daralır: serif headline + ince kural
+   zaten "hafif" duruyor; sabit 360px satır geniş ekranda koca boşluk
+   bırakıyordu. Bento/konsol sabit satırı korur (mozaik/readout geometrisi). */
+[data-template="dergi"] #page-panel {
+  grid-template-rows: minmax(0, 1fr) auto;
+  align-content: stretch;
+}
+
+/* Dergi'de kartlar içeriği kadar yer kaplar (mozaik gibi şişmez);
+   alta doğru akan editoryal düzen. */
+[data-template="dergi"] #page-panel > .asym {
+  align-items: start;
+}
+
+[data-template="dergi"] #page-panel .asym .panel-box {
+  overflow: visible;
 }
 
 /* nav: yüzen çip değil, alt hizalı ince kural çubuğu */
@@ -580,11 +611,14 @@ body::after {
   display: none;
 }
 
+/* Bento hero: metin ve eğri tek grupta ORTALANIR. Eskiden `space-between`
+   idi — 1040×740'ta iyi duruyordu ama pencere büyüyünce (maksimize
+   1936×1048) arada ~190px ölü boşluk kalıyordu: metin tepede, eğri dipte. */
 [data-template="bento"] .hero-body {
   grid-template-columns: minmax(0, 1fr);
-  align-content: space-between;
+  align-content: center;
   align-items: stretch;
-  gap: var(--sp-3);
+  gap: var(--sp-4);
   padding: var(--panel-pad);
   height: 100%;
 }
@@ -599,6 +633,37 @@ body::after {
 
 [data-template="bento"] .hero-num {
   font-size: clamp(48px, 6vw, var(--hero-fs));
+}
+
+/* Geniş ekranda hero'yu iki kolona al: metin solda, eğri sağda.
+   Tek kolonda 1440+ pencerede hero'nun alt yarısı ölü boşluk kalıyordu
+   (1920×1048'de ~200px). Dar/orta pencerede tek kolon korunur.
+   NOT: bu blok taban `.hero-num` kuralından SONRA olmalı — aynı özgüllükte
+   kaynak sırası kazanır (v2.6.1'de bir kez ters düştü, rakam büyümedi). */
+@media (min-width: 1200px) {
+  [data-template="bento"] .hero-body {
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.85fr);
+    align-content: stretch;
+    align-items: center;
+    gap: var(--sp-6);
+  }
+
+  [data-template="bento"] .hero-curve-side {
+    align-self: center;
+  }
+
+  [data-template="bento"] .hero-text {
+    gap: var(--sp-2);
+  }
+
+  [data-template="bento"] .hero-sub,
+  [data-template="bento"] .hero-why {
+    font-size: 15px;
+  }
+
+  [data-template="bento"] .hero-num {
+    font-size: clamp(64px, 5.4vw, 104px);
+  }
 }
 
 [data-template="bento"] .panel-box {
@@ -651,10 +716,12 @@ body::after {
   --panel-gap: 16px;
   /* Satırlar BOUNDED: sayfa kaydırmaz, kart kendi içinde kaydırır.
      Üst satır hero + monitörler YAN YANA: dikeyde ~180px tasarruf,
-     alt satırdaki üç karta yer açar (1040×740 bütçesi). */
+     alt satırdaki üç karta yer açar (1040×740 bütçesi).
+     v2.6.1: üst satır `fr` idi — maximize pencerede hero 450px'e şişip
+     içi boşalıyordu. Artık üst sınırlı: büyüyen pay alt satıra gider. */
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1.05fr) minmax(0, 1fr);
+  grid-template-rows: minmax(0, min(40vh, 360px)) minmax(0, 1fr);
   grid-template-areas:
     "hero monitors"
     "asym asym";
@@ -758,7 +825,7 @@ body::after {
    rozet + yüzde sığmıyor, ad "Gene..." diye kırpılıyordu. İki satıra al:
    üstte ad ve yüzde, altta rozetler. Bilgi kaybı yok.
    YALNIZ geniş pencerede: ≤1020'de tek kolon var, tek satır düzeni sığıyor. */
-@media (min-width: 1021px) {
+@media (min-width: 901px) {
   #page-panel .monitor-row {
     grid-template-columns: minmax(0, 1fr) auto 48px;
     grid-template-areas:
@@ -912,11 +979,13 @@ body::after {
 
 
 /* ════════════════════════════════════════════════════════════════════
-   DAR PENCERE (≤1020px) — Durum sayfası tek kolona iner.
+   DAR PENCERE (≤900px) — Durum sayfası tek kolona iner.
+   Eşik 1020 DEĞİL 900: 1000×720 gibi yaygın bir boyutta tek kolon
+   gereksiz yere 500px kaydırma üretiyordu; ızgara oraya da sığıyor.
    Dosyanın SONUNDA olmalı: yukarıdaki #page-panel ızgara kuralını ezmeli.
    Kart içi kaydırma yalnız geniş pencerede anlamlı.
    ════════════════════════════════════════════════════════════════════ */
-@media (max-width: 1020px) {
+@media (max-width: 900px) {
   #page-panel {
     display: flex;
     flex-direction: column;
