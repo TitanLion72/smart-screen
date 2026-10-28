@@ -266,6 +266,11 @@ export interface AppState {
   lastBoundExe: string | null;
   /** Donma nedeni ("uygulama: vlc.exe" / "tam ekran (x.exe)"); null = akıyor. */
   freezeReason: string | null;
+  /** v2.8: oyun/video sırasında %100 parlaklık açık mı (Ayarlar anahtarı). */
+  gameBright: boolean;
+  /** Boost uygulandı mı; çıkışta geri dönülecek değer burada tutulur. */
+  gameBoost: boolean;
+  gameBoostPrev: number | null;
   audits: AuditReport[];
   auditGate: boolean;
   lastGateWarn: string;
@@ -388,6 +393,9 @@ export const S: AppState = {
   boundExe: null,
   lastBoundExe: null,
   freezeReason: null,
+  gameBright: getSetting("gameBright", "1") === "1",
+  gameBoost: false,
+  gameBoostPrev: null,
   audits: [],
   auditGate: getSetting("auditGate", "1") === "1",
   lastGateWarn: "",
@@ -608,6 +616,11 @@ export function togglePauseHour(): void {
   S.pauseUntil = Date.now() + HOUR_MS;
   S.pauseKind = "hour";
   log("1 saat duraklatıldı", "warn");
+  // v2.8: duraklatma sessiz kalmasın — kullanıcı "neden dokunmuyor" diye
+  // bakıyor. Geri alma düğmeli toast: tek tıkla geri dönüş.
+  toast.action("Otomatik ayar 1 saat duraklatıldı", {
+    action: { label: "Geri al", onAct: () => clearPause("duraklatma geri alındı") },
+  });
   render();
 }
 
@@ -630,6 +643,10 @@ export function toggleDayOff(): void {
   S.pauseUntil = midnight.getTime();
   S.pauseKind = "day";
   log("bugün kapatıldı — gece yarısına kadar dokunulmayacak", "warn");
+  toast.action("Bugün için otomatik ayar kapalı", {
+    detail: "Gece yarısına kadar dokunulmaz.",
+    action: { label: "Geri al", onAct: () => clearPause("bugün kapatma geri alındı") },
+  });
   render();
 }
 
@@ -951,6 +968,24 @@ export function setGate(v: boolean): void {
   render();
 }
 
+/**
+ * v2.8: oyun/video sırasında %100 parlaklık anahtarı.
+ * Kapatınca boost hemen geri alınır (oyun sürüyorsa bile) — anahtar
+ * "şu an"ı değiştirir, sadece gelecek turları değil.
+ */
+export function setGameBright(v: boolean): void {
+  S.gameBright = v;
+  setSetting("gameBright", v ? "1" : "0");
+  if (!v) void gameBoostOff();
+  log(
+    v
+      ? "oyun/video sırasında parlaklık %100'e çıkacak"
+      : "oyun/video sırasında parlaklığa dokunulmayacak",
+    "ok",
+  );
+  render();
+}
+
 export async function updateRisk(name: string, themeMode: string | null): Promise<void> {
   const rep = findAudit(name, themeMode);
   const risky = rep ? rep.verdict === "FAIL" : isRiskyName(name);
@@ -1191,10 +1226,70 @@ function resetPending(): void {
   S.lastPendingNote = null;
 }
 
+/* ═══════════════ v2.8: oyun/video sırasında %100 ═══════════════
+   Oyuna/videoya girerken ekran parlaklığı çoğu zaman yetmiyor; kullanıcı
+   tam ekranı bırakıp parlaklık açmak zorunda kalıyordu. Burada donma
+   kararı verilirken bir kez %100 yazılır, çıkışta ESKİ değere dönülür.
+
+   Neden güvenli:
+   - Yalnız `gameBright` açıkken (varsayılan açık, Ayarlar'dan kapanır).
+   - Kilitli ekranda (lockapp.exe) asla çalışmaz — kilit ekranı parlamaz.
+   - Pil boşalırken de yazılır: oyun sırasında zaten güç çekiliyor; geri
+     dönüş değeri saklandığı için çıkışta tüketim artmıyor.
+   - `lastWritten` güncellenir; aksi halde kendi yazdığımız değeri "dış
+     müdahale" sanıp 15 dk saygı penceresi açardık (v2.5 dersi).
+   ═══════════════════════════════════════════════════════════════════ */
+
+const GAME_BOOST_PCT = 100;
+
+/** Oyun/video başladı: parlaklığı %100'e al, eski değeri sakla. */
+async function gameBoostOn(tag: string): Promise<void> {
+  if (!S.gameBright || S.gameBoost) return;
+  const current = await invoke<number>("brightness_get").catch(() => null);
+  if (current === null) return;
+  // Zaten %100'e yakınsa yazma (gereksiz WMI yazımı + titreme).
+  if (current >= GAME_BOOST_PCT) {
+    S.gameBoost = true;
+    S.gameBoostPrev = current;
+    return;
+  }
+  S.gameBoostPrev = current;
+  try {
+    const verified = await invoke<number>("brightness_set", { value: GAME_BOOST_PCT });
+    S.gameBoost = true;
+    S.lastWritten = { value: Math.round(verified || GAME_BOOST_PCT), at: Date.now() };
+    S.lastAppliedBright = Math.round(verified || GAME_BOOST_PCT);
+    log(`oyun/video: parlaklık %${current} → %${GAME_BOOST_PCT} (${tag})`, "ok");
+  } catch (e) {
+    // Yazamadıysak boost "uygulandı" sayılmaz: çıkışta geri yazmayalım.
+    S.gameBoostPrev = null;
+    log("oyun/video parlaklığı yazılamadı: " + String(e), "warn");
+  }
+}
+
+/** Oyun/video bitti: saklanan değere dön (kullanıcı elleyse dokunma). */
+async function gameBoostOff(): Promise<void> {
+  const prev = S.gameBoostPrev;
+  if (!S.gameBoost) return;
+  S.gameBoost = false;
+  S.gameBoostPrev = null;
+  if (prev === null) return;
+  const current = await invoke<number>("brightness_get").catch(() => null);
+  // Kullanıcı oyun sırasında kendisi değiştirdiyse onun değeri kalsın.
+  if (current === null || current < GAME_BOOST_PCT - 1) return;
+  try {
+    const verified = await invoke<number>("brightness_set", { value: Math.round(prev) });
+    S.lastWritten = { value: Math.round(verified || prev), at: Date.now() };
+    S.lastAppliedBright = Math.round(verified || prev);
+    log(`oyun/video bitti: parlaklık %${Math.round(prev)}'e döndü`, "ok");
+  } catch (e) {
+    log("parlaklık geri yazılamadı: " + String(e), "warn");
+  }
+}
+
 async function runTick(reason: string): Promise<void> {
   S.lastAct = Date.now();
-  S.freezeReason = null;
-  if (isPaused()) {
+  S.freezeReason = null;  if (isPaused()) {
     resetPending();
     log("duraklatıldı, atlandı", "warn");
     await refresh();
@@ -1235,6 +1330,8 @@ async function runTick(reason: string): Promise<void> {
   if (exe === "lockapp.exe") {
     resetPending();
     S.freezeReason = "ekran kilitli";
+    // v2.8: kilit ekranında %100 boost kalmasın (gece ekranı parlamasın).
+    await gameBoostOff();
     log("ekran kilitli — ayar yapılmadı", "warn");
     // v2.6: bu tur da diske yazılır. Eskiden yazılmıyordu ve "24 saat log"
     // kanıtı kilitli saatlerde tamamen kör kalıyordu (tur var, iz yok).
@@ -1250,9 +1347,12 @@ async function runTick(reason: string): Promise<void> {
         S.locked = true;
         S.autoLockExe = exe;
         setSetting("locked", "1");
+        // Kilitliyken parlaklık yazılmaz: kilit "dokunma" demektir.
         await diskLog(`film otomatik kilit ${exe}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
         log("otomatik ayar kilitlendi (" + exe + ")", "warn");
       } else {
+        // v2.8: oyun/video önde — parlaklık %100, çıkışta eski değere döner.
+        await gameBoostOn(exe);
         await diskLog(`donduruldu uygulama ${exe}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
         log("ayar yapılmadı: video/oyun uygulaması önde (" + exe + ")", "warn");
       }
@@ -1264,6 +1364,8 @@ async function runTick(reason: string): Promise<void> {
     if (await invoke<boolean>("is_fullscreen")) {
       if (!exe || !S.allowItems.includes(exe)) {
         const why = "tam ekran" + (exe ? " (" + exe + ")" : "");
+        // v2.8: tam ekran oyun/video — parlaklık %100.
+        await gameBoostOn(exe ?? "tam ekran");
         await diskLog(`donduruldu ${why}`, 0, S.lastAppliedBright, S.appliedKey ?? "-", "-", "-");
         log("ayar yapılmadı: " + why, "warn");
         S.freezeReason = why;
@@ -1272,6 +1374,8 @@ async function runTick(reason: string): Promise<void> {
         return;
       }
     }
+    // Buraya geldiysek oyun/video bitti: boost açıksa eski değere dön.
+    await gameBoostOff();
 
     const now = new Date();
     const hour = now.getHours();

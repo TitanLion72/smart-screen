@@ -113,6 +113,7 @@ export interface DesignTheme {
 }
 
 export const DESIGN_THEMES: DesignTheme[] = [
+  // Koyu aile
   {
     id: "obsidyen",
     label: "Obsidyen",
@@ -137,6 +138,32 @@ export const DESIGN_THEMES: DesignTheme[] = [
     note: "Erik zemin + gül kurusu",
     swatch: { bg: "#0b0709", surface: "#1b1319", accent: "#e0b0c4" },
   },
+  // v2.8: beş yeni aile — kontrastları check-tokens ile ölçülür.
+  {
+    id: "okyanus",
+    label: "Okyanus",
+    note: "Derin petrol + deniz camı",
+    swatch: { bg: "#060b0e", surface: "#101a20", accent: "#7fc9c4" },
+  },
+  {
+    id: "lavanta",
+    label: "Lavanta",
+    note: "Koyu mor + lavanta",
+    swatch: { bg: "#0a0810", surface: "#171325", accent: "#c0b0e8" },
+  },
+  {
+    id: "gunbatimi",
+    label: "Gün batımı",
+    note: "Bordo zemin + amber",
+    swatch: { bg: "#0d0705", surface: "#1d1310", accent: "#e8a26a" },
+  },
+  {
+    id: "grafit",
+    label: "Grafit",
+    note: "Nötr soğuk koyu + gök mavisi",
+    swatch: { bg: "#14161a", surface: "#1d2026", accent: "#6ea8d8" },
+  },
+  // Açık aile
   {
     id: "fildisi",
     label: "Fildişi",
@@ -150,10 +177,16 @@ export const DESIGN_THEMES: DesignTheme[] = [
     swatch: { bg: "#faf8f4", surface: "#ffffff", accent: "#b4553a" },
   },
   {
-    id: "grafit",
-    label: "Grafit",
-    note: "Nötr soğuk koyu + gök mavisi",
-    swatch: { bg: "#14161a", surface: "#1d2026", accent: "#6ea8d8" },
+    id: "kum",
+    label: "Kum",
+    note: "Sıcak bej + zeytin",
+    swatch: { bg: "#f6f2e7", surface: "#fffdf7", accent: "#5f6b32" },
+  },
+  {
+    id: "buz",
+    label: "Buz",
+    note: "Soğuk gri-mavi + lacivert",
+    swatch: { bg: "#f2f5f8", surface: "#ffffff", accent: "#2c5d8a" },
   },
 ];
 

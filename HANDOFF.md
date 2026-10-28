@@ -22,6 +22,42 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.8.0 TURU (2026-10-28, akşam) — kullanıcı geri bildirimi: 5 madde
+
+**Tetik:** kullanıcı beş şey söyledi: renkler çoğalsın · sahne ile bento farkı
+anlaşılmıyor · oyundayken parlaklık %100 olsun · kontrast denetimi anlaşılmadı ·
+toast hiç yok.
+
+**Yapılanlar**
+- 12 palet (7 → 12): okyanus · lavanta · gunbatimi · kum · buz. `palette.css`.
+- Bento **gerçek mozaik**: Durum 12 sütunlu asimetrik ızgara (hero 2 satır, sağda
+  monitörler, altta geniş ctl + 2 satırlık vurgulu durum). Sahne cam+3B kaldı.
+- Oyun/video sırasında %100 parlaklık: `gameBoostOn/Off`, Ayarlar anahtarı
+  (`gameBright`, varsayılan açık), kilit ekranında daima kapalı, çıkışta eski değer.
+- Toast: düzen/palet seçimi + 1 saat duraklatma + "bugün" (son ikisinde Geri al).
+- Kontrast denetimi metni: **OpenCode tema dosyalarını** ölçtüğü ve eşiklerin ne
+  demek olduğu yazıldı.
+
+**Ders (kalıcı)**
+1. **`grid-template-areas` içinde `auto` alan adı olmaz.** CSS anahtar kelimesi;
+   eşleşmez, karo sessizce otomatik yerleşir (67px'lik şerit). Ölçüm:
+   `gridTemplateAreas` doğru görünüyor ama `getBoundingClientRect().width` 67px.
+2. **Aynı özgüllükte kaynak sırası kazanır** — yine: `#page-panel .asym > .span-side
+   { grid-column: auto }` mozaiği eziyordu. Mozaik bloğu dosya SONUNA taşındı.
+   Çözüm `>` ile özgüllüğü artırmak değil, sırayı düzeltmek (daha kırılgan olurdu).
+3. **Elle tutulan palet listesi = sessiz kapsam kaybı.** `check-tokens`, `run.mjs`
+   ve `audit-flyout` üçünde de sabit 7 vardı; 5 yeni palet denetim dışı kalacaktı.
+   Üçü de artık `palette.css`ten keşfediyor (48 flyout karesi, 48 kontrast ölçümü).
+4. **"Fark yok" geri bildirimi genelde yüzey değil YERLEŞİM sorunudur.** Bento'da
+   renk/yarıçap değişiyordu ama ızgara sahne ile birebir aynıydı; kullanıcı haklıydı.
+5. **Toast altyapısı olması "toast var" demek değil.** `toast.ts` vardı ama yalnız
+   6 yerde çağrılıyordu; kullanıcı hiç görmemiş. Anlamlı eylemlere bağlandı.
+
+**Doğrulama:** `npm test` 12/12 · `cargo test` 193+2 · `check-tokens` PASS
+(12 palet, 48 ölçüm) · `qa/run.mjs` PASS · `audit-templates` PASS ·
+`audit-flyout` PASS (**48 kare**) · yeni 5 palet + bento mozaik + toast kareleri
+gözle incelendi.
+
 ## V2.7.0 TURU (2026-10-28) — "tam": flyout + sayfalar da şablon giyer
 
 **Tetik:** v2.6 tasarım sistemini kurdu ama yarısı eksikti: flyout eski dildeydi,

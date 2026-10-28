@@ -71,7 +71,10 @@ const stub = () => {
 };
 
 const TPLS = ["bento", "sahne", "dergi", "konsol"];
-const PALS = ["obsidyen", "gece", "orman", "gul", "fildisi", "kagit", "grafit"];
+// Palet listesi `palette.css`ten KEŞFEDİLİR: yeni palet eklenince flyout
+// matrisi kendiliğinden genişler (v2.8: elle liste 5 paleti atlıyordu).
+const PAL_CSS = await readFile(join(here, "..", "src", "palette.css"), "utf8");
+const PALS = ["obsidyen", ...[...PAL_CSS.matchAll(/\[data-theme="([a-z0-9-]+)"\]/g)].map((m) => m[1])];
 
 const problems = [];
 const browser = await chromium.launch();
@@ -183,4 +186,4 @@ if (problems.length) {
   console.log(`SONUC: FAIL (${problems.length})`);
   process.exit(1);
 }
-console.log("SONUC: PASS — 28 kare: qa/audit/");
+console.log(`SONUC: PASS — ${TPLS.length * PALS.length} kare (${TPLS.length} şablon × ${PALS.length} palet): qa/audit/`);

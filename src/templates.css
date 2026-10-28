@@ -690,6 +690,13 @@ body::after {
   animation: none;
 }
 
+/* NOT: bento mozaik ızgarası dosyanın SONUNDA (v2.8).
+   Sebep: `#page-panel .asym > .span-side { grid-column: auto }` (Durum
+   bütçesi) ile aynı özgüllükte çakışıyor; kaynak sırası kazanır. Mozaik
+   bloğu o kuraldan SONRA gelmeli — v2.6.1'deki `.hero-num` dersiyle aynı.
+   Ayrıca alan adı olarak `auto` kullanılmaz (CSS anahtar kelimesi, sessizce
+   otomatik yerleştirmeye düşer). */
+
 @media (prefers-reduced-motion: reduce) {
   [data-template="sahne"] .hero {
     transform: none;
@@ -1204,5 +1211,82 @@ body::after {
 
   #page-panel .monitor-row > * {
     grid-area: auto;
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   BENTO MOZAİK (v2.8) — dosyanın SONUNDA olmalı.
+
+   v2.6/v2.7'de bento yalnız yüzey değiştiriyordu (cam kapanır, kutu
+   dolar); ızgara sahne'yle aynıydı — "sahne ile fark yok" hissi buradan
+   geliyordu. Artık YERLEŞİM de farklı: hero iki satır boyunca büyük bir
+   karo, sağında monitörler + olay akışı, altta geniş "otomatik ayar" ve
+   vurgulu "durum" karosu.
+
+   İki tuzak (ikisi de burada ısırdı):
+   1) Alan adı olarak `auto` KULLANILMAZ — CSS anahtar kelimesi; eşleşmez,
+      karo sessizce otomatik yerleşir (67px'lik şerit).
+   2) `#page-panel .asym > .span-side { grid-column: auto }` (Durum bütçesi)
+      ile aynı özgüllükte çakışır: kaynak sırası kazanır. Bu blok ondan
+      SONRA gelmeli, yoksa durum karosu tek sütuna düşer.
+   ════════════════════════════════════════════════════════════════════ */
+@media (min-width: 901px) {
+  [data-template="bento"] #page-panel {
+    --panel-gap: 12px;
+    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-rows: minmax(0, 0.92fr) minmax(0, 0.62fr) minmax(0, 1fr);
+    /* Gerçek mozaik: hero 2 satır, durum karosu 2 satır — irili ufaklı
+       karolar yan yana. Alan adları CSS anahtar kelimesi DEĞİL (bkz. not). */
+    grid-template-areas:
+      "hero hero hero hero hero hero hero hero mon mon mon mon"
+      "hero hero hero hero hero hero hero hero dur dur dur dur"
+      "ctl  ctl  ctl  ctl  log  log  log  log  dur dur dur dur";
+  }
+
+  [data-template="bento"] #page-panel > .hero {
+    grid-area: hero;
+  }
+
+  [data-template="bento"] #page-panel > #monitor-box {
+    grid-area: mon;
+  }
+
+  /* .asym ve .col-stack "kutu değil taşıyıcı": display:contents ile
+     çocukları doğrudan mozaik ızgarasının karosu olur. */
+  [data-template="bento"] #page-panel > .asym,
+  [data-template="bento"] #page-panel .asym > .col-stack {
+    display: contents;
+  }
+
+  [data-template="bento"] #page-panel .log-box {
+    grid-area: log;
+  }
+
+  [data-template="bento"] #page-panel .auto-box {
+    grid-area: ctl;
+  }
+
+  /* Durum karosu: özgüllük eşitliğini kırmak için `>` ile tam yol. */
+  [data-template="bento"] #page-panel .asym > .span-side {
+    grid-area: dur;
+  }
+
+  /* Mozaik dokusu: karolar aynı düzlem (gölge yok, kalın yarıçap);
+     tek karo vurgulu — bento'nun imzası renkli tek karo. */
+  [data-template="bento"] #page-panel > .hero,
+  [data-template="bento"] #page-panel > #monitor-box,
+  [data-template="bento"] #page-panel .asym .panel-box {
+    border-radius: var(--card-r);
+    box-shadow: none;
+  }
+
+  [data-template="bento"] #page-panel .asym > .span-side {
+    background: color-mix(in srgb, var(--accent) 7%, var(--surface-1));
+    border-color: color-mix(in srgb, var(--accent) 22%, transparent);
+  }
+
+  /* Mozaikte hero rakamı karo boyutundan beslenir. */
+  [data-template="bento"] #page-panel .hero-num {
+    font-size: clamp(56px, 7vw, 128px);
   }
 }

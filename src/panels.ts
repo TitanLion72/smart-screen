@@ -55,6 +55,7 @@ import {
   setAutostart,
   setBlockList,
   setBreakEnabled,
+  setGameBright,
   setGate,
   setMode,
   setSource,
@@ -198,6 +199,7 @@ function syncThemeChips(): void {
  */
 export function setTemplate(id: string): void {
   const valid = TEMPLATES.some((t) => t.id === id) ? id : DEFAULT_TEMPLATE;
+  const changed = document.documentElement.dataset.template !== valid;
   document.documentElement.dataset.template = valid;
   setSetting("template", valid);
   el("template-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
@@ -205,6 +207,12 @@ export function setTemplate(id: string): void {
     b.setAttribute("aria-pressed", on ? "true" : "false");
     b.classList.toggle("active", on);
   });
+  // v2.8: düzen değişimi görünür geri bildirim verir — flyout da aynı
+  // şablonu giydiği için kullanıcı "nerede değişti" diye aramasın.
+  if (changed) {
+    const t = TEMPLATES.find((x) => x.id === valid);
+    toast.info(`Düzen: ${t?.label ?? valid}`, { detail: t?.note });
+  }
 }
 
 /** Açılışta kaydedilmiş şablonu uygular (varsayılan bento). */
@@ -248,6 +256,7 @@ function renderTemplates(): void {
 
 /** `<html data-theme>` yazar + kalıcılaştırır. Palet CSS'te tanımlı. */
 export function setDesignTheme(id: string): void {
+  const changed = document.documentElement.dataset.theme !== id;
   document.documentElement.dataset.theme = id;
   setSetting("designTheme", id);
   el("design-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
@@ -255,6 +264,10 @@ export function setDesignTheme(id: string): void {
     b.setAttribute("aria-pressed", on ? "true" : "false");
     b.classList.toggle("active", on);
   });
+  if (changed) {
+    const t = DESIGN_THEMES.find((x) => x.id === id);
+    toast.ok(`Renkler: ${t?.label ?? id}`, { detail: t?.note });
+  }
 }
 
 /** Açılışta kaydedilmiş temayı uygular. */
@@ -1207,6 +1220,7 @@ export function bootWidgets(): void {
     toast.info(v ? "Mola hatırlatıcısı açıldı" : "Mola hatırlatıcısı kapatıldı");
   });
   bindSwitch(btnEl("gate-switch"), S.auditGate, (v) => setGate(v));
+  bindSwitch(btnEl("game-bright"), S.gameBright, (v) => setGameBright(v));
   void autostartEnabled().then((on) => {
     bindSwitch(btnEl("auto-switch"), on, (v) => void setAutostart(v));
   });

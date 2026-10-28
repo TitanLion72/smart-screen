@@ -15,6 +15,46 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.8.0] - 2026-10-28
+
+Kullanıcı geri bildirimi turu: **"renk çoğalsın, bento ile sahne ayrışsın, oyunda
+parlaklık tam olsun, toast yok, kontrast denetimi anlaşılmıyor."** Beşi de yapıldı.
+
+### Added
+- **12 renk paleti** (7 → 12): Okyanus, Lavanta, Gün batımı, Kum, Buz. Hepsi
+  `palette.css`te; kontrastları WCAG eşiklerinden geçiyor (48 ölçüm).
+- **Oyun/video sırasında %100 parlaklık** (Ayarlar → Oyun ve video, varsayılan
+  açık): tam ekran oyun/video/PDF açıkken ekran tam parlaklığa çıkar, çıkınca
+  eski değere döner. Kilit ekranında uygulanmaz; anahtar kapatılınca boost
+  hemen geri alınır.
+- Toast artık anlamlı eylemleri bildiriyor: düzen/palet seçimi, 1 saat
+  duraklatma ve "bugün" kapatma (ikisinde **Geri al** düğmesi).
+- `qa/audit-flyout.mjs` matrisi palet listesini `palette.css`ten keşfediyor:
+  48 kare (4 şablon × 12 palet).
+
+### Changed
+- **Bento artık gerçekten mozaik.** v2.6/v2.7'de yalnız yüzey değişiyordu
+  (cam kapanır, kutu dolar); ızgara sahne ile aynıydı — "fark yok" hissi
+  buradan geliyordu. Artık Durum sayfası 12 sütunlu asimetrik ızgarada: hero
+  iki satır boyunca büyük karo, sağında monitörler, altta geniş "otomatik
+  ayar" ve iki satıra yayılan vurgulu "durum" karosu.
+- **Kontrast denetimi açıklaması yeniden yazıldı.** Liste bu ekrandaki 12
+  paleti değil, **OpenCode tema dosyalarını** ölçüyor (uygulama OpenCode
+  temasını da değiştiriyor). Eşikler artık metinde yazılı: 7+ çok iyi,
+  4.5 iyi, 3 sınır, altı okunaksız.
+- `tools/check-tokens.mjs` paletleri CSS'ten keşfediyor — yeni palet eklemek
+  denetim dışında kalamıyor. `qa/run.mjs` de beklenen palet sayısını sabit
+  tutmuyor.
+
+### Fixed
+- **Mozaik alan adı olarak `auto` kullanılamaz:** CSS anahtar kelimesi olduğu
+  için eşleşmiyor, karolar sessizce 67px'lik şeritlere düşüyordu.
+- Mozaik kuralları `#page-panel .asym > .span-side { grid-column: auto }`
+  tarafından eziliyordu (aynı özgüllük, kaynak sırası kazanır); blok dosya
+  sonuna taşındı.
+- Flyout/konsol şablonunda sürüm "V2.7.0" görünüyordu (uppercase mirası);
+  sürüm numarası artık büyütülmüyor.
+
 ## [2.7.0] - 2026-10-28
 
 Şablon sistemi artık yarım değil: **flyout (tepsi paneli) ve ana pencerenin üç sayfası

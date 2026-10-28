@@ -527,7 +527,9 @@
 [data-template="konsol"] .fx-version {
   font-size: 9.5px;
   letter-spacing: 0.08em;
-  text-transform: uppercase;
+  /* Sürüm numarası büyütülmez: "V2.7.0" okunmuyor, yanlış sürüm gibi
+     görünüyordu (v2.8). Etiketler uppercase, veri değil. */
+  text-transform: none;
 }
 
 [data-template="konsol"] .fx-error {

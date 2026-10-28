@@ -99,15 +99,13 @@ function paletteTokens(startPattern) {
   return out;
 }
 
-const palettes = [
-  ["obsidyen", /^:root\s*\{/m],
-  ["gece", /\[data-theme="gece"\]\s*\{/],
-  ["orman", /\[data-theme="orman"\]\s*\{/],
-  ["gul", /\[data-theme="gul"\]\s*\{/],
-  ["fildisi", /\[data-theme="fildisi"\]\s*\{/],
-  ["kagit", /\[data-theme="kagit"\]\s*\{/],
-  ["grafit", /\[data-theme="grafit"\]\s*\{/],
-];
+const palettes = [["obsidyen", /^:root\s*\{/m]];
+// Kalan paletler CSS'ten KEŞFEDİLİR: yeni palet eklemek burada unutulmaz
+// (v2.8 dersi: elle liste tutulunca 5 palet sessizce denetim dışı kalıyordu).
+for (const m of css.matchAll(/\[data-theme="([a-z0-9-]+)"\]\s*\{/g)) {
+  if (m[1] === "obsidyen") continue;
+  palettes.push([m[1], new RegExp(`\\[data-theme="${m[1]}"\\]\\s*\\{`)]);
+}
 
 const base = paletteTokens(/^:root\s*\{/m);
 const RULES = [

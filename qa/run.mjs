@@ -14,11 +14,13 @@
 
 import { createServer } from "node:http";
 import { mkdir, readFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { dirname, extname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const qaDir = dirname(fileURLToPath(import.meta.url));
+const root = join(qaDir, "..");
 const distDir = join(qaDir, "..", "dist");
 const shotDir = join(qaDir, "shots");
 
@@ -1425,11 +1427,28 @@ async function run() {
     await shot("m-ayarlar.png");
     const tplBtns = page.locator("#template-picker .design-card");
     const palBtns = page.locator("#design-picker .design-card");
-    check((await tplBtns.count()) === 4, "matris", `şablon kartı=${await tplBtns.count()} (beklenen 4)`);
-    check((await palBtns.count()) === 7, "matris", `palet kartı=${await palBtns.count()} (beklenen 7)`);
+    // v2.8: beklenen sayı SABİT DEĞİL, `palette.css`ten türetilir — yeni
+    // palet eklenince QA "beklenen 7" diye yanlış kırmızı yakmasın, ama
+    // kart üretimi bozulursa yine yakalasın.
+    const paletteIds = [
+      ...readFileSync(join(root, "src/palette.css"), "utf8").matchAll(
+        /\[data-theme="([a-z0-9-]+)"\]/g,
+      ),
+    ].map((m) => m[1]);
+    const expectedPalettes = paletteIds.length + 1; // + obsidyen (:root)
+    check(
+      (await tplBtns.count()) === 4,
+      "matris",
+      `şablon kartı=${await tplBtns.count()} (beklenen 4)`,
+    );
+    check(
+      (await palBtns.count()) === expectedPalettes,
+      "matris",
+      `palet kartı=${await palBtns.count()} (beklenen ${expectedPalettes})`,
+    );
 
     const TPLS = ["bento", "sahne", "dergi", "konsol"];
-    const PALS = ["obsidyen", "gece", "orman", "gul", "fildisi", "kagit", "grafit"];
+    const PALS = ["obsidyen", ...paletteIds];
 
     // Şablon seçimi: gerçek tıklama → data-template + kalıcılık + aria.
     for (const id of TPLS) {

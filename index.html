@@ -399,7 +399,7 @@
                  için sol uzun tutuldu; tersi olsaydı sol altta ölü boşluk kalırdı
                  (v2.4.2). -->
             <div class="col-stack span-main">
-              <div class="panel-box">
+              <div class="panel-box log-box">
                 <div class="box-title">Olay akışı</div>
                 <div id="log" class="log" role="log" aria-label="Son olaylar"></div>
                 <div class="toolbar">
@@ -409,7 +409,7 @@
                 </div>
               </div>
 
-              <div class="panel-box">
+              <div class="panel-box auto-box">
                 <div class="box-title">Otomatik ayar</div>
                 <div class="seg auto-seg" id="auto-seg" role="group" aria-label="Otomatik ayar">
                   <button id="auto-on" class="seg-item" type="button" data-auto="on" aria-pressed="true">Açık</button>
@@ -694,6 +694,14 @@
                 </div>
                 <div class="hint">Ekranı okuma için yumuşatır; ölçüm ve karar akışı devam eder.</div>
               </div>
+              <div class="panel-box">
+                <div class="box-title">Oyun ve video</div>
+                <div class="switch-line">
+                  <span>Oyun/video öndeyken parlaklık %100</span>
+                  <button id="game-bright" class="switch" type="button" role="switch" aria-checked="true"><span class="knob"></span></button>
+                </div>
+                <div class="hint">Tam ekran oyun, video ya da PDF açıkken ekran tam parlaklığa çıkar; çıkınca eski değere döner. Kilit ekranında uygulanmaz.</div>
+              </div>
             </div>
           </div>
 
@@ -729,7 +737,13 @@
               </div>
 
               <div class="box-title sub">Kontrast denetimi</div>
-              <div class="hint">Temaların metin/zemin oranları ölçülür: çok iyi · iyi · sınır · okunaksız. Okunaksız temalar otomatik seçime girmez.</div>
+              <div class="hint">
+                Bu liste senin <b>OpenCode tema dosyalarını</b> ölçer (uygulama OpenCode
+                temasını da değiştiriyor) — bu ekrandaki 12 renk paletini değil.
+                Oran = metin ile zemin arasındaki parlaklık farkı; 7 ve üstü çok iyi,
+                4.5 iyi, 3 sınır, altı okunaksız. "Okunaksız" çıkan tema otomatik
+                seçimde uygulanmaz; elle seçmek serbesttir.
+              </div>
               <div id="audit-list" class="audit-list"></div>
               <div class="toolbar">
                 <button id="audit-refresh" class="btn-toggle" type="button">Yeniden ölç</button>
