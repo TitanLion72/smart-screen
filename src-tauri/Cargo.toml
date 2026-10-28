@@ -1,6 +1,6 @@
 [package]
 name = "smart-screen"
-version = "2.6.1"
+version = "2.7.0"
 description = "Ortam ışığına göre tema ve parlaklık ayarlayan tray uygulaması"
 authors = ["TitanLion72"]
 license = "GPL-3.0-or-later"

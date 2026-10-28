@@ -34,6 +34,7 @@ qa/test-results
 *.pem
 *.key
 latest.json
+release-notes.md
 tools/.license-private.pem
 
 .playwright-mcp/

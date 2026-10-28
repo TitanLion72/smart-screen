@@ -8,12 +8,16 @@
    - invoke("brightness_set", { value: number })
    - invoke("hdr_status") -> boolean (kendi cihazın HDR'ı; başarısızsa
      #fx-hdr kalıcı gizli, hata gösterilmez)
-   - getVersion() -> string (opsiyonel; yoksa sabit "v2.6.1")
+   - getVersion() -> string (opsiyonel; yoksa sabit "v2.7.0")
    - invoke("flyout_hide") -> pencereyi backend gizler (UI kendini gizlemez)
    - emit("ss:action", { action })  action ∈ measure | pause-1h |
      day-off | lock | open-main
    - listen("ss:state") -> { brightness, theme, mode, pausedUntil,
-     licensed, hdr, locked?, dayOff?, target? | targetPct? }
+     licensed, hdr, locked?, dayOff?, target? | targetPct?,
+     template?, designTheme? }
+     v2.7: `template` (bento|sahne|dergi|konsol) ve `designTheme` (7 palet)
+     flyout'un görünümünü ana pencereyle eşitler. Alan yoksa flyout
+     diskteki `ss:template` / `ss:designTheme` değerini kullanır.
      pausedUntil epoch ms kabul edilir; saniye (≤1e12) ve ISO string de
      çözülür. locked/dayOff/target yoksa o alanlar güncellenmez.
    Slider sürüklenirken (document.activeElement === slider) ss:state
@@ -24,6 +28,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
 import { emit, listen } from "@tauri-apps/api/event";
 import { toast } from "./toast";
+import { DEFAULT_DESIGN_THEME, DEFAULT_TEMPLATE, DESIGN_THEMES, TEMPLATES } from "./catalog";
 
 type SsState = {
   brightness?: number | null;
@@ -36,6 +41,9 @@ type SsState = {
   dayOff?: boolean | null;
   target?: number | null;
   targetPct?: number | null;
+  /** v2.7: ana pencerenin görünüm eksenleri (`<html data-…>`). */
+  template?: string | null;
+  designTheme?: string | null;
 };
 
 function el<T extends HTMLElement>(id: string): T {
@@ -54,6 +62,36 @@ const dayOffBtn = el<HTMLButtonElement>("fx-dayoff");
 const lockBtn = el<HTMLButtonElement>("fx-lock");
 const hdrEl = el<HTMLElement>("fx-hdr");
 const versionEl = el<HTMLElement>("fx-version");
+
+/* ═══════════════ Görünüm eksenleri (v2.7) ═══════════════
+   Flyout, ana pencereyle AYNI ayarı giyer: `ss:template` + `ss:designTheme`.
+   İki pencere aynı origin'de yaşadığı için localStorage ortaktır; yine de
+   `ss:state` bu alanları taşır (ana pencere ayarı değiştirince anında). */
+
+const TEMPLATE_IDS = new Set(TEMPLATES.map((t) => t.id));
+const PALETTE_IDS = new Set(DESIGN_THEMES.map((t) => t.id));
+
+function readSetting(key: string): string | null {
+  try {
+    return localStorage.getItem("ss:" + key);
+  } catch {
+    return null;
+  }
+}
+
+function applyTemplate(id: string | null | undefined): void {
+  document.documentElement.dataset.template = id && TEMPLATE_IDS.has(id) ? id : DEFAULT_TEMPLATE;
+}
+
+function applyPalette(id: string | null | undefined): void {
+  document.documentElement.dataset.theme = id && PALETTE_IDS.has(id) ? id : DEFAULT_DESIGN_THEME;
+}
+
+/** Diskten (ortak localStorage) tazele — pencere her açıldığında çağrılır. */
+function syncLivery(): void {
+  applyTemplate(readSetting("template") ?? DEFAULT_TEMPLATE);
+  applyPalette(readSetting("designTheme") ?? DEFAULT_DESIGN_THEME);
+}
 
 let committed = 0; // son BAŞARILI brightness_set değeri (geri dönüş tabanı)
 let pausedUntil = 0; // epoch ms; 0 = duraklatma yok
@@ -170,6 +208,9 @@ function applyState(s: SsState): void {
   if (typeof s.locked === "boolean") setToggle(lockBtn, s.locked);
   if (typeof s.dayOff === "boolean") setToggle(dayOffBtn, s.dayOff);
   if (typeof s.hdr === "boolean") hdrEl.hidden = !s.hdr;
+  // Görünüm: alan varsa uygula (yoksa diskteki değer korunur).
+  if (s.template !== undefined && s.template !== null) applyTemplate(s.template);
+  if (s.designTheme !== undefined && s.designTheme !== null) applyPalette(s.designTheme);
 
   const target =
     typeof s.target === "number"
@@ -246,15 +287,24 @@ void invoke<boolean>("hdr_status")
 void getVersion()
   .then((v) => {
     const s = String(v ?? "").trim();
-    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.6.1";
+    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.7.0";
   })
   .catch(() => {
-    versionEl.textContent = "v2.6.1";
+    versionEl.textContent = "v2.7.0";
   });
 
 void listen<SsState>("ss:state", (ev) => applyState(ev.payload)).catch((err) =>
   showError(String(err)),
 );
+
+/* Pencere her gösterildiğinde ayarları tazele: kullanıcı ana pencerede
+   şablonu değiştirip flyout'u açtığında eski görünüm kalmasın. `focus`
+   flyout gösterilirken backend tarafından odaklanınca tetiklenir. */
+window.addEventListener("focus", syncLivery);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) syncLivery();
+});
+syncLivery();
 
 brightSub.textContent = "ulaşılmak istenen değer yok";
 updatePauseButton();

@@ -22,6 +22,40 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.7.0 TURU (2026-10-28) — "tam": flyout + sayfalar da şablon giyer
+
+**Tetik:** v2.6 tasarım sistemini kurdu ama yarısı eksikti: flyout eski dildeydi,
+Profiller/Geçmiş/Ayarlar yalnız renk alıyordu. Bu tur "sistem her yerde" turu.
+
+**Yapılanlar**
+- Renk tek kaynağa taşındı: `src/palette.css` (7 palet + obsidyen kökü). `styles.css`
+  ve `flyout.css` `@import` eder; `check-tokens` ölçümü buradan.
+- `src/flyout-templates.css`: flyout 4 şablon (bento/sahne/dergi/konsol) × 7 palet.
+  `flyout.ts` `syncLivery()` + `ss:state`/`localStorage`; geçersiz değer bento/obsidyen.
+- Sayfa yerleşimleri (`templates.css` sonunda, ≥901px): Profiller usta-ayrıntı,
+  Geçmiş bento mozaik / dergi tek kolon / konsol dar kolon, Ayarlar konsol varyantı.
+- Profiller'de editör iç kaydırma: kaydet çubuğu hep görünür.
+- QA: `qa/audit-flyout.mjs` (28 kare), `qa/audit-templates.mjs` sayfa matrisi.
+
+**Ders (kalıcı)**
+1. **`grid-template-columns: 1fr` tek başına yetmez.** `.span-side { grid-column: 2 }`
+   örtük ikinci kolon açar; hesaplanan değer `560px 332px` görünür ve *inline
+   `!important` bile* değiştirmez — çünkü ikinci iz örtük. Tek kolona inerken
+   `.span-main`/`.span-side`'ı da `grid-column: 1`e sabitle.
+2. **`min-height` tabanları şablon değiştirince taşırır.** Grafik 300px + kayıtlar
+   260px iki kolonda sorunsuz, tek kolonda 60px taşma. Şablon kuralı kendi tabanını
+   sıfırlamalı (`min-height: 0`) ve grafiğe kendi tabanını vermeli.
+3. **Editörü kaydırırken "kesik" görünüm normaldir** ama kaydırma çubuğu görünmeli:
+   `scrollbar-color: var(--text-3)`, alta `padding-bottom: var(--sp-6)`.
+4. **Ayarlar bilinçli tek kolon.** 2 kolon denemesi mozaik boşluklar ve üst üste
+   binme üretti (ekran görüntüsüyle doğrulandı); form okunurluğu daha değerli.
+5. Ölçüm tuzağı: `getComputedStyle().gridTemplateColumns` *kullanılan* izleri verir;
+   `1fr` yazıp iki değer okuyorsan örtük iz ara, kuralı suçlama.
+
+**Doğrulama:** `npm test` 12/12 · `check-tokens` PASS (7 palet, 28 ölçüm, 4 şablon) ·
+`qa/run.mjs` 22 senaryo PASS · `audit-flyout` PASS (28 kare) · `audit-templates`
+PASS (4 şablon × 4 sekme; yatay taşma 0, kırpılma 0, Geçmiş 0 kaydırma).
+
 ## V2.6.1 TURU (2026-10-27, gece) — "kendi penceresinde açtım": boşluk hataları
 
 **Tetik:** kullanıcı "pc açık, yapman gerekeni yap" dedi. v2.6.0'ın canlı görsel

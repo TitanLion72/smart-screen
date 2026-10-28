@@ -6,13 +6,13 @@
  *
  * İki iş yapar, ikisi de "tasarım sistemi" iddiasının kanıtı:
  *
- *  1. KATMAN KURALI: `src/templates.css` bileşen katmanıdır — renk hex'i
- *     içeremez. Tüm renkler `var(--…)` ya da `color-mix()` ile paletten
- *     gelmelidir. İstisna işaretlenebilir (`physical:` yorumu) ama şablon
- *     katmanında hiç istisna yok.
+ *  1. KATMAN KURALI: `src/templates.css` ve `src/flyout-templates.css`
+ *     bileşen katmanıdır — renk hex'i içeremez. Tüm renkler `var(--…)`
+ *     ya da `color-mix()` ile paletten gelmelidir. İstisna işaretlenebilir
+ *     (`physical:` yorumu) ama şablon katmanında hiç istisna yok.
  *
- *  2. KONTRAST: her paletin metin/zemin oranı WCAG 2.1 ile ölçülür.
- *     text-1/bg-0 ≥ 7 (AAA), text-2/bg-0 ≥ 4.5, accent/bg-0 ≥ 3,
+ *  2. KONTRAST: `src/palette.css`teki her paletin metin/zemin oranı WCAG 2.1
+ *     ile ölçülür. text-1/bg-0 ≥ 7 (AAA), text-2/bg-0 ≥ 4.5, accent/bg-0 ≥ 3,
  *     on-accent/accent ≥ 4.5. Düşen palet varsa çıkış kodu 1.
  *
  * Kullanım:  node tools/check-tokens.mjs [--verbose]
@@ -60,7 +60,7 @@ function contrast(fg, bg) {
 
 // ── 1. katman kuralı ─────────────────────────────────────────────────
 
-const LAYER_FILES = ["src/templates.css"];
+const LAYER_FILES = ["src/templates.css", "src/flyout-templates.css"];
 
 for (const rel of LAYER_FILES) {
   const src = readFileSync(join(root, rel), "utf8");
@@ -82,7 +82,8 @@ for (const rel of LAYER_FILES) {
 
 // ── 2. palet kontrastı ───────────────────────────────────────────────
 
-const css = readFileSync(join(root, "src/styles.css"), "utf8");
+// Renk TEK KAYNAK: src/palette.css (styles.css ve flyout.css buradan alır).
+const css = readFileSync(join(root, "src/palette.css"), "utf8");
 
 /** `:root` + `[data-theme="x"]` bloklarını kaba ama yeterli ayrıştırır. */
 function paletteTokens(startPattern) {

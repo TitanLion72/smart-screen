@@ -3,6 +3,12 @@
   ══════════════════════════════════════════════════════════════════════════
   SÖZLEŞME — smart-screen tray flyout (340×420, çerçevesiz, scroll yok)
   ══════════════════════════════════════════════════════════════════════════
+  GÖRÜNÜM EKSENLERİ (v2.7 — ana pencereyle aynı sözlük):
+    <html data-template="bento|sahne|dergi|konsol" data-theme="<7 palet>">
+    `flyout.ts` açılışta ve pencere odaklandığında localStorage'dan
+    (`ss:template`, `ss:designTheme`) okur; `ss:state` de aynı alanları
+    taşıyabilir. Geçersiz değer varsayılana düşer (bento/obsidyen).
+
   Biçim: #id | tür | amaç | etkileşim / beklenti
 
   #fx-dot        | span.dot   | durum noktası (title = tema adı)           | —
@@ -20,7 +26,7 @@
   #fx-error      | div        | tek satır hata (3 sn sonra gizlenir)       | text + hidden; role="status"
   #fx-hdr        | div        | "HDR açıkken ekran sarılaştırılamıyor"      | hidden = !hdr; hata olursa kalıcı gizli
   #fx-settings   | button     | "Ayarlar →"                                | click → emit("ss:action", { action: "open-main" }) + invoke("flyout_hide")
-  #fx-version    | div        | "v2.6.1"                                   | text; getVersion() ile doldurulur, yoksa sabit
+  #fx-version    | div        | "v2.7.0"                                   | text; getVersion() ile doldurulur, yoksa sabit
 
   BACKEND SÖZLEŞMESİ (src/flyout.ts buna göre bağlanır):
   - invoke("brightness_get") -> number · invoke("brightness_set", { value })
@@ -33,12 +39,13 @@
     pausedUntil: epoch ms (veya saniye / ISO string — UI üçünü de kabul eder)
   ══════════════════════════════════════════════════════════════════════════
 -->
-<html lang="tr">
+<html lang="tr" data-template="bento" data-theme="obsidyen">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>smart-screen — hızlı panel</title>
     <link rel="stylesheet" href="/src/flyout.css" />
+    <link rel="stylesheet" href="/src/flyout-templates.css" />
     <link rel="stylesheet" href="/src/toast.css" />
     <script type="module" src="/src/flyout.ts" defer></script>
   </head>
@@ -62,6 +69,7 @@
 
       <!-- 2. Parlaklık bloğu -->
       <section class="fx-bright-card" aria-label="Parlaklık">
+        <div class="fx-bright-label">Şu an</div>
         <div class="fx-bright" id="fx-bright">%-</div>
         <div class="fx-bright-sub" id="fx-bright-sub">hedef yok</div>
         <div class="fx-slider-row">
@@ -90,7 +98,7 @@
       </div>
 
       <!-- 5. Sürüm -->
-      <div class="fx-version" id="fx-version">v2.6.1</div>
+      <div class="fx-version" id="fx-version">v2.7.0</div>
     </div>
   </body>
 </html>

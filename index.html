@@ -1,7 +1,7 @@
 <!doctype html>
 <!--
   ══════════════════════════════════════════════════════════════════════════
-  SÖZLEŞME v2.6 — smart-screen DOM sözleşmesi (şablon × palet)
+  SÖZLEŞME v2.7 — smart-screen DOM sözleşmesi (şablon × palet)
   ══════════════════════════════════════════════════════════════════════════
   Bu blok, `src/main.ts` + `src/panels.ts`'i yazacak ajanın tek kaynağıdır.
   Aşağıdaki her id bu dosyada TAM BİR KEZ bulunur; `el(id)` eksik id'de throw
@@ -10,8 +10,12 @@
   İKİ EKSEN (v2.6):
   - `<html data-template>` = ŞABLON (bento · sahne · dergi · konsol) — geometri,
     tipografi, gezinme biçimi. CSS: `src/templates.css`, JS: `panels.setTemplate`.
-  - `<html data-theme>`    = PALET (7 renk) — yalnız renk. CSS: `src/styles.css`.
+  - `<html data-theme>`    = PALET (7 renk) — yalnız renk. CSS: `src/palette.css`.
   İkisi serbestçe çarpılır; hiçbir bileşen kendi rengini seçmez.
+
+  v2.7: renk TEK kaynakta (`src/palette.css`; `styles.css` + `flyout.css`
+  onu @import eder). Şablon artık yalnız Durum'u değil Profiller / Geçmiş /
+  Ayarlar sayfalarının yerleşimini de giyer (`templates.css`) — DOM değişmez.
 
   GENEL KURALLAR
   - Sekme sırası: Durum · Profiller · Geçmiş · Ayarlar. `.tab` düğmeleri

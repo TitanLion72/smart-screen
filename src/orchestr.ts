@@ -472,6 +472,10 @@ function scheduleStateEmit(): void {
       hdr: S.hdrOn,
       locked: S.locked,
       dayOff: S.pauseKind === "day" && S.pauseUntil !== null,
+      // v2.7: flyout aynı şablonu/paleti giysin (disk de paylaşılıyor;
+      // bu alanlar anlık senkron için — ayar değişince beklemeden gider).
+      template: document.documentElement.dataset.template ?? null,
+      designTheme: document.documentElement.dataset.theme ?? null,
     }).catch(() => undefined);
   }, wait);
 }

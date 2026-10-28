@@ -979,6 +979,183 @@ body::after {
 
 
 /* ════════════════════════════════════════════════════════════════════
+   SAYFA YERLEŞİMLERİ (v2.7) — Durum dışındaki üç sayfa da şablon giyer.
+   v2.6'da bu sayfalar yalnız token'larla (renk/yarıçap/yazı) giyiniyordu;
+   yapı aynıydı. Burada yapı da değişir:
+
+     Profiller  bento/sahne/konsol → usta-ayrıntı (kartlar | editör)
+                dergi             → tek kolon editoryal akış
+     Geçmiş     bento             → üç ayrı mozaik kutu
+                dergi             → grafik tam genişlik, kayıtlar altında
+                konsol            → sıkı okuma şeridi + geniş grafik
+
+   Hepsi ≥901px'te; dar pencerede tek kolon akış korunur (altta).
+   Ayarlar bilinçli olarak her şablonda tek okunur kolondur (uzun form);
+   yalnız konsol sağ kolonu daraltır.
+   ════════════════════════════════════════════════════════════════════ */
+
+@media (min-width: 901px) {
+  /* ── Profiller: usta-ayrıntı ─────────────────────────────────────── */
+  [data-template="bento"] #page-profiles,
+  [data-template="sahne"] #page-profiles,
+  [data-template="konsol"] #page-profiles {
+    display: grid;
+    grid-template-columns: minmax(0, 0.82fr) minmax(0, 1.58fr);
+    grid-template-areas:
+      "bar   bar"
+      "cards editor"
+      "cards save";
+    /* Sayfa kaymaz: kart listesi ve editör kendi içinde kayar, kaydet
+       çubuğu hep görünür kalır (usta-ayrıntı düzeni). */
+    grid-template-rows: auto minmax(0, 1fr) auto;
+    align-content: stretch;
+    align-items: stretch;
+    column-gap: var(--panel-gap);
+    overflow: hidden;
+  }
+
+  [data-template="bento"] #page-profiles > .toolbar,
+  [data-template="sahne"] #page-profiles > .toolbar,
+  [data-template="konsol"] #page-profiles > .toolbar {
+    grid-area: bar;
+  }
+
+  [data-template="bento"] #profile-cards,
+  [data-template="sahne"] #profile-cards,
+  [data-template="konsol"] #profile-cards {
+    grid-area: cards;
+    align-content: start;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--text-3) transparent;
+  }
+
+  [data-template="bento"] #profile-editor,
+  [data-template="sahne"] #profile-editor,
+  [data-template="konsol"] #profile-editor {
+    grid-area: editor;
+    min-height: 0;
+    overflow-y: auto;
+    /* Son alan kaydırma çubuğunun altında kalmasın. */
+    padding-bottom: var(--sp-6);
+    scrollbar-gutter: stable;
+    scrollbar-color: var(--text-3) transparent;
+  }
+
+  [data-template="bento"] #page-profiles > .pf-savebar,
+  [data-template="sahne"] #page-profiles > .pf-savebar,
+  [data-template="konsol"] #page-profiles > .pf-savebar {
+    grid-area: save;
+    margin-top: var(--sp-3);
+  }
+
+  /* Dergi: kart listesi yatay şerit, editör altta tam genişlik. */
+  [data-template="dergi"] #profile-cards {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: var(--sp-3);
+  }
+
+  /* ── Geçmiş ──────────────────────────────────────────────────────── */
+  /* Bento: özet şeridi tek panel değil, üç ayrı mozaik kutu. */
+  [data-template="bento"] #page-history > .sum-strip {
+    background: none;
+    border: 0;
+    box-shadow: none;
+    padding: 0;
+    gap: var(--panel-gap);
+  }
+
+  [data-template="bento"] #page-history .sum-cell {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--card-r);
+    padding: var(--sp-4);
+  }
+
+  [data-template="bento"] #page-history .sum-cell + .sum-cell {
+    border-left: 1px solid var(--border-subtle);
+    padding-left: var(--sp-4);
+  }
+
+  [data-template="bento"] #page-history .sum-hint {
+    border-top: 0;
+    padding-top: 0;
+  }
+
+  /* Dergi: grafik tam genişlik — kayıtlar grafiğin altına iner. */
+  [data-template="dergi"] #page-history .asym {
+    grid-template-columns: minmax(0, 1fr);
+    /* Grafik + kayıtlar kalan yüksekliği paylaşır; sayfa kaymaz.
+       Grafik satırına taban: başlık + 132px eğri + açıklama sığsın. */
+    grid-template-rows: minmax(232px, 1.35fr) minmax(0, 1fr);
+    row-gap: var(--sp-5);
+    align-items: stretch;
+  }
+
+  /* Tek kolonda .span-side'ın `grid-column: 2`si örtük ikinci kolon
+     açıyordu (v2.7 dersi) — ikisini de tek kolona sabitle. */
+  [data-template="dergi"] #page-history .span-main,
+  [data-template="dergi"] #page-history .span-side {
+    grid-column: 1;
+  }
+
+  /* Kayıt panelinin 260px taban yüksekliği tek kolonda taşırıyordu. */
+  [data-template="dergi"] #page-history .log-history {
+    min-height: 0;
+  }
+
+  /* Grafik 300/240px tabanlarıyla (2 kolon için yazılmış) tek kolonda
+     taşıyordu; dergi'de geniş ve yassı bir eğri daha doğru zaten. */
+  [data-template="dergi"] #page-history .chart-box {
+    min-height: 0;
+  }
+
+  [data-template="dergi"] #page-history .chart-box svg {
+    min-height: 120px;
+  }
+
+  [data-template="dergi"] #page-history .sum-val {
+    font-family: var(--display-font);
+    font-weight: 400;
+  }
+
+  /* Konsol: okuma şeridi kutulu, grafik geniş. */
+  [data-template="konsol"] #page-history .sum-strip {
+    gap: var(--sp-3);
+  }
+
+  [data-template="konsol"] #page-history .sum-cell {
+    border: 1px solid var(--border-standard);
+    border-radius: var(--card-r);
+    padding: var(--sp-3);
+  }
+
+  [data-template="konsol"] #page-history .sum-cell + .sum-cell {
+    border-left: 1px solid var(--border-standard);
+    padding-left: var(--sp-3);
+  }
+
+  [data-template="konsol"] #page-history .sum-val {
+    font-family: var(--num-font);
+    font-weight: 500;
+    font-size: 24px;
+  }
+
+  [data-template="konsol"] #page-history .asym {
+    grid-template-columns: minmax(0, 2.2fr) minmax(0, 1fr);
+  }
+
+  /* ── Ayarlar ─────────────────────────────────────────────────────── */
+  /* Ayarlar uzun bir form; okunurluk için tek kolon korunur (şablonun
+     kimliği kart dili, tipografi ve renkten gelir). Yalnız konsol sağ
+     kolonu daraltıp enstrüman okuması verir — denendi, taşma yok. */
+  [data-template="konsol"] #page-settings .asym {
+    grid-template-columns: minmax(0, 2.1fr) minmax(0, 1fr);
+  }
+}
+
+/* ════════════════════════════════════════════════════════════════════
    DAR PENCERE (≤900px) — Durum sayfası tek kolona iner.
    Eşik 1020 DEĞİL 900: 1000×720 gibi yaygın bir boyutta tek kolon
    gereksiz yere 500px kaydırma üretiyordu; ızgara oraya da sığıyor.

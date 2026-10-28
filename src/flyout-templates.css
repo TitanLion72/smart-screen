@@ -1,0 +1,563 @@
+/* ════════════════════════════════════════════════════════════════════
+   smart-screen — FLYOUT ŞABLON KATMANI (src/flyout-templates.css)
+
+   Aynı iki eksen, 340×420'lik tek pencereye indirgenmiş hâli:
+     data-theme    → palet (palette.css, ana pencereyle AYNI kaynak)
+     data-template → şablon (bu dosya): bento | sahne | dergi | konsol
+
+   KURAL: renk HEX'i yok. Yalnız var(--…) ve color-mix(). Hex yazarsan
+   `tools/check-tokens.mjs` yakalar (LAYER_FILES).
+
+   BÜTÇE: 420px yükseklik, scroll YOK. Her şablon kendi dikey ritmini
+   kurar ama içerik 388px'e (420 − 2×16) sığmak zorunda. Ölçüm:
+   `qa/audit-flyout.mjs` → scrollHeight − clientHeight = 0.
+   ════════════════════════════════════════════════════════════════════ */
+
+/* ── ortak sözlük: pencereye özgü, şablonun ezip geçebildiği token'lar ── */
+:root {
+  --fx-pad: 16px;
+  --fx-gap: 12px;
+  --fx-card-r: 12px;
+  --fx-card-bg: var(--surface-1);
+  --fx-card-border: 1px solid var(--border-subtle);
+  --fx-card-shadow: var(--shadow-1), var(--inner-top);
+  --fx-num-font: var(--font-mono);
+  --fx-num-size: 36px;
+  --fx-num-weight: 700;
+  --fx-num-track: -0.03em;
+  --fx-title-font: var(--font-sans);
+  --fx-title-size: 15.5px;
+  --fx-title-weight: 600;
+  --fx-title-track: -0.01em;
+  --fx-label-track: 0.02em;
+  --fx-btn-r: var(--r-sm);
+  --fx-btn-h: 44px;
+  --fx-step-bg: var(--surface-2);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   1) BENTO (varsayılan) — mozaik kutular
+   Karakter: büyük yarıçap, dolu yüzey, mono olmayan iri sayı,
+   her eylem ayrı bir "kutu". Zemin düz; süs yok.
+   ════════════════════════════════════════════════════════════════════ */
+[data-template="bento"] {
+  --fx-pad: 14px;
+  --fx-gap: 8px;
+  --fx-card-r: 22px;
+  --fx-card-bg: var(--surface-1);
+  --fx-card-border: 0;
+  --fx-card-shadow: none;
+  --fx-num-font: var(--font-sans);
+  --fx-num-size: 54px;
+  --fx-num-weight: 300;
+  --fx-num-track: -2.6px;
+  --fx-title-font: var(--font-sans);
+  --fx-title-weight: 600;
+  --fx-btn-r: 16px;
+  --fx-btn-h: 52px;
+  --fx-step-bg: var(--surface-2);
+}
+
+[data-template="bento"] .fx-bright-card {
+  gap: 6px;
+  padding: 12px 16px 14px;
+}
+
+/* Bento: kutular kalan yüksekliği PAYLAŞIR — mozaik boşluk bırakmaz. */
+[data-template="bento"] .fx-actions {
+  flex: 1;
+  grid-auto-rows: 1fr;
+}
+
+[data-template="bento"] .fx-bright-label {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--text-3);
+}
+
+/* Bento'da sayı ile "hedef" aynı kutuda ama farklı ağırlıkta:
+   sayı kutunun tepesinde, eylemler komşu mozaikler. */
+[data-template="bento"] .fx-slider-row {
+  margin-top: 6px;
+  padding: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+}
+
+[data-template="bento"] .fx-step {
+  border: 0;
+  background: transparent;
+}
+
+[data-template="bento"] .fx-step:hover {
+  background: var(--surface-3);
+}
+
+[data-template="bento"] .fx-actions button {
+  border: 0;
+  background: var(--surface-1);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  white-space: normal;
+  text-align: left;
+  padding: 10px 12px;
+}
+
+[data-template="bento"] .fx-actions .btn-primary {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 600;
+}
+
+[data-template="bento"] .fx-actions .btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+[data-template="bento"] .fx-actions .btn-toggle:hover {
+  background: var(--surface-3);
+}
+
+[data-template="bento"] .fx-actions .btn-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent-hover);
+}
+
+[data-template="bento"] .fx-head {
+  padding: 2px 6px 0;
+}
+
+[data-template="bento"] .fx-version {
+  padding-left: 6px;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   2) SAHNE — cam + ışıma
+   Karakter: yüzen cam kart, vurgudan türeyen ışıma, pill eylemler.
+   Tek "kahraman" parlaklık sayısı; gerisi iki basamak küçük.
+   ════════════════════════════════════════════════════════════════════ */
+[data-template="sahne"] {
+  --fx-pad: 16px;
+  --fx-gap: 12px;
+  --fx-card-r: var(--r-lg);
+  --fx-card-bg: color-mix(in srgb, var(--surface-1) 78%, transparent);
+  --fx-card-border: 1px solid var(--border-standard);
+  --fx-card-shadow: var(--shadow-2);
+  --fx-num-font: var(--font-sans);
+  --fx-num-size: 56px;
+  --fx-num-weight: 300;
+  --fx-num-track: -2.4px;
+  --fx-btn-r: var(--r-pill);
+  --fx-btn-h: 40px;
+}
+
+[data-template="sahne"] .fx-bright-card {
+  flex: 1;
+  justify-content: center;
+  align-items: stretch;
+  text-align: center;
+  padding: 16px 18px;
+  gap: 4px;
+  background:
+    radial-gradient(
+      120% 70% at 50% 0%,
+      color-mix(in srgb, var(--accent) 12%, transparent),
+      transparent 70%
+    ),
+    var(--fx-card-bg);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+[data-template="sahne"] .fx-bright-label {
+  color: var(--accent);
+  font-weight: 500;
+  letter-spacing: 0.22em;
+}
+
+[data-template="sahne"] .fx-bright-sub {
+  margin-bottom: 6px;
+}
+
+[data-template="sahne"] .fx-actions {
+  gap: 6px;
+}
+
+[data-template="sahne"] .fx-actions button {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface-2) 72%, transparent);
+  border: 1px solid var(--border-subtle);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+[data-template="sahne"] .fx-actions .btn-primary {
+  border-color: transparent;
+  background: linear-gradient(180deg, var(--accent-hover), var(--accent));
+  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+[data-template="sahne"] .fx-actions .btn-primary:hover {
+  background: linear-gradient(180deg, var(--accent), var(--accent-active));
+}
+
+[data-template="sahne"] .fx-head {
+  padding: 2px 4px 0;
+}
+
+[data-template="sahne"] .fx-title {
+  letter-spacing: 0.04em;
+  text-transform: lowercase;
+}
+
+[data-template="sahne"] .badge {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  color: var(--accent-hover);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   3) DERGI — editoryal, kâğıt
+   Karakter: kart yok, hairline kurallar, serif display sayı, eylemler
+   tek kolon düz liste. Hiyerarşi tipografiden gelir, kutudan değil.
+   ════════════════════════════════════════════════════════════════════ */
+[data-template="dergi"] {
+  --fx-pad: 16px;
+  --fx-gap: 6px;
+  --fx-card-r: 0;
+  --fx-card-bg: transparent;
+  --fx-card-border: 0;
+  --fx-card-shadow: none;
+  --fx-num-font: Georgia, "Cambria", "Times New Roman", serif;
+  --fx-num-size: 48px;
+  --fx-num-weight: 400;
+  --fx-num-track: -1.5px;
+  --fx-title-font: Georgia, "Cambria", "Times New Roman", serif;
+  --fx-title-size: 16px;
+  --fx-title-weight: 400;
+  --fx-title-track: 0.01em;
+  --fx-label-track: 0.16em;
+  --fx-btn-r: 0;
+  --fx-btn-h: 32px;
+  --fx-step-bg: transparent;
+}
+
+[data-template="dergi"] .fx-bright-card {
+  flex: 1;
+  justify-content: flex-end;
+  padding: 2px 0 12px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--border-standard);
+}
+
+[data-template="dergi"] .fx-bright-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+}
+
+[data-template="dergi"] .fx-bright-sub {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+[data-template="dergi"] .fx-slider-row {
+  margin-top: 4px;
+}
+
+[data-template="dergi"] .fx-step {
+  border: 0;
+  background: transparent;
+  font-weight: 400;
+}
+
+[data-template="dergi"] .fx-actions {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  align-content: start;
+}
+
+[data-template="dergi"] .fx-actions button {
+  height: var(--fx-btn-h);
+  padding: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-subtle);
+  border-radius: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-size: 12.5px;
+  font-weight: 400;
+  text-align: left;
+}
+
+/* Eylem listesinde ok işareti: editoryal "devam" hissi (yalnız birincil) */
+[data-template="dergi"] .fx-actions .btn-primary {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+[data-template="dergi"] .fx-actions .btn-primary::after {
+  content: "→";
+  float: right;
+  opacity: 0.7;
+}
+
+[data-template="dergi"] .fx-actions .btn-primary:hover,
+[data-template="dergi"] .fx-actions .btn-toggle:hover {
+  background: color-mix(in srgb, var(--text-1) 4%, transparent);
+}
+
+[data-template="dergi"] .fx-actions .btn-toggle.active {
+  background: transparent;
+  border-color: var(--border-standard);
+  color: var(--accent);
+}
+
+[data-template="dergi"] .fx-head {
+  padding: 0;
+  border-bottom: 1px solid var(--border-standard);
+  padding-bottom: 6px;
+}
+
+[data-template="dergi"] .fx-brand {
+  gap: 8px;
+}
+
+[data-template="dergi"] .fx-close:hover {
+  background: transparent;
+  color: var(--accent);
+}
+
+[data-template="dergi"] .fx-foot {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 6px;
+}
+
+[data-template="dergi"] .linklike {
+  font-size: 11.5px;
+  letter-spacing: 0.04em;
+}
+
+[data-template="dergi"] .fx-version {
+  font-family: var(--fx-title-font);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-align: right;
+  width: 100%;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   4) KONSOL — enstrüman paneli
+   Karakter: 1px ızgara, kare köşe, mono büyük harf etiket, hareket 0.
+   Eylemler bir "tuş takımı": her hücre çerçeveli, aktif olan LED'li.
+   ════════════════════════════════════════════════════════════════════ */
+[data-template="konsol"] {
+  --fx-pad: 10px;
+  --fx-gap: 8px;
+  --fx-card-r: 4px;
+  --fx-card-bg: var(--bg-1);
+  --fx-card-border: 1px solid var(--border-standard);
+  --fx-card-shadow: none;
+  --fx-num-font: var(--font-mono);
+  --fx-num-size: 44px;
+  --fx-num-weight: 500;
+  --fx-num-track: -1px;
+  --fx-title-font: var(--font-mono);
+  --fx-title-size: 12px;
+  --fx-title-weight: 500;
+  --fx-title-track: 0.12em;
+  --fx-label-track: 0.08em;
+  --fx-btn-r: 3px;
+  --fx-btn-h: 42px;
+  --fx-step-bg: transparent;
+  --dur-1: 0ms;
+  --dur-2: 0ms;
+}
+
+[data-template="konsol"] body {
+  /* ince ızgara: 24px'lik hücreler, yalnız hairline (16px fazla sıktı) */
+  background-image:
+    linear-gradient(var(--border-subtle) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-subtle) 1px, transparent 1px);
+  background-size: 24px 24px;
+  background-position: -1px -1px;
+}
+
+[data-template="konsol"] .fx {
+  border: 1px solid var(--border-standard);
+  margin: 6px;
+  height: calc(100% - 12px);
+  padding: 10px;
+}
+
+[data-template="konsol"] .fx-head {
+  min-height: 22px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+[data-template="konsol"] .fx-title {
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+[data-template="konsol"] .badge {
+  height: 18px;
+  line-height: 18px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-template="konsol"] .fx-bright-card {
+  padding: 8px 10px 10px;
+}
+
+/* Konsol: tuş takımı kalan yüksekliği doldurur (enstrüman paneli). */
+[data-template="konsol"] .fx-actions {
+  flex: 1;
+  grid-auto-rows: 1fr;
+}
+
+[data-template="konsol"] .fx-bright-label {
+  font-family: var(--font-mono);
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+}
+
+[data-template="konsol"] .fx-bright {
+  line-height: 1;
+  letter-spacing: -1px;
+}
+
+[data-template="konsol"] .fx-bright-sub {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-3);
+}
+
+[data-template="konsol"] .fx-step {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-standard);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+}
+
+[data-template="konsol"] .fx-actions button {
+  height: var(--fx-btn-h);
+  padding: 0 8px;
+  border: 1px solid var(--border-standard);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: normal;
+  line-height: 1.3;
+}
+
+[data-template="konsol"] .fx-actions button:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--text-1) 4%, transparent);
+}
+
+[data-template="konsol"] .fx-actions .btn-primary {
+  background: var(--accent-soft);
+  border-color: var(--accent-ring);
+  color: var(--accent-hover);
+}
+
+[data-template="konsol"] .fx-actions .btn-primary:hover {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+}
+
+/* Aktif toggle: sol üstte küçük LED noktası (enstrüman dili) */
+[data-template="konsol"] .fx-actions .btn-toggle {
+  position: relative;
+  text-align: left;
+}
+
+[data-template="konsol"] .fx-actions .btn-toggle::after {
+  content: "";
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--border-strong);
+}
+
+[data-template="konsol"] .fx-actions .btn-toggle.active {
+  border-color: var(--accent-ring);
+  color: var(--accent-hover);
+}
+
+[data-template="konsol"] .fx-actions .btn-toggle.active::after {
+  background: var(--accent);
+  box-shadow: 0 0 6px var(--accent-ring);
+}
+
+[data-template="konsol"] .fx-foot {
+  border-top: 1px solid var(--border-subtle);
+  padding-top: 6px;
+}
+
+[data-template="konsol"] .linklike {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+[data-template="konsol"] .fx-hdr {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+}
+
+[data-template="konsol"] .fx-version {
+  font-size: 9.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+[data-template="konsol"] .fx-error {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+}
+
+/* ── ışıma anahtarı: bento/dergi/konsol düz zemin ister ─────────────── */
+[data-template="bento"] body,
+[data-template="dergi"] body,
+[data-template="konsol"] body {
+  background-color: var(--bg-0);
+}
+
+[data-template="bento"] body {
+  background-image: none;
+}
+
+[data-template="dergi"] body {
+  background-image: none;
+}
+
+/* ── hareket: konsol hariç yumuşak, konsol anlık ─────────────────────── */
+[data-template="konsol"] .fx * {
+  transition-duration: 0ms !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-template] .fx * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

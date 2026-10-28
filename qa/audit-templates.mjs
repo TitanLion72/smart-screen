@@ -278,6 +278,93 @@ for (const s of sizes) {
   await page.close();
 }
 
+// 3) Sayfalar × şablon: 1040×740'ta her sekme her şablonda.
+//    Durum dışındaki sayfalar kaydırabilir (uzun formlar) — burada yatay
+//    taşma ve kırpılma aranır; dikey taşma yalnız raporlanır.
+{
+  const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  await page.addInitScript(stub);
+  await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
+  await page.waitForTimeout(900);
+  const tabs = ["panel", "profiles", "history", "settings"];
+  for (const tpl of TPLS) {
+    for (const tab of tabs) {
+      await page.evaluate(
+        ([t, tb]) => {
+          document.documentElement.dataset.template = t;
+          document.documentElement.dataset.theme = "obsidyen";
+          document.getElementById(`tab-${tb}`)?.click();
+        },
+        [tpl, tab],
+      );
+      await page.waitForTimeout(320);
+      const m = await page.evaluate(() => {
+        const p = document.querySelector(".page:not([hidden])");
+        if (!p) return null;
+        const pr = p.getBoundingClientRect();
+        const clipped = [];
+        for (const n of p.querySelectorAll("*")) {
+          const r = n.getBoundingClientRect();
+          if (r.width > 0 && (r.right > pr.right + 1 || r.left < pr.left - 1)) {
+            clipped.push(`${n.tagName.toLowerCase()}${n.id ? "#" + n.id : ""}`);
+          }
+        }
+        const ed = p.querySelector("#profile-editor");
+        const sv = p.querySelector(".pf-savebar");
+        const geom =
+          ed && sv
+            ? {
+                edBottom: Math.round(ed.getBoundingClientRect().bottom),
+                svTop: Math.round(sv.getBoundingClientRect().top),
+                svBottom: Math.round(sv.getBoundingClientRect().bottom),
+                prBottom: Math.round(pr.bottom),
+              }
+            : null;
+        return {
+          over: Math.round(p.scrollHeight - p.clientHeight),
+          hOver: Math.round(p.scrollWidth - p.clientWidth),
+          clipped: [...new Set(clipped)].slice(0, 4),
+          geom,
+        };
+      });
+      await page.screenshot({ path: join(out, `pg-${tpl}-${tab}.png`) });
+      // Ayarlar uzun sayfa: alt yarısı da bir kareye girsin.
+      if (tab === "settings") {
+        await page.evaluate(() => {
+          const p = document.querySelector(".page:not([hidden])");
+          if (p) p.scrollTop = 620;
+        });
+        await page.waitForTimeout(180);
+        await page.screenshot({ path: join(out, `pg-${tpl}-settings-2.png`) });
+        await page.evaluate(() => {
+          const p = document.querySelector(".page:not([hidden])");
+          if (p) p.scrollTop = 0;
+        });
+      }
+      if (!m) {
+        problems.push(`${tpl}/${tab}: sayfa bulunamadı`);
+        continue;
+      }
+      if (m.hOver > 0) problems.push(`${tpl}/${tab}: YATAY taşma ${m.hOver}px`);
+      if (m.clipped.length) problems.push(`${tpl}/${tab}: kırpılan ${m.clipped.join(",")}`);
+      // Usta-ayrıntı düzeninde kaydet çubuğu editörün altında ve ekranda olmalı.
+      if (tab === "profiles" && tpl !== "dergi" && m.geom) {
+        if (m.geom.svTop < m.geom.edBottom - 1) {
+          problems.push(`${tpl}/${tab}: kaydet çubuğu editörün üstüne biniyor`);
+        }
+        if (m.geom.svTop > m.geom.prBottom) {
+          problems.push(`${tpl}/${tab}: kaydet çubuğu ekran dışında`);
+        }
+        if (m.geom.svBottom > m.geom.prBottom + 1) {
+          problems.push(`${tpl}/${tab}: kaydet çubuğunun altı kesik`);
+        }
+      }
+      console.log(`${tpl}/${tab}: scroll +${m.over}px, yatay ${m.hOver}px`);
+    }
+  }
+  await page.close();
+}
+
 await browser.close();
 server.close();
 

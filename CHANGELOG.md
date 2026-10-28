@@ -15,6 +15,40 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.7.0] - 2026-10-28
+
+Şablon sistemi artık yarım değil: **flyout (tepsi paneli) ve ana pencerenin üç sayfası
+da şablonu giyiyor.** Renk tek dosyada toplandı; 4 şablon × 7 palet her yerde aynı
+sözleşmeyle çalışıyor.
+
+### Added
+- **Flyout şablon katmanı** (`src/flyout-templates.css`): bento mozaik, sahne cam +
+  vurgu ışıması, dergi hairline + serif, konsol mono ızgara + LED. 340×420'de dikey
+  kaydırma ve kırpılma yok.
+- **Flyout görünüm senkronu:** ana pencerede seçilen şablon/palet `ss:state` ve
+  `localStorage` (`ss:template`, `ss:designTheme`) ile flyout'a geçer; geçersiz değer
+  `bento`/`obsidyen`'e düşer. Pencere odağa gelince tazelenir.
+- **Sayfa yerleşimleri:** Profiller'de usta-ayrıntı (kartlar | editör), dergi'de tek
+  kolon editoryal akış; Geçmiş'te bento mozaik özet şeridi, dergi'de tam genişlik
+  grafik + altında kayıtlar, konsol'da dar sağ kolon; Ayarlar'da konsol varyantı.
+- Test: `qa/audit-flyout.mjs` (4 şablon × 7 palet karesi) ve `qa/audit-templates.mjs`
+  sayfa matrisi (4 şablon × 4 sekme; yatay taşma ve kırpılma assert'i).
+
+### Changed
+- **Renk tek kaynak:** `src/palette.css` — 7 palet + obsidyen kökü. `styles.css` ve
+  `flyout.css` bunu `@import` eder; `tools/check-tokens.mjs` ölçümü bu dosyadan yapar.
+- Profiller'de editör kendi içinde kayar; **Kaydet çubuğu hep görünür**
+  (bento/sahne/konsol). Dergi bilinçli olarak sayfa akışında kaydırır.
+- Flyout'taki sabit mavi ışıma paletin vurgu rengine bağlandı.
+- Ayarlar uzun bir form olduğu için tek okunur kolonda kalır; şablon kimliği kart
+  dili + tipografiden gelir.
+
+### Fixed
+- Tek kolona inen düzenlerde `.span-side`'ın `grid-column: 2`si örtük ikinci kolon
+  açıyordu — Geçmiş/dergi iki kolonda kalıyordu.
+- Geçmiş'te grafik (300 px) ve kayıtlar (260 px) taban yükseklikleri tek kolonda
+  taşırıyordu; dergi'de grafik geniş + yassı, kayıtlar altında.
+
 ## [2.6.1] - 2026-10-27
 
 v2.6.0 yayınlandıktan sonra uygulama **kendi penceresinde** açıldı ve iki görsel kusur
