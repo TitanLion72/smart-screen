@@ -4,11 +4,11 @@
 import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile, mkdir } from "node:fs/promises";
-import { join, extname, dirname } from "node:path";
+import { join, extname, dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const root = join(here, "..", "dist");
+const root = resolve(here, "..", "dist");
 const out = join(here, "audit");
 await mkdir(out, { recursive: true });
 
@@ -21,7 +21,13 @@ const TYPES = {
 
 const server = createServer(async (req, res) => {
   const p = (req.url || "/").split("?")[0];
-  const file = join(root, p === "/" ? "index.html" : p);
+  // Resolve against the fixed root and refuse anything that escapes it
+  // (".." segments, absolute paths) to prevent path injection.
+  const file = resolve(root, "." + (p === "/" ? "/index.html" : p));
+  if (!file.startsWith(root + sep)) {
+    res.writeHead(403).end();
+    return;
+  }
   try {
     const body = await readFile(file);
     res.writeHead(200, { "content-type": TYPES[extname(file)] || "application/octet-stream" });
