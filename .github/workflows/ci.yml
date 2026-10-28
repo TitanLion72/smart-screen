@@ -31,10 +31,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
       - run: cargo install --locked cargo-audit
       - name: Guvenlik denetimi (RustSec)
         run: cargo audit
         working-directory: src-tauri
+      - name: Guvenlik kapisi (sir/enjeksiyon/CSP/yetki)
+        run: node tools/security-check.mjs
+      - name: Guvenlik kapisinin kendi testi
+        run: node qa/security-selftest.mjs
 
   frontend:
     runs-on: windows-latest
@@ -46,6 +53,8 @@ jobs:
       - run: npm.cmd install
       - name: Birim testleri (karar motoru)
         run: npm.cmd test
-      - name: Tasarım token'lari (hex yasagi + kontrast)
+      - name: Tasarim token'lari (hex yasagi + kontrast)
         run: npm.cmd run check:tokens
+      - name: Guvenlik kapisi (sir/enjeksiyon/CSP/yetki)
+        run: npm.cmd run check:security
       - run: npm.cmd run build

@@ -64,7 +64,7 @@ where
 /// Kurulum hatasini smart-screen.log'a tek satir olarak dusurur; uygulama
 /// yine dusmez. Satir stats.rs'in bekledigi sabit formattadir.
 fn log_setup_error(what: &str, err: &str) {
-    let now = chrono::Utc::now().to_rfc3339();
+    let now = crate::logger::now_local();
     write_disk_log(&format!(
         "{now} | source=setup/setup | level=warn | tone=- | desired=- | \
          applied=- | theme=- | note={what}: {err}"

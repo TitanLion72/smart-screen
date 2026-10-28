@@ -18,7 +18,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { sendNotification } from "@tauri-apps/plugin-notification";
-import { MODE_LABEL, SOURCE_LABEL } from "./catalog";
+import { DEFAULT_DESIGN_THEME, MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
 import {
   extendRespect,
@@ -271,6 +271,10 @@ export interface AppState {
   /** Boost uygulandı mı; çıkışta geri dönülecek değer burada tutulur. */
   gameBoost: boolean;
   gameBoostPrev: number | null;
+  /** v2.9: "Günün rengi" — saate göre otomatik palet. */
+  autoPalette: boolean;
+  /** Elle palet seçiminin zamanı (10 dk dwell penceresi). */
+  lastManualPaletteAt: number;
   audits: AuditReport[];
   auditGate: boolean;
   lastGateWarn: string;
@@ -396,6 +400,8 @@ export const S: AppState = {
   gameBright: getSetting("gameBright", "1") === "1",
   gameBoost: false,
   gameBoostPrev: null,
+  autoPalette: getSetting("autoPalette", "0") === "1",
+  lastManualPaletteAt: 0,
   audits: [],
   auditGate: getSetting("auditGate", "1") === "1",
   lastGateWarn: "",
@@ -560,10 +566,17 @@ async function diskLog(
   tone = "-",
   read: number | null = null,
   written: number | null = null,
+  /** v2.9: karar verilen ama HENÜZ uygulanmamış tema (`theme` = uygulanmış).
+   *  Eskiden iki farklı şey aynı `theme=` alanına yazılıyordu: normal turda
+   *  "karar", donmuş turda "uygulanmış". 21:33'te `catppuccin` yazıp 21:34'te
+   *  `zenburn` yazması teşhisi imkânsız kılıyordu (dwell dolmadığı için
+   *  uygulanmamıştı). Artık: `theme=` daima uygulanmış, `want=` karar. */
+  want: string | null = null,
 ): Promise<void> {
   const extra =
     (read === null ? "" : ` | read=${read}`) +
-    (written === null ? "" : ` | written=${written}`);
+    (written === null ? "" : ` | written=${written}`) +
+    (want === null ? "" : ` | want=${want}`);
   const line = `${localIso(new Date())} | source=${S.mode}/${S.source} | level=${level} | tone=${tone} | desired=${desired}${extra} | applied=${applied} | theme=${theme} | note=${note}`;
   await invoke("log_tick", { line }).catch((e) => console.warn("diskLog:", e));
 }
@@ -943,12 +956,23 @@ function gateReason(name: string, themeMode: string): string | null {
 }
 
 export async function loadAudit(): Promise<void> {
+  // v2.8.1: "Yeniden ölç" sessizdi — veri aynıysa render önbelleği listeyi
+  // yeniden çizmiyor, kullanıcı "buton çalışmıyor" sanıyordu. Artık döner
+  // simge + sonuç toast'ı var; ölçüm gerçekten diske gidip yeniden okur.
+  const busy = toast.busy("Kontrast ölçülüyor");
   try {
     const rows = await invoke<AuditReport[]>("contrast_audit");
     S.audits = Array.isArray(rows) ? rows : [];
+    const bad = S.audits.filter((r) => r.verdict === "FAIL").length;
+    busy.done(
+      S.audits.length === 0
+        ? "Ölçülecek tema dosyası yok"
+        : `${S.audits.length} tema ölçüldü${bad > 0 ? ` · ${bad} okunaksız` : " · hepsi okunur"}`,
+    );
   } catch (e) {
     S.audits = [];
     log("kontrast denetimi okunamadı: " + String(e), "bad");
+    toast.err("Kontrast ölçülemedi", { detail: String(e) });
     render();
     return;
   }
@@ -984,6 +1008,71 @@ export function setGameBright(v: boolean): void {
     "ok",
   );
   render();
+}
+
+/**
+ * v2.9: "Günün rengi" — saate göre otomatik palet.
+ *
+ * Neden: 12 palet var ama çoğu kullanıcı birini seçip bırakıyor. Gündüz
+ * aydınlık, akşam sıcak, gece derin palet göz konforu için gerçek fark
+ * yaratıyor (uygulamanın varlık nedeni bu).
+ *
+ * Kurallar:
+ * - Kapalıyken hiçbir şey yapılmaz (kullanıcı seçimi kutsal).
+ * - Elle palet seçimi 10 dk "dokunma" penceresi açar (dwell) — kullanıcı
+ *   bir renk seçtiğinde hemen geri çevrilmez.
+ * - Yalnız `autoPalette` açıkken, yarım saatte bir, saat dilimine göre.
+ */
+const AUTO_PALETTE_DWELL_MS = 10 * 60 * 1000;
+
+/** Saat dilimine göre önerilen palet. */
+export function paletteForHour(hour: number): string {
+  if (hour >= 7 && hour < 11) return "fildisi"; // sabah: aydınlık kâğıt
+  if (hour >= 11 && hour < 17) return "kagit"; // gündüz: nötr açık
+  if (hour >= 17 && hour < 20) return "gunbatimi"; // akşam: sıcak amber
+  if (hour >= 20 && hour < 23) return "obsidyen"; // gece başı: sıcak kömür
+  return "gece"; // gece: derin lacivert
+}
+
+export function setAutoPalette(v: boolean): void {
+  S.autoPalette = v;
+  setSetting("autoPalette", v ? "1" : "0");
+  if (v) {
+    // Açılır açılmaz uygula (kullanıcı sonucu hemen görsün).
+    S.lastManualPaletteAt = 0;
+    applyAutoPalette(true);
+    toast.ok("Günün rengi açıldı", { detail: "Saat dilimine göre palet kendisi seçilir." });
+  } else {
+    toast.info("Günün rengi kapalı", { detail: "Renk seçimin sabit kalır." });
+  }
+  log(v ? "günün rengi açıldı" : "günün rengi kapatıldı", "ok");
+  render();
+}
+
+/**
+ * Saat dilimine göre paleti uygular. `force` yoksa dwell ve tekrar
+ * denetimi yapılır (her turda yazmaz).
+ */
+export function applyAutoPalette(force = false): void {
+  if (!S.autoPalette) return;
+  if (!force && Date.now() - S.lastManualPaletteAt < AUTO_PALETTE_DWELL_MS) return;
+  const want = paletteForHour(new Date().getHours());
+  const current = document.documentElement.dataset.theme ?? DEFAULT_DESIGN_THEME;
+  if (want === current) return;
+  // Palet değişimi JS'te (panels) yapılır; döngüsel bağımlılık olmasın diye
+  // callback ile: orchestr → panels yönü yok, main kablolar.
+  autoPaletteApply?.(want);
+}
+
+/** main.ts kablolar: orchestr'ın palet yazma yolunu tersine çevirmeden. */
+let autoPaletteApply: ((id: string) => void) | null = null;
+export function bindAutoPalette(fn: (id: string) => void): void {
+  autoPaletteApply = fn;
+}
+
+/** Elle palet seçildi: 10 dk dokunma penceresi. */
+export function noteManualPalette(): void {
+  S.lastManualPaletteAt = Date.now();
 }
 
 export async function updateRisk(name: string, themeMode: string | null): Promise<void> {
@@ -1659,15 +1748,20 @@ async function runTick(reason: string): Promise<void> {
                   : remembered
                     ? "öğrenilmiş tercih"
                     : reason;
+    // v2.9 log semantiği: `theme=` UYGULANMIŞ tema, `want=` karar verilen.
+    // Aynıysa `want` yazılmaz (gürültü olmasın); farklıysa ikisi de görünür.
+    const appliedTheme = S.appliedKey ?? "-";
+    const wantedTheme = `${name}/${themeMode}`;
     await diskLog(
       note,
       target,
       appliedNow,
-      `${name}/${themeMode}`,
+      appliedTheme,
       level,
       tone,
       current,
       wroteBright ? appliedNow : null,
+      wantedTheme === appliedTheme ? null : wantedTheme,
     );
 
     // Otomatik kipte sıcak ton her turda saate göre yeniden hesaplanır.

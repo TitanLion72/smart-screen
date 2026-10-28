@@ -96,7 +96,10 @@ export interface Accent {
 }
 
 export const ACCENTS: Accent[] = [
-  // Hex'ler styles.css [data-accent] bloklarıyla aynı ailede tutulur (obsidyen+şampanya).
+  // v2.8.1: "palette" = paletin KENDİ vurgusu (varsayılan). Diğer dördü
+  // yalnız seçildiği palette geçerli — paletler arası renk sızması yok.
+  { id: "palette", hex: "", label: "Palet rengi" },
+  // Hex'ler palette.css [data-accent] bloklarıyla aynı ailede tutulur (obsidyen+şampanya).
   { id: "blue", hex: "#8FB3C9", label: "Mavi" },
   { id: "green", hex: "#8FBF8F", label: "Yeşil" },
   { id: "violet", hex: "#D09A92", label: "Gül" },

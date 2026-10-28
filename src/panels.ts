@@ -57,6 +57,8 @@ import {
   setBreakEnabled,
   setGameBright,
   setGate,
+  setAutoPalette,
+  noteManualPalette,
   setMode,
   setSource,
   setWarmMode,
@@ -259,11 +261,15 @@ export function setDesignTheme(id: string): void {
   const changed = document.documentElement.dataset.theme !== id;
   document.documentElement.dataset.theme = id;
   setSetting("designTheme", id);
+  // v2.9: elle seçim "Günün rengi"ni 10 dk askıya alır.
+  noteManualPalette();
   el("design-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
     const on = b.dataset.design === id;
     b.setAttribute("aria-pressed", on ? "true" : "false");
     b.classList.toggle("active", on);
   });
+  // v2.8.1: palet değişti → o paletin vurgusu geçerli (yabancı renk sızmaz).
+  applyAccentForPalette(id);
   if (changed) {
     const t = DESIGN_THEMES.find((x) => x.id === id);
     toast.ok(`Renkler: ${t?.label ?? id}`, { detail: t?.note });
@@ -313,12 +319,70 @@ function renderDesignThemes(): void {
 
 // ---------- vurgu rengi ----------
 
-function setAccent(id: string): void {
-  document.documentElement.dataset.accent = id;
-  // duzeltme v2.2 (madde 1): seçim kalıcı — açılışta geri okunur.
-  setSetting("accent", id);
+/**
+ * v2.8.1 — vurgu rengi artık PALET BAŞINA hatırlanır.
+ *
+ * Eski davranış: `[data-accent]` blokları `--accent`ı global ezip kalıcıydı;
+ * bir kez "Şampanya" seçen kullanıcı, hangi paleti seçerse seçsin altın
+ * vurgu görüyordu ("ilk temadaki sarı her yerde var" şikâyeti). Ayrıca her
+ * paletin kendi vurgusu vardı ama hiç görünmüyordu.
+ *
+ * Yeni davranış: varsayılan `palette` — paletin KENDİ vurgusu (`--accent-base`).
+ * Kullanıcı bir palet içinde vurgu seçerse yalnız o palette saklanır
+ * (`ss:accents` = { palet: vurgu }); palet değişince o paletin kaydı geçerli
+ * olur, yoksa paletin kendi rengi görünür. Yabancı renk sızamaz.
+ */
+type AccentMap = Record<string, string>;
+
+function readAccentMap(): AccentMap {
+  try {
+    const raw = getSetting("accents", "{}");
+    const parsed = JSON.parse(raw) as unknown;
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as AccentMap)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeAccentMap(map: AccentMap): void {
+  try {
+    setSetting("accents", JSON.stringify(map));
+  } catch {
+    /* storage yoksa oturum içi kalır */
+  }
+}
+
+function currentPaletteId(): string {
+  return document.documentElement.dataset.theme ?? DEFAULT_DESIGN_THEME;
+}
+
+/** Paletin kayıtlı vurgusunu uygular; kayıt yoksa paletin kendi rengi. */
+function applyAccentForPalette(paletteId: string): void {
+  const map = readAccentMap();
+  const want = map[paletteId] ?? "palette";
+  const valid = want === "palette" || ACCENTS.some((a) => a.id === want && a.id !== "palette");
+  setAccent(valid ? want : "palette", false);
+}
+
+function setAccent(id: string, persist = true): void {
+  const safe = id === "palette" || ACCENTS.some((a) => a.id === id) ? id : "palette";
+  if (safe === "palette") {
+    // Paletin kendi vurgusu: override katmanını tamamen kaldır.
+    delete document.documentElement.dataset.accent;
+  } else {
+    document.documentElement.dataset.accent = safe;
+  }
+  if (persist) {
+    const map = readAccentMap();
+    map[currentPaletteId()] = safe;
+    writeAccentMap(map);
+  }
   el("accent-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
-    b.setAttribute("aria-pressed", b.dataset.accent === id ? "true" : "false");
+    const on = b.dataset.accent === safe;
+    b.setAttribute("aria-pressed", on ? "true" : "false");
+    b.classList.toggle("active", on);
   });
 }
 
@@ -329,18 +393,19 @@ function renderAccents(): void {
     const b = document.createElement("button");
     b.type = "button";
     b.className = "swatch";
-    b.title = a.label;
+    b.title = a.id === "palette" ? "Paletin kendi rengi" : a.label;
     b.setAttribute("aria-label", a.label);
     b.dataset.accent = a.id;
-    b.style.setProperty("--sw", a.hex);
+    // "palette" yuvarlağı paletin KENDİ rengini gösterir (canlı).
+    b.style.setProperty("--sw", a.id === "palette" ? "var(--accent-base)" : a.hex);
+    if (a.id === "palette") b.classList.add("swatch-auto");
     b.addEventListener("click", () => setAccent(a.id));
     host.append(b);
   }
-  // duzeltme v2.2 (madde 1): kayıtlı vurgu rengi açılışta uygulanır.
-  const saved = getSetting("accent", "");
-  if (ACCENTS.some((a) => a.id === saved)) setAccent(saved);
   // v2.4: görünüm teması da açılışta uygulanır (palet CSS'te).
   initDesignTheme();
+  // v2.8.1: vurgu palet başına — açılışta o paletin kaydı uygulanır.
+  applyAccentForPalette(currentPaletteId());
 }
 
 // ---------- kontrast denetimi ----------
@@ -1221,6 +1286,7 @@ export function bootWidgets(): void {
   });
   bindSwitch(btnEl("gate-switch"), S.auditGate, (v) => setGate(v));
   bindSwitch(btnEl("game-bright"), S.gameBright, (v) => setGameBright(v));
+  bindSwitch(btnEl("auto-palette"), S.autoPalette, (v) => setAutoPalette(v));
   void autostartEnabled().then((on) => {
     bindSwitch(btnEl("auto-switch"), on, (v) => void setAutostart(v));
   });

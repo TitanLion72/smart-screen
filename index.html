@@ -249,6 +249,9 @@
   #appearance-box  | div.panel-box | Ayarlar > Görünüm (Gelişmiş dışında) | içinde şablon + palet + vurgu seçicileri
   #mast-date       | span.mast-date | dergi şablonunun masthead tarihi | text ("Cuma 27 Ekim"); yalnız dergi'de görünür
   #accent-picker   | div.accent-picker | vurgu rengi noktaları (JS üretir) | .swatch click → data-accent set
+                   |            | v2.9: ilk nokta "palette" = paletin KENDİ rengi (varsayılan); diğer seçimler PALET BAŞINA saklanır (ss:accents) — başka palette sızmaz
+  #game-bright     | button.switch | "Oyun/video öndeyken parlaklık %100" | bindSwitch; varsayılan açık; kilit ekranında uygulanmaz
+  #auto-palette    | button.switch | "Günün rengi — saate göre kendisi seçsin" | bindSwitch; açılınca palet saat dilimine döner, elle seçim 10 dk korunur
   #night-btn       | button     | "Windows gece ışığı"                   | click → Windows ayar sayfası açar
   #lic-box         | div.panel-box | lisans kartı                        | —
   #lic-status      | span.lic-status | lisans durumu metni               | text
@@ -718,6 +721,11 @@
               <span class="field-label">Renkler</span>
               <div class="design-picker" id="design-picker" role="group" aria-label="Görünüm teması"></div>
             </div>
+            <div class="switch-line">
+              <span>Günün rengi — saate göre kendisi seçsin</span>
+              <button id="auto-palette" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+            </div>
+            <div class="hint" id="auto-palette-note">Kapalıyken renk seçimin sabit kalır. Açıkken sabah aydınlık, akşam sıcak, gece derin palet kullanılır; elle seçtiğin renk 10 dk korunur.</div>
             <div class="field">
               <span class="field-label">Vurgu rengi</span>
               <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>

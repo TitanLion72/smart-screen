@@ -22,6 +22,8 @@
 
 /* 0) OBSİDYEN (varsayılan) — sıcak kömür + şampanya. Mavi/lacivert YOK. */
 :root {
+  /* paletin KENDİ vurgusu — [data-accent] bunu ezmez, yalnız --accent'ı ezer. */
+  --accent-base: #d8b98a;
   /* zemin kademeleri */
   --bg-0: #0a0908;
   --bg-1: #12100e;
@@ -40,7 +42,7 @@
   --text-3: #a39a8c;
   --text-4: #8c8375;
   /* vurgu: şampanya + bakır */
-  --accent: #d8b98a;
+  --accent: var(--accent-base);
   --accent-hover: #e7d0a7;
   --accent-active: #c08a5a;
   --accent-soft: rgba(216, 185, 138, 0.12);
@@ -92,6 +94,7 @@
   --danger: #e08a95;
   --danger-soft: rgba(224, 138, 149, 0.12);
   --track: #1a222d;
+  --accent-base: #a9c6e0;
 }
 
 /* 2) ORMAN — derin yeşil-siyah + adaçayı. Doğal, yumuşak. */
@@ -123,6 +126,7 @@
   --danger: #dc8b85;
   --danger-soft: rgba(220, 139, 133, 0.12);
   --track: #1a241b;
+  --accent-base: #a8c8a4;
 }
 
 /* 3) GÜL — erik-mor zemin + gül kurusu. Sıcak, şık. */
@@ -154,6 +158,7 @@
   --danger: #e58a8a;
   --danger-soft: rgba(229, 138, 138, 0.12);
   --track: #241a21;
+  --accent-base: #e0b0c4;
 }
 
 /* 4) FİLDİŞİ — aydınlık premium. Gündüz kullanımı, kâğıt hissi. */
@@ -190,6 +195,7 @@
   --shadow-1: 0 1px 2px rgba(60, 44, 26, 0.08);
   --shadow-2: 0 18px 44px rgba(60, 44, 26, 0.1);
   --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --accent-base: #94632d;
 }
 
 /* 5) KÂĞIT — nötr sıcak açık. Saf beyaz değil, mürekkep hissi.
@@ -226,6 +232,7 @@
   --shadow-1: 0 1px 2px rgba(40, 34, 28, 0.07);
   --shadow-2: 0 18px 44px rgba(40, 34, 28, 0.1);
   --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --accent-base: #b4553a;
 }
 
 /* 6) GRAFİT — nötr soğuk koyu. Renk iddiası yok, içerik önde. */
@@ -257,6 +264,7 @@
   --danger: #e08a8a;
   --danger-soft: rgba(224, 138, 138, 0.12);
   --track: #23272e;
+  --accent-base: #6ea8d8;
 }
 
 /* 7) OKYANUS — derin petrol + deniz camı. Serin, sakin, uzun oturumlar. */
@@ -288,6 +296,7 @@
   --danger: #e08a95;
   --danger-soft: rgba(224, 138, 149, 0.12);
   --track: #16242b;
+  --accent-base: #7fc9c4;
 }
 
 /* 8) LAVANTA — koyu mor-gri + lavanta. Akşam okuması, yumuşak. */
@@ -319,6 +328,7 @@
   --danger: #e592a0;
   --danger-soft: rgba(229, 146, 160, 0.12);
   --track: #201a31;
+  --accent-base: #c0b0e8;
 }
 
 /* 9) GÜN BATIMI — bordo-kahve zemin + amber. Sıcak ama obsidyenden kızıl. */
@@ -350,6 +360,7 @@
   --danger: #e89080;
   --danger-soft: rgba(232, 144, 128, 0.12);
   --track: #291b15;
+  --accent-base: #e8a26a;
 }
 
 /* 10) KUM — açık sıcak bej + zeytin. Gündüz, kâğıttan daha nötr. */
@@ -384,6 +395,7 @@
   --shadow-1: 0 1px 2px rgba(48, 44, 30, 0.08);
   --shadow-2: 0 18px 44px rgba(48, 44, 30, 0.1);
   --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --accent-base: #5f6b32;
 }
 
 /* 11) BUZ — açık soğuk gri-mavi + lacivert. Klinik değil, temiz. */
@@ -418,4 +430,5 @@
   --shadow-1: 0 1px 2px rgba(28, 40, 54, 0.08);
   --shadow-2: 0 18px 44px rgba(28, 40, 54, 0.1);
   --inner-top: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+  --accent-base: #2c5d8a;
 }

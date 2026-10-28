@@ -43,6 +43,17 @@ pub fn log_tick(line: &str) {
     }
 }
 
+/// Log satırı için **yerel** RFC3339 damga (saniye duyarlığı).
+///
+/// v2.9: üç Rust yazıcı (`colortemp`, `hdr`, `lib` setup) `Utc::now()` ile
+/// nanosecond'lu UTC yazıyordu; JS tarafı ise yerel saat yazıyordu. Aynı
+/// dosyada iki zaman dilimi = satırlar sıralanamaz, "ne zaman oldu" sorusu
+/// cevapsız kalıyordu (canlı log'da görüldü: 01:07 yerel ile 22:07Z yan yana).
+/// Tek biçim: `2026-10-29T01:07:15+03:00` — `orchestr.localIso` ile birebir.
+pub fn now_local() -> String {
+    chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+}
+
 pub fn read_lines(max: usize) -> Result<Vec<String>, String> {
     let _guard = guard();
     read_tail(&log_path()?, max)

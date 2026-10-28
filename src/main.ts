@@ -171,6 +171,13 @@ window.addEventListener("DOMContentLoaded", () => {
   P.bootWidgets();
   P.wireButtons();
 
+  // v2.9: "Günün rengi" bağlaması ERKEN yapılır. Boot'un ileriki adımları
+  // (güncelleme/flyout köprüsü) hata verirse bağlama ölmesin — bir kez
+  // sessizce çalışmayan özellik, hiç olmayan özellikten kötüdür.
+  O.bindAutoPalette((id) => P.setDesignTheme(id));
+  // Açılışta açıksa hemen uygula (kullanıcı sonucu ilk bakışta görsün).
+  if (O.S.autoPalette) O.applyAutoPalette(true);
+
   // Boş log için yönlendirme (appendLog ilk satırda bu elemanı kaldırır).
   const logEmpty = document.createElement("div");
   logEmpty.className = "log-empty";
@@ -323,6 +330,11 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   // ---------- zamanlayıcılar ----------
+  // v2.9: bağlama yukarıda (boot başında) yapıldı; burada yalnız saat
+  // dilimi tazelemesi var.
+  window.setInterval(() => {
+    O.applyAutoPalette();
+  }, CLOCK_MS);
   window.setInterval(() => {
     O.tickBreak();
     void O.refreshMonitorList();

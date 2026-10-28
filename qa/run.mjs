@@ -15,13 +15,15 @@
 import { createServer } from "node:http";
 import { mkdir, readFile } from "node:fs/promises";
 import { readFileSync } from "node:fs";
-import { dirname, extname, join, normalize } from "node:path";
+import { dirname, extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
 
 const qaDir = dirname(fileURLToPath(import.meta.url));
 const root = join(qaDir, "..");
 const distDir = join(qaDir, "..", "dist");
+/** Statik sunucunun asla dışına çıkmayacağı kök (path injection koruması). */
+const DIST_ROOT = resolve(distDir);
 const shotDir = join(qaDir, "shots");
 
 // Bayat dist koruması: src/ içindeki en yeni dosya dist/index.html'den yeniyse
@@ -292,8 +294,15 @@ async function run() {
   const server = createServer(async (req, res) => {
     try {
       const url = new URL(req.url ?? "/", "http://localhost");
-      const rel = url.pathname === "/" ? "index.html" : url.pathname.replace(/^[/\\]+/, "");
-      const file = join(distDir, normalize(rel));
+      // Path injection koruması (v2.9, PR #3 ile aynı sözleşme):
+      // `join(distDir, "../../x")` kök dışına çıkar — kökü resolve edip
+      // sonucun kök içinde kaldığını doğrula.
+      const file = resolve(DIST_ROOT, "." + (url.pathname === "/" ? "/index.html" : url.pathname));
+      if (!file.startsWith(DIST_ROOT + sep)) {
+        res.writeHead(403, { "content-type": "text/plain" });
+        res.end("forbidden");
+        return;
+      }
       const buf = await readFile(file);
       res.writeHead(200, { "content-type": TYPES[extname(file)] ?? "application/octet-stream" });
       res.end(buf);

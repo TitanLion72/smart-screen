@@ -47,7 +47,7 @@ pub fn enabled_map() -> HashMap<String, bool> {
                 crate::logger::log_tick(&format!(
                     "{} | source=hdr/hdr | level=warn | tone=- | desired=- | applied=- | \
                      theme=- | note=HDR durumu sorgulanamadı; kapalı kabul edildi",
-                    chrono::Utc::now().to_rfc3339()
+                    crate::logger::now_local()
                 ));
             }
             HashMap::new()

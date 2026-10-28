@@ -33,6 +33,11 @@ qa/test-results
 # Lisans: ozel anahtarlar ASLA repoya
 *.pem
 *.key
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
 latest.json
 release-notes.md
 tools/.license-private.pem

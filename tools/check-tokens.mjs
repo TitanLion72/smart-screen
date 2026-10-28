@@ -115,6 +115,23 @@ const RULES = [
   ["on-accent", "accent", 4.5, "vurgu üstü metin"],
 ];
 
+/**
+ * v2.9: `var(--x)` alias'larını çözer.
+ *
+ * `:root { --accent: var(--accent-base) }` yazınca ölçüm "hex değil" diye
+ * FAIL veriyordu. Alias'ı takip et (derinlik kelepçesiyle: döngüsel tanım
+ * sonsuz döngü kurmasın). Aynı mantık `styles.css`'teki `$token` çözümüyle
+ * aynı ruhta.
+ */
+function resolveToken(tokens, key, depth = 0) {
+  if (depth > 8) return undefined;
+  const raw = tokens[key];
+  if (typeof raw !== "string") return undefined;
+  const m = /^var\(\s*--([a-z0-9-]+)\s*(?:,[^)]*)?\)$/i.exec(raw.trim());
+  if (!m) return raw;
+  return resolveToken(tokens, m[1], depth + 1);
+}
+
 let checked = 0;
 for (const [id, pat] of palettes) {
   const own = id === "obsidyen" ? base : paletteTokens(pat);
@@ -124,8 +141,8 @@ for (const [id, pat] of palettes) {
   }
   const t = { ...base, ...own };
   for (const [fgKey, bgKey, min, note] of RULES) {
-    const fg = parseHex(t[fgKey] ?? "");
-    const bg = parseHex(t[bgKey] ?? "");
+    const fg = parseHex(resolveToken(t, fgKey) ?? "");
+    const bg = parseHex(resolveToken(t, bgKey) ?? "");
     if (!fg || !bg) {
       fail(`${id}: ${fgKey}/${bgKey} hex olarak çözülemedi (${t[fgKey]} / ${t[bgKey]})`);
       continue;

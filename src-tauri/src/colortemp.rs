@@ -520,7 +520,7 @@ fn log_note(note: &str) {
     crate::logger::log_tick(&format!(
         "{} | source=color/color | level=info | tone=- | desired=- | applied=- | \
          theme=- | note={note}",
-        chrono::Utc::now().to_rfc3339()
+        crate::logger::now_local()
     ));
 }
 

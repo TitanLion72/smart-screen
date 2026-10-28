@@ -15,6 +15,50 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.9.0] - 2026-10-29
+
+Güvenlik + iki kullanıcı şikâyeti + Grok botunun açtığı PR'lar.
+
+### Security
+- **Yerel güvenlik kapısı** (`tools/security-check.mjs`, `npm run check:security`):
+  7 kural — sır taraması (S1), kimlik dosyası (S2), kabuk komut enjeksiyonu (S3),
+  statik sunucuda yol geçişi (S4), sıkı CSP (S5), en az yetki (S6), bağımlılık
+  CVE'leri (S7). CI'da zorunlu; ihlal varsa birleştirme yok.
+- **Kapının kendi testi** (`qa/security-selftest.mjs`): 5 ihlal sınıfının gerçekten
+  yakalandığını kanıtlar (temiz taban PASS, her ihlal FAIL).
+- **Üretim CSP'si sıkılaştırıldı:** `localhost:1420` üretimden çıktı (yalnız
+  `devCsp`'de), `object-src`/`base-uri`/`frame-ancestors`/`form-action` eklendi,
+  `script-src`/`style-src` açıkça `'self'`. Geliştirme CSP'si ayrı tanımlı.
+- **`qa/run.mjs` yol geçişi açığı kapatıldı** — Grok botunun PR'ları 8 statik
+  sunucudan 5'ini düzeltmişti; kapı kalan 1'ini yakaladı (`run.mjs`).
+- Bağımlılıklar: `zip` 4.6.1 → 9.1.3 (3 RustSec açığı, biri kritik 9.1),
+  `tokio` 1.53.2 → 1.54.1, `tauri-plugin-updater` 2.14.0 → 2.14.1,
+  `vite` 8.3.5. `cargo audit` ve `npm audit` temiz.
+- `.gitignore`: `.env`, `.env.*`, `*.p12`, `*.pfx` eklendi (`!.env.example` hariç).
+- `SECURITY.md` bağlayıcı kural tablosuna dönüştürüldü + sır sızması müdahale planı.
+- **Log zaman biçimi birleştirildi.** Üç Rust yazıcı UTC+nanosaniye, JS yerel saat
+  yazıyordu; aynı dosyada iki zaman dilimi satırları sıralanamaz kılıyordu.
+  `logger::now_local()` (yerel, saniye) tek biçim — `orchestr.localIso` ile aynı.
+
+### Fixed
+- **"Hangi paleti seçersem seçeyim ilk temadaki sarı her yerde var."** Kök neden:
+  `[data-accent]` blokları `--accent`ı **global** eziyordu ve seçim kalıcıydı; bir kez
+  Şampanya seçen kullanıcı 12 paletin hepsinde altın görüyordu. Artık vurgu **palet
+  başına** saklanıyor (`ss:accents`), varsayılan "Palet rengi" (`--accent-base`).
+  Bir palette seçilen renk başka palette sızmaz, geri dönünce hatırlanır.
+- **"Yeniden ölç" çalışmıyor gibiydi.** Ölçüm çalışıyordu ama veri aynıysa render
+  önbelleği listeyi yeniden çizmiyor ve hiçbir geri bildirim vermiyordu. Artık döner
+  simge + sonuç toast'ı ("12 tema ölçüldü · 2 okunaksız") var; hata da toast'a düşer.
+
+### Added
+- `qa/audit-accent.mjs`: 12 palet × vurgu izolasyonu × palet hafızası × kontrast
+  butonu × "Günün rengi" — kalıcı regresyon testi.
+- **"Günün rengi"** (Ayarlar → Görünüm, varsayılan kapalı): saate göre palet
+  kendiliğinden döner — sabah `fildisi`, gündüz `kagit`, akşam `gunbatimi`,
+  gece başı `obsidyen`, gece `gece`. Elle yaptığın seçim 10 dk korunur
+  (dwell), sonra saat dilimine döner. Saat dilimi eşlemesi tek yerde
+  (`orchestr.paletteForHour`) ve QA bu eşlemeyi kaynaktan okuyup doğrular.
+
 ## [2.8.0] - 2026-10-28
 
 Kullanıcı geri bildirimi turu: **"renk çoğalsın, bento ile sahne ayrışsın, oyunda

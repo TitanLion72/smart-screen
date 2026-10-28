@@ -22,6 +22,79 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.9.0 TURU (2026-10-29) — güvenlik kapısı + vurgu sızıntısı
+
+**Tetik:** kullanıcı (a) "ne palet seçersem seçeyim ilk temadaki sarı her yerde",
+(b) "kontrastta yeniden ölç doğru çalışıyor mu", (c) Grok botunun açtığı güvenlik
+PR'ları, (d) "katı bir güvenlik kontrolü kur — açık kaynak, açıklar çok önemli".
+
+**Kök nedenler (ikisi de gerçek hata, ikisi de kullanıcı haklı)**
+1. **Vurgu sızıntısı.** `[data-accent="amber"]` gibi bloklar `styles.css`'te
+   `--accent`ı GLOBAL yazıyordu ve seçim kalıcıydı (`ss:accent`). Palet blokları
+   `palette.css`te, accent blokları ondan sonra geldiği için her paletin kendi
+   vurgusunu eziyordu. Kullanıcı bir kez altın seçtiyse 12 paletin hepsi altın.
+   **Çözüm:** `--accent-base` (paletin kendi rengi, hiç ezilmez) + vurgu
+   `ss:accents` içinde PALET BAŞINA saklanır. Varsayılan = palet rengi.
+2. **"Yeniden ölç" sessizliği.** `loadAudit()` çalışıyordu ama `renderAudit()`
+   `auditSignature` önbelleği yüzünden aynı veride DOM'a dokunmuyordu; ayrıca
+   hiç geri bildirim yoktu. **Çözüm:** `toast.busy` → `done("N tema ölçüldü")`,
+   hata → `toast.err`.
+
+**Güvenlik kapısı (kalıcı altyapı)**
+- `tools/security-check.mjs`: S1 sır · S2 kimlik dosyası · S3 kabuk enjeksiyonu ·
+  S4 yol geçişi · S5 CSP · S6 yetki · S7 bağımlılık. CI + yerel.
+- `qa/security-selftest.mjs`: kapının kendi testi. **Denetleyici yazıp "PASS"
+  demek yetmez; yakaladığını kanıtlamak gerekir.** 5 ihlal sınıfı + temiz taban.
+- Üretim CSP'si sıkılaştırıldı; dev CSP ayrıldı (`devCsp`). Üretimde `localhost`
+  yok, `unsafe-eval` yok, `object-src`/`base-uri`/`frame-ancestors` var.
+
+**Grok PR'ları**
+- #3 ve #4 (yol geçişi) doğruydu, squash-merge edildi.
+- #1 ve #2 kapatıldı: bağımlılık yükseltmeleri doğrudan main'e uygulandı
+  (#1 ayrıca `package-lock` sürümünü 1.0.0'a çekiyordu — yan etki).
+- **Kapı, PR'ların atladığı bir dosyayı buldu:** `qa/run.mjs` (8 sunucudan 1'i).
+  Bu, "elle denetim eksik kalır" tezinin kanıtı.
+
+**Ders (kalıcı)**
+1. **Katman sırası = renk sızıntısı.** Palet dosyası `@import` ile geliyor ama
+   `[data-accent]` blokları ondan SONRA yazılıyor → her zaman kazanır. Bir token
+   "palet başına" ise onu ayrı bir değişkende tut (`--accent-base`) ve override
+   katmanının onu ezmediğinden emin ol.
+2. **Kalıcı ayar + global override = sızıntı.** Seçim `localStorage`'da tek
+   anahtardaysa, palet değişince eski seçim yeni palete taşınır. Anahtar palet
+   kimliğiyle birleştirilmeli (`{palet: seçim}`).
+3. **"Buton çalışmıyor" genelde "geri bildirim yok"tur.** Önce ölçüm yolunu
+   doğrula, sonra görünür geri bildirim ekle — kullanıcı ikisini ayırt edemez.
+4. **Güvenlik denetleyicisi de test edilmeli.** Aksi halde "PASS" yazan ama hiçbir
+   şey yakalamayan bir tiyatro olur. `qa/security-selftest.mjs` bunun için var.
+5. **Bot PR'ı "hepsini düzeltti" demek değil.** Grok 5 dosya düzeltmiş, 1'i kalmış;
+   regex tabanlı kapı hepsini tarar, göz taraması taramaz.
+
+**Doğrulama:** `npm test` 12/12 · `cargo test` 193+2 · `check:tokens` PASS ·
+`check:security` PASS (S1-S6) · `security-selftest` PASS (5 sınıf) ·
+`audit-accent` PASS (12 palet + günün rengi) · `audit-flyout` PASS (48 kare) ·
+`audit-templates` PASS · `qa/run.mjs` PASS · `cargo audit` temiz ·
+`npm audit` 0 açık · canlı exe sıkı CSP ile açıldı.
+
+**Ek (tavsiye edilen geliştirme, yapıldı): "Günün rengi".** 12 palette sahip
+bir üründe en doğal eksik buydu: renkleri var ama kimse kullanmıyor. Saat
+dilimine göre palet dönüyor (sabah aydınlık → gündüz nötr → akşam sıcak →
+gece derin). Elle seçim 10 dk kutsal; varsayılan kapalı (sürpriz yapmasın).
+`orchestr.paletteForHour` tek kaynak, QA eşlemeyi oradan okuyup doğruluyor.
+
+**Ayrıca düzeltilen teşhis borcu:** log'da `theme=` iki farklı şeyi yazıyordu
+(normal turda karar, donmuş turda uygulanmış). Artık `theme=` daima
+**uygulanmış**, `want=` **karar verilen**. Örnek eski satır: 21:33 `theme=catppuccin`
+(dwell dolmadı, uygulanmadı) → 21:34 `theme=zenburn`; teşhis imkânsızdı.
+
+**Bir de zaman biçimi birleştirildi (canlı log'da yakalandı).** Üç Rust yazıcı
+(`colortemp`, `hdr`, `lib` setup) `Utc::now().to_rfc3339()` ile **UTC +
+nanosaniye** yazıyordu; JS tarafı yerel saat yazıyordu. Aynı dosyada iki zaman
+dilimi: `2026-10-29T01:07:15+03:00` satırının hemen altında
+`2026-10-28T22:07:15.162307200+00:00`. Satırlar sıralanamıyordu.
+**Çözüm:** `logger::now_local()` (yerel, saniye) — `orchestr.localIso` ile
+birebir aynı biçim; üç yazıcı da ona bağlandı.
+
 ## V2.8.0 TURU (2026-10-28, akşam) — kullanıcı geri bildirimi: 5 madde
 
 **Tetik:** kullanıcı beş şey söyledi: renkler çoğalsın · sahne ile bento farkı
