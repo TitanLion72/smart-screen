@@ -5,6 +5,11 @@ on:
     branches: [main]
   pull_request:
 
+# CodeQL actions/missing-workflow-permissions: en az yetki.
+# Hiçbir iş yazma (release/issue/PR yorumu) yapmıyor, yalnız kod okuyor.
+permissions:
+  contents: read
+
 jobs:
   rust:
     runs-on: windows-latest
