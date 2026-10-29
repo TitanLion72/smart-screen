@@ -19,6 +19,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import type { Update } from "@tauri-apps/plugin-updater";
 import * as O from "./orchestr";
 import * as P from "./panels";
+import { initScene } from "./scene";
 import { toast } from "./toast";
 
 const WATCH_MS = 60 * 1000;
@@ -290,6 +291,15 @@ window.addEventListener("DOMContentLoaded", () => {
   };
   P.switchTab("panel");
   safeRender();
+
+  // v3.0: sahne şablonunun WebGL ışık katmanı. Dekoratif — WebGL yoksa
+  // sessizce hiçbir şey yapmaz, CSS degradesi görünür kalır.
+  try {
+    const canvas = document.getElementById("hero-webgl");
+    if (canvas instanceof HTMLCanvasElement) initScene(canvas);
+  } catch (e) {
+    O.log("sahne katmanı kurulamadı: " + String(e), "warn");
+  }
 
   getVersion()
     .then((v) => {

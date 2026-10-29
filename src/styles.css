@@ -539,6 +539,41 @@ body {
   pointer-events: none;
 }
 
+/* v3.0: sahne şablonunun WebGL ışık katmanı. Varsayılan GÖRÜNMEZ; yalnız
+   `sahne` şablonunda ve yalnız WebGL varsa (`.webgl-on`) belirir. WebGL yoksa
+   canvas hiç görünmez, `hero-glow` degradesi aynen kalır. */
+.hero-webgl {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--r-lg);
+  transform: translateZ(-60px);
+  opacity: 0;
+  transition: opacity 320ms ease;
+  pointer-events: none;
+}
+
+html[data-template="sahne"].webgl-on .hero-webgl {
+  opacity: 1;
+}
+
+/* Cam plaka `sahne`+WebGL'de yarı saydam: ışık plakanın altından görünür.
+   Metin kontrastı için plaka hâlâ zemini taşır (yalnız ~%30 saydam). */
+html[data-template="sahne"].webgl-on .hero-glass {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--surface-3) 74%, transparent),
+    color-mix(in srgb, var(--surface-1) 80%, transparent)
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-webgl {
+    transition: none;
+  }
+}
+
 /* Orta cam plaka: hero'nun görünür gövdesi */
 .hero-glass {
   position: absolute;
