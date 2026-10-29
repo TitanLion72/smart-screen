@@ -59,6 +59,8 @@ import {
   setGate,
   setAutoPalette,
   noteManualPalette,
+  runDiagnostics,
+  diagReportText,
   setMode,
   setSource,
   setWarmMode,
@@ -70,7 +72,7 @@ import {
   undo,
   updateDraft,
 } from "./orchestr";
-import type { StatsSummary } from "./orchestr";
+import type { DiagReport, StatsSummary } from "./orchestr";
 
 // ---------- yardımcılar ----------
 
@@ -256,13 +258,18 @@ function renderTemplates(): void {
 
 // ---------- tasarım teması (görünüm) ----------
 
-/** `<html data-theme>` yazar + kalıcılaştırır. Palet CSS'te tanımlı. */
-export function setDesignTheme(id: string): void {
+/**
+ * `<html data-theme>` yazar + kalıcılaştırır. Palet CSS'te tanımlı.
+ *
+ * `manual: false` → bu değişiklik "Günün rengi" tarafından yapıldı; elle
+ * seçim sayılmaz ve 10 dk dwell penceresini **başlatmaz**. Aksi halde
+ * otomatik palet kendi kendini kilitleyip günde birkaç kez dönebiliyordu.
+ */
+export function setDesignTheme(id: string, opts: { manual?: boolean } = {}): void {
   const changed = document.documentElement.dataset.theme !== id;
   document.documentElement.dataset.theme = id;
   setSetting("designTheme", id);
-  // v2.9: elle seçim "Günün rengi"ni 10 dk askıya alır.
-  noteManualPalette();
+  if (opts.manual !== false) noteManualPalette();
   el("design-picker").querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
     const on = b.dataset.design === id;
     b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -461,6 +468,121 @@ export function renderAudit(): void {
     row.append(name, modeEl, ratio, verdict, colors);
     host.append(row);
   }
+}
+
+// ---------- sistem tanılaması (v2.10) ----------
+
+const DIAG_ICON: Record<string, string> = { ok: "✓", warn: "!", bad: "×" };
+
+/**
+ * "Kontrol" kartı. Rapor yoksa tek satır yönlendirme; varsa her kontrol
+ * kendi durum noktasıyla. `diagSignature` ile gereksiz DOM kurulumu yok.
+ */
+export function renderDiagnostics(): void {
+  const host = el("diag-list");
+  const copy = btnEl("diag-copy");
+  const stamp = el("diag-stamp");
+  const rep = S.diag;
+
+  if (!rep) {
+    // v2.10.1: hata sonrası imza sıfırlanmalı — aksi halde AYNI rapor yeniden
+    // koşunca "değişmedi" sanılıp satırlar boş kalıyordu (damga dolu, liste boş).
+    diagSignature = "";
+    if (host.childElementCount === 1 && host.firstElementChild?.classList.contains("diag-empty")) {
+      return;
+    }
+    host.replaceChildren();
+    const empty = document.createElement("div");
+    empty.className = "diag-empty hint";
+    empty.textContent = "Henüz kontrol yapılmadı. \"Sistemi kontrol et\" ile başla.";
+    host.append(empty);
+    copy.disabled = true;
+    stamp.textContent = "";
+    return;
+  }
+
+  const sig = JSON.stringify(rep.checks) + rep.version + rep.os;
+  const rowsMatch = host.childElementCount === (rep.checks?.length ?? 0);
+  if (sig === diagSignature && rowsMatch) {
+    // Rapor aynı; yine de zaman damgası tazelenmeli (kontrol yeniden koştu).
+    stamp.textContent = diagStampText(rep);
+    copy.disabled = false;
+    return;
+  }
+  diagSignature = sig;
+
+  host.replaceChildren();
+  for (const c of rep.checks ?? []) {
+    const row = document.createElement("div");
+    row.className = "diag-row";
+    row.dataset.status = c.status;
+    row.dataset.check = c.id;
+
+    const dot = document.createElement("span");
+    dot.className = "diag-dot";
+    dot.setAttribute("aria-hidden", "true");
+    dot.textContent = DIAG_ICON[c.status] ?? "?";
+
+    const label = document.createElement("span");
+    label.className = "diag-label";
+    label.textContent = c.label;
+
+    const detail = document.createElement("span");
+    detail.className = "diag-detail";
+    detail.textContent = c.detail;
+    if (c.hint) detail.title = c.hint;
+
+    const action = document.createElement("span");
+    action.className = "diag-action";
+    action.textContent = c.hint;
+
+    row.append(dot, label, detail);
+    // İpucu yalnız sorunlu satırda görünür; ok satırlar sade kalsın.
+    if (c.hint && c.status !== "ok") row.append(action);
+    host.append(row);
+  }
+  copy.disabled = false;
+  stamp.textContent = diagStampText(rep);
+}
+
+function diagStampText(rep: DiagReport): string {
+  const bad = rep.checks.filter((c) => c.status === "bad").length;
+  const warn = rep.checks.filter((c) => c.status === "warn").length;
+  const when = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+  const verdict = bad > 0 ? `${bad} sorun` : warn > 0 ? `${warn} uyarı` : "sağlam";
+  return `${rep.version} · ${rep.checks.length} kontrol · ${verdict} · ${when}`;
+}
+
+let diagSignature = "";
+
+/** Panoya yaz: `navigator.clipboard` yoksa gizli textarea + execCommand. */
+async function copyDiagReport(): Promise<void> {
+  const text = diagReportText();
+  if (!text) return;
+  let copied = false;
+  try {
+    await navigator.clipboard.writeText(text);
+    copied = true;
+  } catch {
+    /* izin yok / güvenli bağlam değil → yedek yol */
+  }
+  if (!copied) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.append(ta);
+    ta.select();
+    try {
+      copied = document.execCommand("copy");
+    } catch {
+      copied = false;
+    }
+    ta.remove();
+  }
+  if (copied) toast.ok("Rapor kopyalandı", { detail: "Destek için yapıştırabilirsin." });
+  else toast.err("Kopyalanamadı", { detail: "Raporu elle seçip kopyala." });
 }
 
 // ---------- monitör satırları ----------
@@ -1239,6 +1361,7 @@ export function renderAll(): void {
   renderHistory();
   syncThemeChips();
   renderAudit();
+  renderDiagnostics();
   // Editörün yalnız metin etiketleri güncellenir; input değeri çizilmez.
   el("pf-off-val").textContent = (S.draft.offset >= 0 ? "+" : "") + S.draft.offset;
   el("pf-apps-count").textContent = `${(S.draft.apps ?? []).length} uygulama`;
@@ -1267,6 +1390,7 @@ export function bootWidgets(): void {
   initTemplate();
   renderTemplates();
   renderAudit();
+  renderDiagnostics();
   buildModeCards();
   syncThemeChips();
 
@@ -1323,6 +1447,8 @@ export function wireButtons(): void {
   btnEl("break-snooze").addEventListener("click", () => snoozeBreak());
   btnEl("risk-fix-btn").addEventListener("click", () => void fixRisk());
   btnEl("audit-refresh").addEventListener("click", () => void loadAudit());
+  btnEl("diag-run").addEventListener("click", () => void runDiagnostics());
+  btnEl("diag-copy").addEventListener("click", () => void copyDiagReport());
   btnEl("lic-activate").addEventListener("click", () => {
     void activateLicense(inputEl("lic-key").value).then(() => {
       if (S.licensePro) inputEl("lic-key").value = "";

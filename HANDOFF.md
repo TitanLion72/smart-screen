@@ -22,6 +22,50 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.10.0 TURU (2026-10-29) — "Kontrol": çalışmayanın nedenini söyle
+
+**Tetik:** ürün olgunlaştı ama "bir şey olmadı" diyen kullanıcıya verilecek cevap hâlâ
+`smart-screen.log` idi: DDC/CI kapalı mı, HDR mi engelliyor, gamma sürücüsü yazımı
+yutuyor mu, parlaklık gerçekten tutuyor mu? Hiçbiri arayüzde yoktu (PLAN-v3 §3/B5).
+
+**Ne yapıldı**
+- `src-tauri/src/diagnose.rs`: 9 kontrol, her biri **saf fonksiyon** (G/Ç `Result`
+  olarak dışarıdan verilir, karar testte doğrulanır). `run(warmth)` bunları sırayla
+  koşar. 11 yeni birim testi (toplam 204).
+- `lib.rs`: `diagnose(warmth)` komutu `spawn_blocking` ile bağlandı.
+- Ayarlar'da **görünür** "Kontrol" kartı: `#diag-run`, `#diag-list`, `#diag-copy`,
+  `#diag-stamp`. Gelişmiş'in içine gömülmedi — destek yolu bulunmalı.
+- Rapor düz metin kopyalanabilir (sürüm, OS, tarih, satırlar, düzen/palet).
+- `qa/audit-diagnostics.mjs`: 7 adım + 5 kare; kart sözleşmesini kalıcı denetler.
+
+**İki gerçek hata (ikisi de bu turda yakalandı)**
+1. **"Günün rengi" kendi kendini kilitliyordu.** `setDesignTheme` her çağrıda
+   `noteManualPalette()` yapıyordu; otomatik palet de elle seçim sayılıp 10 dk
+   dwell başlatıyordu. `{ manual: false }` ile ayrıldı.
+2. **Hata sonrası aynı rapor boş liste bırakıyordu.** `diagSignature` hata
+   durumunda sıfırlanmıyordu; yeniden koşan aynı rapor "değişmedi" sanılıp satırlar
+   hiç kurulmuyordu (damga dolu, liste boş). İmza sıfırlanır + `childElementCount`
+   ile satır sayısı ayrıca doğrulanır.
+
+**Ders (kalıcı)**
+1. **Tanılama bir ürün özelliğidir, log ayrıntısı değil.** Kullanıcı "olmadı"
+   dediğinde log istemek, ürünün cevabı olmadığını kabul etmektir.
+2. **Yazma testi görünür değişiklik yapmamalı.** Parlaklık testi ekrandaki değerin
+   aynısını yazar; sıcak ton kapalıyken rampa HİÇ yazılmaz. "Test" adı altında
+   kullanıcının kalibrasyonunu ezmek, düzeltmekten çok bozar.
+3. **Önbellek imzası "DOM doğru" demek değildir.** Hata/boş durum DOM'u değiştirir
+   ama imza değişmez; imza sıfırlanmalı ya da satır sayısıyla çapraz doğrulanmalı.
+4. **Otomatik değişiklik "elle" sayılmamalı.** Dwell penceresi otomatik seçimi
+   beslediğinde özellik kendi kendini kilitler; "kim yaptı" bilgisi çağrıya geçmeli.
+5. **Panoya yazılan metin de test edilmeli.** `[SORUN]` + iki boşluk gibi biçim
+   ayrıntıları `includes` assert'ini sessizce yalancı yapar; regex kullan.
+
+**Doğrulama:** `npm test` 12/12 · `cargo test` 204+2 · `cargo clippy -D warnings` ·
+`cargo fmt --check` · `check:tokens` PASS (12 palet, 48 ölçüm) · `check:security` PASS ·
+`security-selftest` PASS · `qa/run.mjs` PASS (22 senaryo) · `audit-diagnostics` PASS ·
+`audit-templates` PASS · `audit-flyout` PASS (48 kare) · `audit-accent` PASS ·
+kareler gözle incelendi (bento/sahne/dergi/konsol + fildisi).
+
 ## V2.9.0 TURU (2026-10-29) — güvenlik kapısı + vurgu sızıntısı
 
 **Tetik:** kullanıcı (a) "ne palet seçersem seçeyim ilk temadaki sarı her yerde",

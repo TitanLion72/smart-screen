@@ -14,6 +14,7 @@ mod brightness;
 mod colortemp;
 mod contrast;
 mod decide;
+mod diagnose;
 mod gamma;
 mod hdr;
 mod install;
@@ -437,6 +438,16 @@ async fn contrast_audit() -> Result<Vec<contrast::Report>, String> {
     .await?
 }
 
+/// Sistem tanilamasi: parlaklik okuma/yazma, sicak ton surucusu, HDR,
+/// monitorler, tema, otomatik baslatma, lisans ve gunluk.
+///
+/// `warmth`: uygulamanin su an kullandigi sicak ton siddeti. `0` ise gamma
+/// rampasi **yazilmaz** (kullanicinin kalibrasyonunu ezmemek icin).
+#[tauri::command]
+async fn diagnose(warmth: u8) -> Result<diagnose::Report, String> {
+    run_blocking(move || diagnose::run(warmth)).await
+}
+
 /// Bagli monitorlerin listesi (kimlik, ad, dahili/harici, parlaklik API'si).
 #[tauri::command]
 async fn monitor_list() -> Result<Vec<monitor::MonitorInfo>, String> {
@@ -680,6 +691,7 @@ pub fn run() {
             pref_get_bright,
             animations_set,
             contrast_audit,
+            diagnose,
             monitor_list,
             brightness_get_monitor,
             brightness_set_monitor,

@@ -226,6 +226,18 @@ window.__TAURI_INTERNALS__ = {
         { name: "ss-night", mode: "dark", text_on_bg: 8.5, muted_on_bg: 5.9, syntax_min: 4.9, verdict: "AA" },
         { name: "soluk-tema", mode: "dark", text_on_bg: 2.2, muted_on_bg: 1.1, syntax_min: 1.0, verdict: "FAIL" },
       ];
+      // v2.10: sistem tanilamasi. Uc durum da temsil edilir ki satir
+      // siniflari (ok/warn/bad) ve ipucu yolu denenebilsin.
+      case "diagnose": return {
+        version: "9.9.9-qa",
+        os: "windows 11 (QA)",
+        checks: [
+          { id: "brightness-read", label: "Parlaklık okuma", status: "ok", detail: "42% · \\\\\\\\.\\\\DISPLAY1", hint: "" },
+          { id: "brightness-write", label: "Parlaklık yazma", status: "ok", detail: "42% yazıldı, 42% okundu", hint: "" },
+          { id: "gamma", label: "Sıcak ton sürücüsü", status: "warn", detail: "sıcak ton kapalı — rampa yazılmadı", hint: "Sıcak tonu açıp yeniden dene." },
+          { id: "monitors", label: "Monitörler", status: "bad", detail: "hiç monitör bulunamadı", hint: "Ekran bağlantısını denetle." },
+        ],
+      };
       case "log_tick":
         if (args && typeof args.line === "string") window.__logs.push(args.line);
         return null;
@@ -577,6 +589,14 @@ async function run() {
   // 4. Gelmis: tema secici + kontrast kapisi (#advanced icinde).
   await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, openAdvanced, shot }) => {
     await openTab("settings");
+    // v2.10: "Kontrol" karti Gelismis KAPALIYKEN gorunur olmali - destek yolu.
+    check(await page.locator("#diag-box").isVisible(), "kontrol", "#diag-box gorunur degil (Gelismis kapali)");
+    check(await page.locator("#diag-copy").isDisabled(), "kontrol", "rapor yokken kopyala acik");
+    check(
+      (await page.locator("#diag-list .diag-empty").count()) === 1,
+      "kontrol",
+      "bos tanilama yonlendirmesi yok",
+    );
     await openAdvanced();
     const isOpen = await page.locator("#advanced").evaluate((d) => d.open);
     check(isOpen === true, "advanced", "#advanced acilmadi");
@@ -610,6 +630,39 @@ async function run() {
     await page.waitForTimeout(150);
     const anim = await page.evaluate(() => document.documentElement.dataset.anim);
     check(anim === "off", "advanced", `animasyon anahtari <html data-anim> yazmadi: ${anim}`);
+    // v2.10: tanilama butonu gercekten kosar, satirlari ve durum siniflarini
+    // yazar, kopyala acilir. Kontrol HICBIR sey degistirmemeli (parlaklik
+    // yazimi / gamma yazimi yok) - tanilama tanilama kalir.
+    const countOf = async (cmd) => (await invocations()).filter(([c]) => c === cmd).length;
+    const bBefore = await countOf("brightness_set");
+    const wBefore = await countOf("gamma_set_warmth");
+    await page.locator("#diag-run").click();
+    await page.waitForTimeout(500);
+    const diagRows = await page.locator("#diag-list .diag-row").count();
+    check(diagRows === 4, "kontrol", `tanilama satiri beklenen 4, gelen ${diagRows}`);
+    const statuses = await page
+      .locator("#diag-list .diag-row")
+      .evaluateAll((rows) => rows.map((r) => r.getAttribute("data-status")));
+    check(
+      statuses.includes("ok") && statuses.includes("warn") && statuses.includes("bad"),
+      "kontrol",
+      `durum siniflari eksik: ${statuses.join(",")}`,
+    );
+    check(!(await page.locator("#diag-copy").isDisabled()), "kontrol", "rapor varken kopyala kapali");
+    const stamp = await text(page, "#diag-stamp");
+    check(stamp.includes("kontrol"), "kontrol", `rapor damgasi yok: "${stamp}"`);
+    const diagCalls = (await invocations()).filter(([c]) => c === "diagnose");
+    check(diagCalls.length === 1, "kontrol", `diagnose ${diagCalls.length} kez cagrildi`);
+    const warmthArg = diagCalls[0] && diagCalls[0][1] ? diagCalls[0][1].warmth : undefined;
+    check(
+      typeof warmthArg === "number" && warmthArg >= 0 && warmthArg <= 100,
+      "kontrol",
+      `warmth gecersiz: ${JSON.stringify(warmthArg)}`,
+    );
+    check((await countOf("brightness_set")) === bBefore, "kontrol", "tanilama parlaklik yazdi (test gorunur olmamali)");
+    check((await countOf("gamma_set_warmth")) === wBefore, "kontrol", "tanilama gamma yazdi (kalibrasyon ezilmemeli)");
+    const diagToast = await page.locator("#toast-host .toast").last().textContent();
+    check((diagToast ?? "").length > 0, "kontrol", "tanilama toast'i cikmadi");
     await checkOverflow(page, "advanced");
     await shot("4-advanced.png");
   });

@@ -72,6 +72,22 @@ export interface StatsSummary {
   ticksToday: number;
 }
 
+/** Sistem tanılaması tek kontrol (backend `diagnose::Check`). */
+export interface DiagCheck {
+  id: string;
+  label: string;
+  status: "ok" | "warn" | "bad";
+  detail: string;
+  hint: string;
+}
+
+/** Tanılama raporu (backend `diagnose::Report`). */
+export interface DiagReport {
+  version: string;
+  os: string;
+  checks: DiagCheck[];
+}
+
 /** WCAG denetim raporu (backend `contrast::Report`). */
 export interface AuditReport {
   name: string;
@@ -83,8 +99,7 @@ export interface AuditReport {
   verdict: string;
 }
 
-/** Bağlı monitör kaydı (backend `monitor::MonitorInfo`). */
-export interface MonitorInfo {
+/** Bağlı monitör kaydı (backend `monitor::MonitorInfo`). */export interface MonitorInfo {
   id: string;
   name: string;
   is_internal: boolean;
@@ -275,6 +290,8 @@ export interface AppState {
   autoPalette: boolean;
   /** Elle palet seçiminin zamanı (10 dk dwell penceresi). */
   lastManualPaletteAt: number;
+  /** v2.10: son sistem tanılaması (Ayarlar → Kontrol). null = hiç koşmadı. */
+  diag: DiagReport | null;
   audits: AuditReport[];
   auditGate: boolean;
   lastGateWarn: string;
@@ -402,6 +419,7 @@ export const S: AppState = {
   gameBoostPrev: null,
   autoPalette: getSetting("autoPalette", "0") === "1",
   lastManualPaletteAt: 0,
+  diag: null,
   audits: [],
   auditGate: getSetting("auditGate", "1") === "1",
   lastGateWarn: "",
@@ -977,6 +995,59 @@ export async function loadAudit(): Promise<void> {
     return;
   }
   render();
+}
+
+/**
+ * v2.10: sistem tanılaması — "bir şey çalışmıyorsa neden".
+ *
+ * Sıcak ton şiddeti: uygulamanın ŞU AN kullandığı değer geçirilir ki test
+ * görünür bir değişiklik yapmasın. `off` kipinde 0 geçilir; backend bu
+ * durumda gamma rampası **yazmaz** (kalibrasyonu ezmemek için).
+ */
+export async function runDiagnostics(): Promise<void> {
+  const busy = toast.busy("Sistem kontrol ediliyor");
+  try {
+    const warmth = S.warmMode === "off" ? 0 : Math.round(S.lastWarmApplied ?? S.warmPercent);
+    const report = await invoke<DiagReport>("diagnose", { warmth });
+    S.diag = report;
+    const checks = report.checks ?? [];
+    const bad = checks.filter((c) => c.status === "bad").length;
+    const warn = checks.filter((c) => c.status === "warn").length;
+    busy.done(
+      bad > 0
+        ? `${bad} sorun bulundu${warn > 0 ? ` · ${warn} uyarı` : ""}`
+        : warn > 0
+          ? `${warn} uyarı — çalışmayan yok`
+          : `${checks.length} kontrolün hepsi sağlam`,
+    );
+    log(`sistem kontrolü: ${bad} sorun, ${warn} uyarı`, bad > 0 ? "bad" : "ok");
+  } catch (e) {
+    S.diag = null;
+    log("sistem kontrolü yapılamadı: " + String(e), "bad");
+    toast.err("Sistem kontrolü yapılamadı", { detail: String(e) });
+    render();
+    return;
+  }
+  render();
+}
+
+/** Tanılama raporunu düz metne çevirir (panoya kopyalanır, destek için). */
+export function diagReportText(): string {
+  if (!S.diag) return "";
+  const icon = (s: string) => (s === "ok" ? "[ok]" : s === "warn" ? "[uyarı]" : "[SORUN]");
+  const lines = [
+    `smart-screen ${S.diag.version} · ${S.diag.os}`,
+    `tarih: ${localIso(new Date())}`,
+    "",
+    ...S.diag.checks.map((c) =>
+      `${icon(c.status)} ${c.label}: ${c.detail}${c.hint ? ` — ${c.hint}` : ""}`,
+    ),
+    "",
+    `düzen: ${document.documentElement.dataset.template ?? "-"} · palet: ${
+      document.documentElement.dataset.theme ?? "-"
+    }`,
+  ];
+  return lines.join("\n");
 }
 
 export function setGate(v: boolean): void {

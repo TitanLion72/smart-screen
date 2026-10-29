@@ -252,6 +252,11 @@
                    |            | v2.9: ilk nokta "palette" = paletin KENDİ rengi (varsayılan); diğer seçimler PALET BAŞINA saklanır (ss:accents) — başka palette sızmaz
   #game-bright     | button.switch | "Oyun/video öndeyken parlaklık %100" | bindSwitch; varsayılan açık; kilit ekranında uygulanmaz
   #auto-palette    | button.switch | "Günün rengi — saate göre kendisi seçsin" | bindSwitch; açılınca palet saat dilimine döner, elle seçim 10 dk korunur
+  #diag-box        | div.panel-box | Ayarlar > Kontrol (tanılama)        | v2.10; destek yolu, Gelişmiş dışında
+  #diag-list       | div.diag-list | kontrol satırları (JS üretir)       | .diag-row[data-status=ok|warn|bad]; boşken .diag-empty
+  #diag-run        | button.btn-primary | "Sistemi kontrol et"           | click → runDiagnostics(); toast + satırlar
+  #diag-copy       | button.btn-toggle | "Raporu kopyala"               | disabled = rapor yok; click → diagReportText() panoya
+  #diag-stamp      | span.hint    | rapor zamanı/durumu ("12 kontrol · 2 uyarı") | text
   #night-btn       | button     | "Windows gece ışığı"                   | click → Windows ayar sayfası açar
   #lic-box         | div.panel-box | lisans kartı                        | —
   #lic-status      | span.lic-status | lisans durumu metni               | text
@@ -729,6 +734,26 @@
             <div class="field">
               <span class="field-label">Vurgu rengi</span>
               <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>
+            </div>
+          </div>
+
+          <!-- v2.10: Kontrol — "bir şey çalışmıyorsa neden" sorusunun cevabı.
+               Gelişmiş'in içine gömülmez: destek yolu, bulunması gerekir. -->
+          <div class="panel-box" id="diag-box">
+            <div class="box-title">Kontrol</div>
+            <div class="hint">
+              Bir şey çalışmıyorsa nedenini burada görürsün: parlaklık okuma ve
+              yazma, sıcak ton sürücüsü, HDR, monitörler, OpenCode teması,
+              açılışta başlatma ve günlük. Parlaklık testi ekrandaki değerin
+              <b>aynısını</b> yazar (görünür değişiklik yok); sıcak ton kapalıyken
+              rampa hiç yazılmaz.
+            </div>
+            <div id="diag-list" class="diag-list"></div>
+            <div class="toolbar">
+              <button id="diag-run" class="btn-primary" type="button">Sistemi kontrol et</button>
+              <button id="diag-copy" class="btn-toggle" type="button" disabled>Raporu kopyala</button>
+              <span class="spacer"></span>
+              <span class="hint" id="diag-stamp"></span>
             </div>
           </div>
 

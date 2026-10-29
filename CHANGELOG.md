@@ -15,6 +15,23 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.10.0] - 2026-10-29
+
+"Kontrol" — bir şey çalışmıyorsa **neden** çalışmadığı artık log'da değil, uygulamanın içinde.
+
+### Added
+- **Kontrol (tanılama) kartı** — Ayarlar'da, Gelişmiş'in hemen üstünde: parlaklık, sıcak ton, HDR, monitörler, tema, açılış, lisans ve günlük tek tıkla ölçülür.
+- Her satırda durum noktası, sade dille neden ve yalnız sorunlu satırda "ne yapmalı" ipucu var.
+- **"Raporu kopyala"** — sürüm, işletim sistemi, tarih, tüm satırlar ve o anki düzen/palet düz metin olarak panoya.
+- Tanılama QA aracı (`qa/audit-diagnostics.mjs`) kartın görünürlük, koşu, pano, yan etkisizlik, `warmth=0` ve hata yolunu kalıcı denetler.
+
+### Changed
+- Parlaklık testi ekrandaki değerin aynısını yazar (görünür değişiklik yok); sıcak ton kapalıyken gamma rampası hiç yazılmaz.
+
+### Fixed
+- **"Günün rengi" kendi kendini kilitliyordu** — otomatik palet değişimi elle seçim sayılıp 10 dakikalık dwell penceresini başlatıyordu.
+- **Tanılama hatasından sonra aynı rapor boş liste bırakıyordu** — hata sonrası önbellek imzası sıfırlanmıyordu; damga dolu, satırlar boş kalıyordu.
+
 ## [2.9.0] - 2026-10-29
 
 Güvenlik + iki kullanıcı şikâyeti + Grok botunun açtığı PR'lar.

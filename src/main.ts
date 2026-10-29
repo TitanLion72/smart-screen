@@ -174,7 +174,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // v2.9: "Günün rengi" bağlaması ERKEN yapılır. Boot'un ileriki adımları
   // (güncelleme/flyout köprüsü) hata verirse bağlama ölmesin — bir kez
   // sessizce çalışmayan özellik, hiç olmayan özellikten kötüdür.
-  O.bindAutoPalette((id) => P.setDesignTheme(id));
+  O.bindAutoPalette((id) => P.setDesignTheme(id, { manual: false }));
   // Açılışta açıksa hemen uygula (kullanıcı sonucu ilk bakışta görsün).
   if (O.S.autoPalette) O.applyAutoPalette(true);
 
