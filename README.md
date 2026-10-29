@@ -116,6 +116,13 @@ okumak için: önce kopyala, sonra aç.
 Testler görünür değişiklik yapmaz: parlaklık testi ekrandaki değerin **aynısını**
 yazar, sıcak ton kapalıyken gamma rampası **hiç yazılmaz**.
 
+## Tarihçe ve plan
+
+- [`ROADMAP.md`](ROADMAP.md) — v2.11.1 → v3.0.0 sırası, her adımın kabul ölçütü ve geri alma yolu.
+- [`PLAN-v3.md`](PLAN-v3.md) — tasarım sistemi + karar motorunun (v2.5–v2.11) gerekçeli arşivi.
+- [`CHANGELOG.md`](CHANGELOG.md) — sürüm sürüm ne değişti.
+- [`HANDOFF.md`](HANDOFF.md) — her turun kalıcı dersleri ve bilinen sınırlar.
+
 ## Lisans (freemium + Pro)
 
 | Sürüm | Kapsam |
