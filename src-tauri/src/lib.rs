@@ -17,6 +17,7 @@ mod decide;
 mod diagnose;
 mod gamma;
 mod hdr;
+mod identity;
 mod install;
 mod license;
 mod light;
@@ -562,6 +563,15 @@ async fn monitor_set_color_temp(device: String, kelvin: i32) -> Result<(), Strin
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Kimlik göçü (v3.0) EN ÖNCE: pencere durumu ve WebView2 profili yeni
+    // klasörde olmalı, yoksa kullanıcı paletini/şablonunu ve pencere
+    // konumunu kaybeder. Eski klasör silinmez (geri alma tek adım).
+    for note in identity::migrate_once() {
+        logger::log_tick(&format!(
+            "{} | source=setup/setup | level=info | tone=- | desired=- | applied=- | theme=- | note={note}",
+            logger::now_local()
+        ));
+    }
     // Pencere yaratılmadan ÖNCE: window-state dosyasındaki eski varsayılan
     // boyutu (800x600) yeni varsayılana büyüt — yoksa güncelleme sonrası
     // kullanıcı yine sıkışmış pencereyi görür (v2.4.2).

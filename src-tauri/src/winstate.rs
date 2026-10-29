@@ -21,9 +21,8 @@ pub const NEW_W: u64 = 1040;
 pub const NEW_H: u64 = 740;
 
 fn app_dir() -> Option<PathBuf> {
-    std::env::var("APPDATA")
-        .ok()
-        .map(|p| PathBuf::from(p).join("com.smartscreen.app"))
+    // v3.0: kimlik değişti; klasör adı tek kaynaktan (identity) gelir.
+    crate::identity::roaming_dir()
 }
 
 fn state_path() -> Option<PathBuf> {
