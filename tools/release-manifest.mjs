@@ -10,7 +10,7 @@
 
    Kullanım:
      node tools/release-manifest.mjs --version 2.1.0 \
-       --notes "HDR kapısı ve tray flyout eklendi" \
+       --notes-file release-notes.md \
        --base-url https://github.com/TitanLion72/smart-screen/releases/download/v2.1.0
 
    Girdi (üretilmiş derleme çıktıları):
@@ -31,28 +31,33 @@ import process from "node:process";
 const HELP = `smart-screen release manifest üreteci
 
 Kullanım:
-  node tools/release-manifest.mjs --version <sürüm> --base-url <url> [--notes "metin"]
+  node tools/release-manifest.mjs --version <sürüm> --base-url <url> [--notes "metin" | --notes-file <dosya>]
 
 Seçenekler:
   --version <sürüm>   Yayın sürümü (ör. 2.1.0) — zorunlu
   --base-url <url>    Yayın dosyalarının indirileceği temel URL — zorunlu
   --notes <metin>     Sürüm notları (latest.json içine yazılır)
+  --notes-file <dosya> Sürüm notlarını UTF-8 dosyadan okur (ör. release-notes.md)
   --help              Bu yardım metnini gösterir
 
 Örnek:
   node tools/release-manifest.mjs --version 2.1.0 \\
-    --notes "HDR kapısı, DDC renk sıcaklığı, tray flyout" \\
+    --notes-file release-notes.md \\
     --base-url https://github.com/TitanLion72/smart-screen/releases/download/v2.1.0`;
 
 /** Komut satırını --anahtar değer sözlüğüne çevirir. */
 function parseArgs(argv) {
   const args = { _: [] };
+  const known = new Set(["version", "base-url", "notes", "notes-file", "help"]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--help" || a === "-h") {
       args.help = true;
     } else if (a.startsWith("--")) {
       const key = a.slice(2);
+      // v2.10.1: bilinmeyen seçenek sessizce yutulmaz. `--notes-file` bir kez
+      // yazıldı, tanınmadı ve latest.json "notes": "" ile yayınlandı.
+      if (!known.has(key)) fail(`bilinmeyen seçenek: --${key}`);
       const value = argv[i + 1];
       if (value === undefined || value.startsWith("--")) {
         fail(`--${key} için değer eksik`);
@@ -142,7 +147,19 @@ if (!baseUrl) {
   fail("--base-url zorunlu (ör. https://github.com/TitanLion72/smart-screen/releases/download/v2.1.0)");
 }
 
-const notes = args.notes ?? "";
+const notesArg = args.notes;
+const notesFile = args["notes-file"];
+if (notesArg !== undefined && notesFile !== undefined) {
+  fail("--notes ve --notes-file birlikte verilemez (birini seç)");
+}
+let notes = notesArg ?? "";
+if (notesFile !== undefined) {
+  try {
+    notes = readFileSync(notesFile, "utf8").trim();
+  } catch {
+    fail(`--notes-file okunamadı: ${notesFile}`);
+  }
+}
 
 // NSIS kurulum dosyası ve imzası (createUpdaterArtifacts çıktısı).
 const nsisDir = join("src-tauri", "target", "release", "bundle", "nsis");
