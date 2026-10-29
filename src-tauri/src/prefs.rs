@@ -67,9 +67,24 @@ struct Store {
 }
 
 /// Sema surumu. 2 = parlaklik ogrenmesi delta + gun bazli.
-const STORE_VERSION: u32 = 2;
+/// 3 = otomatik yol yalniz kendi (`ss-*`) temalarimizi ogrenir (v3.0).
+const STORE_VERSION: u32 = 3;
 /// Bir tercihte tutulan farkli gun sayisi.
 const MAX_DAYS: usize = 14;
+
+/// Kendi tema ailemizin oneki (`ss-paper`, `ss-dusk`, `ss-night`).
+///
+/// v3.0: karar tablosu zaten kendi temalarimizi seciyordu ama ogrenilmis
+/// tercih eski yerlesik temalari (`zenburn`, `catppuccin-macchiato`…)
+/// otomatik yola geri sokuyordu (canli log: `want=zenburn/dark`). Urunun
+/// gorsel kimligi 12 palet uzerine kurulu; otomatik secim baska aileye
+/// atlamamali. Elle secim her zaman serbest.
+pub const OWN_THEME_PREFIX: &str = "ss-";
+
+/// Tema adi bizim ailemizden mi? (SAF)
+pub fn is_own_theme(name: &str) -> bool {
+    name.starts_with(OWN_THEME_PREFIX) && name.len() > OWN_THEME_PREFIX.len()
+}
 
 fn prefs_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
@@ -147,6 +162,15 @@ fn load(path: &PathBuf) -> Store {
         if store.version < 2 {
             store.bright.clear();
         }
+        // v3.0: yabanci temali tercihler otomatik yolda artik kullanilmiyor;
+        // kayitlari da temizle (yedege dokunmadan once kopyala).
+        if store.version < 3 {
+            let before = store.prefs.len();
+            store.prefs.retain(|p| is_own_theme(&p.name));
+            if store.prefs.len() != before {
+                let _ = fs::copy(path, path.with_extension("json.bak"));
+            }
+        }
         store.version = STORE_VERSION;
         let _ = save(path, &store);
     }
@@ -175,6 +199,11 @@ fn save(path: &PathBuf, store: &Store) -> Result<(), String> {
 }
 
 fn learn_at(path: &PathBuf, hour: u8, light: &str, name: &str, mode: &str) -> Result<(), String> {
+    // v3.0: yabanci tema otomatik yola giremeyecegi icin ogrenilmez de.
+    // Kayit tutmak, okunmayan bir dosyayi sismekten baska ise yaramaz.
+    if !is_own_theme(name) {
+        return Ok(());
+    }
     let mut store = load(path);
     match store
         .prefs
@@ -217,10 +246,14 @@ fn light_level(light: &str) -> &str {
 /// uygulanip parlaklik 30'da kalabiliyordu (PLAN-v3 §2/A5).
 fn lookup_at(path: &PathBuf, hour: u8, light: &str, want_mode: &str) -> Option<(String, String)> {
     let store = load(path);
+    // v3.0: otomatik yol yalniz kendi temalarimizi uygular ve sahnenin
+    // istedigi modu degistirmez. Aksi halde gece 00:00'da ogrenilmis bir
+    // `light` tercih kriter 4'u (gece acik tema yok) delerdi.
+    let eligible = |p: &Pref| is_own_theme(&p.name) && p.mode == want_mode;
     if let Some(p) = store
         .prefs
         .iter()
-        .find(|p| p.hour == hour && p.light == light)
+        .find(|p| p.hour == hour && p.light == light && eligible(p))
     {
         return Some((p.name.clone(), p.mode.clone()));
     }
@@ -228,7 +261,7 @@ fn lookup_at(path: &PathBuf, hour: u8, light: &str, want_mode: &str) -> Option<(
     if let Some(p) = store
         .prefs
         .iter()
-        .filter(|p| p.hour == hour && light_level(&p.light) == level)
+        .filter(|p| p.hour == hour && light_level(&p.light) == level && eligible(p))
         .max_by_key(|p| p.seen)
     {
         return Some((p.name.clone(), p.mode.clone()));
@@ -236,7 +269,7 @@ fn lookup_at(path: &PathBuf, hour: u8, light: &str, want_mode: &str) -> Option<(
     store
         .prefs
         .iter()
-        .filter(|p| p.hour == hour && p.mode == want_mode)
+        .filter(|p| p.hour == hour && eligible(p))
         .max_by_key(|p| p.seen)
         .map(|p| (p.name.clone(), p.mode.clone()))
 }
@@ -324,10 +357,10 @@ mod tests {
     #[test]
     fn learns_and_finds_exact() {
         let p = tmp("exact");
-        learn_at(&p, 18, "dim/warm", "catppuccin-macchiato", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-dusk", "dark").unwrap();
         assert_eq!(
             lookup_at(&p, 18, "dim/warm", "dark"),
-            Some(("catppuccin-macchiato".into(), "dark".into()))
+            Some(("ss-dusk".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
@@ -335,11 +368,11 @@ mod tests {
     #[test]
     fn falls_back_to_same_hour_and_level() {
         let p = tmp("hour");
-        learn_at(&p, 18, "dim/warm", "tokyonight", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-night", "dark").unwrap();
         // Ayni saat, farkli ton ama ayni seviye: tercih korunur.
         assert_eq!(
             lookup_at(&p, 18, "dim/neutral", "dark"),
-            Some(("tokyonight".into(), "dark".into()))
+            Some(("ss-night".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
@@ -347,11 +380,11 @@ mod tests {
     #[test]
     fn falls_back_to_same_hour_and_mode_only() {
         let p = tmp("mode");
-        learn_at(&p, 18, "dim/warm", "tokyonight", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-night", "dark").unwrap();
         // Seviye farkli (bright), mod ayni: mod korunur, ışık yok sayılır.
         assert_eq!(
             lookup_at(&p, 18, "bright/neutral", "dark"),
-            Some(("tokyonight".into(), "dark".into()))
+            Some(("ss-night".into(), "dark".into()))
         );
         // Mod uyusmuyorsa tercih DONDURULMEZ: sahne kendi temasini secer.
         assert_eq!(lookup_at(&p, 18, "bright/neutral", "light"), None);
@@ -362,17 +395,17 @@ mod tests {
     fn light_theme_never_leaks_into_dark_scene() {
         // Gercek vaka (PLAN-v3 §2/A5): gece yarisinda ogrenilmis acik tema.
         let p = tmp("midnight");
-        learn_at(&p, 0, "normal/neutral", "github", "light").unwrap();
-        learn_at(&p, 0, "dark/neutral", "tokyonight", "dark").unwrap();
+        learn_at(&p, 0, "normal/neutral", "ss-paper", "light").unwrap();
+        learn_at(&p, 0, "dark/neutral", "ss-night", "dark").unwrap();
         // 00:00, olcum dark/cool: ton tutmaz, seviye tutar -> koyu tema.
         assert_eq!(
             lookup_at(&p, 0, "dark/cool", "dark"),
-            Some(("tokyonight".into(), "dark".into()))
+            Some(("ss-night".into(), "dark".into()))
         );
         // Seviye de tutmazsa yalniz MOD eslesir; acik tema asla donmez.
         assert_eq!(
             lookup_at(&p, 0, "dim/warm", "dark"),
-            Some(("tokyonight".into(), "dark".into()))
+            Some(("ss-night".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
@@ -380,11 +413,11 @@ mod tests {
     #[test]
     fn newest_slot_wins_in_fallback() {
         let p = tmp("newest");
-        learn_at(&p, 18, "dim/warm", "eski", "dark").unwrap();
-        learn_at(&p, 18, "bright/cool", "yeni", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-paper", "dark").unwrap();
+        learn_at(&p, 18, "bright/cool", "ss-dusk", "dark").unwrap();
         assert_eq!(
             lookup_at(&p, 18, "normal/neutral", "dark"),
-            Some(("yeni".into(), "dark".into()))
+            Some(("ss-dusk".into(), "dark".into()))
         );
         fs::remove_file(&p).ok();
     }
@@ -392,12 +425,48 @@ mod tests {
     #[test]
     fn overwrites_same_slot() {
         let p = tmp("overwrite");
-        learn_at(&p, 18, "dim/warm", "a", "dark").unwrap();
-        learn_at(&p, 18, "dim/warm", "b", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-paper", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-dusk", "dark").unwrap();
         let store = load(&p);
         assert_eq!(store.prefs.len(), 1);
-        assert_eq!(store.prefs[0].name, "b");
+        assert_eq!(store.prefs[0].name, "ss-dusk");
         fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn foreign_theme_is_never_learned_or_returned() {
+        // v3.0: karar tablosu kendi temalarimizi secer; ogrenilmis tercih
+        // eski yerlesik temayi otomatik yola geri sokamaz (canli log:
+        // want=zenburn/dark).
+        let p = tmp("foreign");
+        learn_at(&p, 20, "normal/neutral", "zenburn", "dark").unwrap();
+        assert_eq!(lookup_at(&p, 20, "normal/neutral", "dark"), None);
+        // Kendi temamiz normal calisir.
+        learn_at(&p, 20, "normal/neutral", "ss-dusk", "dark").unwrap();
+        assert_eq!(
+            lookup_at(&p, 20, "normal/neutral", "dark"),
+            Some(("ss-dusk".into(), "dark".into()))
+        );
+        assert!(is_own_theme("ss-night"));
+        assert!(!is_own_theme("ss-"));
+        assert!(!is_own_theme("catppuccin-macchiato"));
+        fs::remove_file(&p).ok();
+    }
+
+    #[test]
+    fn migration_drops_foreign_theme_prefs_and_keeps_backup() {
+        let p = tmp("migrate3");
+        let old = r#"{"prefs":[{"hour":20,"light":"normal/neutral","name":"zenburn","mode":"dark","seen":5},{"hour":9,"light":"normal/neutral","name":"ss-paper","mode":"light","seen":6}],"bright":[],"version":2}"#;
+        fs::write(&p, old).unwrap();
+        let store = load(&p);
+        assert_eq!(store.prefs.len(), 1, "yabanci tercih temizlenmedi");
+        assert_eq!(store.prefs[0].name, "ss-paper");
+        assert_eq!(store.version, STORE_VERSION);
+        // Yedek: eski dosya oldugu gibi duruyor (geri alma icin).
+        let bak = fs::read_to_string(p.with_extension("json.bak")).unwrap();
+        assert!(bak.contains("zenburn"), "yedek eski icerigi tutmuyor");
+        fs::remove_file(&p).ok();
+        fs::remove_file(p.with_extension("json.bak")).ok();
     }
 
     #[test]
@@ -443,21 +512,21 @@ mod tests {
         let p = tmp("migrate");
         fs::write(
             &p,
-            r#"{"prefs":[{"hour":18,"light":"dim/warm","name":"tokyonight","mode":"dark"}],
+            r#"{"prefs":[{"hour":18,"light":"dim/warm","name":"ss-dusk","mode":"dark"}],
                 "bright":[{"hour":18,"light":"dim/warm","total":135,"count":3}],
                 "version":1}"#,
         )
         .unwrap();
         // Eski ogrenme uygulanmaz...
         assert_eq!(lookup_bright_at(&p, 18, "dim/warm"), None);
-        // ...tema tercihi korunur.
+        // ...kendi tema tercihi korunur (yabanci olanlar v3'te temizlenir).
         assert_eq!(
             lookup_at(&p, 18, "dim/warm", "dark"),
-            Some(("tokyonight".into(), "dark".into()))
+            Some(("ss-dusk".into(), "dark".into()))
         );
         let doc: serde_json::Value =
             serde_json::from_str(&fs::read_to_string(&p).unwrap()).unwrap();
-        assert_eq!(doc["version"], 2);
+        assert_eq!(doc["version"], STORE_VERSION);
         assert_eq!(doc["bright"].as_array().unwrap().len(), 0);
         fs::remove_file(&p).ok();
     }
@@ -469,7 +538,7 @@ mod tests {
         assert_eq!(lookup_at(&p, 18, "dim/warm", "dark"), None);
         let bak = p.with_extension("json.bak");
         assert!(bak.exists(), "bozuk dosya yedeklenmeliydi");
-        learn_at(&p, 18, "dim/warm", "vesper", "dark").unwrap();
+        learn_at(&p, 18, "dim/warm", "ss-night", "dark").unwrap();
         assert_eq!(load(&p).prefs.len(), 1);
         fs::remove_file(&p).ok();
         fs::remove_file(bak).ok();

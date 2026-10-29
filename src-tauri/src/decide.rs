@@ -307,6 +307,43 @@ mod tests {
         );
     }
 
+    /// kabul kriteri (§11/4): gece 00:00'da açık tema HİÇ uygulanmaz.
+    ///
+    /// v3.0: kanıt beklemeye bağlıydı ("yarın log'a bakarız"). Günün her
+    /// dakikası taranır, ışık seviyesinin dört değeri de denenir; gece
+    /// penceresinde `light` dönerse test düşer. Beklemeye bağlı kanıt kanıt
+    /// değildir — bir sonraki değişiklik onu sessizce bozar.
+    #[test]
+    fn auto_never_picks_light_theme_at_night() {
+        // Açık tema bandı 06:00–16:00. Dışında `light` yasak.
+        const LIGHT_FROM: u16 = 6 * 60;
+        const LIGHT_TO: u16 = 16 * 60;
+        let levels = [Level::Dark, Level::Dim, Level::Normal, Level::Bright];
+        for m in 0..1440u16 {
+            let hour = (m / 60) as u8;
+            let minute = (m % 60) as u8;
+            for level in levels {
+                let (name, mode, _) = scene_target(Source::Auto, hour, minute, level);
+                if !(LIGHT_FROM..LIGHT_TO).contains(&m) {
+                    assert_ne!(
+                        mode, "light",
+                        "{hour}:{minute:02} ({level:?}) gece açık tema seçti: {name}"
+                    );
+                }
+                // Karar her zaman kendi temalarımızdan olmalı (v3.0 md.2).
+                assert!(
+                    name.starts_with("ss-"),
+                    "{hour}:{minute:02} ({level:?}) yabancı tema seçti: {name}"
+                );
+            }
+        }
+        // Gece yarısı tam olarak gece teması (parlaklık eğriden; burada
+        // ölçülen şey tema kararı, parlaklık değil).
+        let (name, mode, bright) = scene_target(Source::Auto, 0, 0, Level::Bright);
+        assert_eq!((name, mode), ("ss-night", "dark"));
+        assert!(bright <= 40, "gece yarısı parlak olmamalı: {bright}");
+    }
+
     #[test]
     fn night_is_ss_night() {
         // Gece temasi 22:30'da baslar; eğri 23:00'te 30'a iner.
