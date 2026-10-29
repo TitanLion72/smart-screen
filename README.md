@@ -5,17 +5,17 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 20-20-20 hatırlatması, gece parlaklık tavanı, okuma profili, sıcak ton.
 
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
-- Tek pencere, serbest boyutlandırılabilir (min 720×560): sol ray + dört bölüm
-  (**Bugün / Ritim / Profiller / Geçmiş**)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.0.0)
+- Tek pencere, serbest boyutlandırılabilir (min 760×600): alt dock + dört bölüm
+  (**Durum / Profiller / Geçmiş / Ayarlar**)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.10.0)
 
 ## Kurulum (kullanıcı)
 
 1. [En son release](https://github.com/TitanLion72/smart-screen/releases/latest) sayfasından
    `smart-screen_<sürüm>_x64-setup.exe` indir.
 2. Çift tıkla, kur. Görev çubuğunun tepside bir simge belirir.
-3. Pencere açılır → sağ üstte **«İzliyor»** yazar. "Şimdi Ölç" düğmesiyle ilk turu
-   başlatabilirsin.
+3. Pencere açılır → sağ üstte **«Otomatik çalışıyor»** yazar. **«Şimdi yeniden ayarla»**
+   düğmesiyle ilk turu başlatabilirsin.
 
 > **SmartScreen uyarısı normaldir.** Kurulum dosyası kod imzalı değil (sertifika maliyeti
 > ve bölgesel kısıtlar nedeniyle), bu yüzden Windows "bilinmeyen yayıncı" diyebilir →
@@ -38,13 +38,16 @@ kullanabilirsin.
 | **Durum** | Merkezdeki büyük rakam gerçek parlaklık; altında ulaşılmak istenen değer ve sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi (canlı); monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
 | **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
-| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Gelişmiş** altında tema seçimi, okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
+| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması; **Gelişmiş** altında okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
 
 Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
 silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen
 değişiklikler sessizdir.
 
-**Görsel dil:** sıcak obsidyen zemin + şampanya vurgu, katmanlı derinlik (hero
+**Görsel dil:** 4 yerleşim şablonu (bento / sahne / dergi / konsol) × 12 palet
+(obsidyen, gece, orman, gül, okyanus, lavanta, gün batımı, grafit, fildişi, kâğıt,
+kum, buz). Her paletin kendi vurgu rengi vardır; istersen **"Günün rengi"** saat
+dilimine göre kendisi seçer (elle seçim 10 dk korunur). Katmanlı derinlik (hero
 katmanları farklı düzlemlerde), imlece hafif tepki veren paralaks. Hareket azaltma
 (`prefers-reduced-motion`) açıksa paralaks ve geçiş animasyonları kapanır.
 
@@ -95,6 +98,20 @@ hazır — şimdi kur?"*. Kurulum yalnız senin onayınla başlar ve uygulamayı
 başlatır; "Ertele" 24 saat susturur. Güncelleme paketi ayrıca minisign ile imzalıdır
 (uygulama içi doğrulama), kurulum dosyasının Authenticode imzası yoktur.
 
+## Sorun giderme (Kontrol)
+
+Ayarlar → **Kontrol** kartı, "bir şey çalışmıyor" dendiğinde log istemeden cevap verir:
+parlaklık okuma/yazma, sıcak ton sürücüsü, HDR, monitörler, OpenCode teması, açılışta
+başlatma, lisans ve günlük tek tıkla ölçülür. Her satırda durum ve sade neden, yalnız
+sorunlu satırda "ne yapmalı" ipucu bulunur.
+
+**"Raporu kopyala"** düz metin raporu panoya yazar (sürüm, işletim sistemi, tarih,
+satırlar, o anki düzen/palet). Raporda Pro lisans e-postası görünebilir; herkese açık
+bir yere yapıştırmadan önce kontrol et.
+
+Testler görünür değişiklik yapmaz: parlaklık testi ekrandaki değerin **aynısını**
+yazar, sıcak ton kapalıyken gamma rampası **hiç yazılmaz**.
+
 ## Lisans (freemium + Pro)
 
 | Sürüm | Kapsam |
@@ -125,16 +142,17 @@ npm.cmd install        # bağımlılıklar
 npm.cmd run tauri dev  # dev pencere
 
 # Testler
-cd src-tauri; cargo test; cd ..    # 99 test
+npm.cmd test                       # karar motoru (12)
+cd src-tauri; cargo test; cd ..    # backend (204 + 2 canlı test)
 npm.cmd run build                  # tsc + vite → dist/
-cd qa && node run.mjs              # görsel/işlevsel QA (8 senaryo)
+cd qa && node run.mjs              # görsel/işlevsel QA (22 senaryo)
 ```
 
 - `npm.ps1` execution policy'de engelli; projede hep `npm.cmd` kullan.
-- Rust: `cargo fmt --check` şu an temiz; clippy temiz.
+- Rust: `cargo fmt --check` ve `cargo clippy -D warnings` temiz.
 - Sıcak ton: `gamma.rs` — `SetDeviceGammaRamp` sessiz reddettiği için rampa
-  monotonluk + ±32768 kontrolünden geçer. DDC/CI bu laptopta çalışmıyor (hata 31);
-  çoklu ekran desteği şu an için yapılmadı.
+  monotonluk + ±32768 kontrolünden geçer; yazımdan sonra geri okunur. Harici
+  monitör yazımı `monitor.rs` DDC/CI üzerinden ve Pro kapısına bağlıdır.
 
 ## Veri yolları
 
@@ -142,7 +160,7 @@ cd qa && node run.mjs              # görsel/işlevsel QA (8 senaryo)
 |---|---|---|
 | `smart-screen.log` | `~/.config/opencode/` | Her turdan bir satır, 500 satırda döner |
 | `smart-screen-prefs.json` | `~/.config/opencode/` | Öğrenilen tema/parlaklık tercihleri |
-| `smart-screen-gamma.bin` | `~/.config/opencode/` | Sıcak ton açılıken ekran rampası (kalibrasyon korunur) |
+| `smart-screen-gamma-<DISPLAYn>.bin` | `~/.config/opencode/` | Monitör başına sıcak ton öncesi rampa (kalibrasyon korunur); eski tek dosya açılışta taşınır |
 | Temalar (`ss-paper`/`ss-dusk`/`ss-night`) | `~/.config/opencode/themes/` | Uygulama açılışta eksikse kurar, var olana dokunmaz |
 | `cli.json`, `opencode.json` | `~/.config/opencode/` | Tema seçimi buraya öğretilir; diğer alanlar bozulmaz |
 
@@ -163,7 +181,8 @@ $env:TAURI_SIGNING_PRIVATE_KEY = "$env:USERPROFILE\.tauri\smart-screen-updater.k
 $env:TAURI_SIGNING_PRIVATE_KEY_PASSWORD = "<anahtar şifresi>"
 
 npm.cmd run tauri build           # nsis/*-setup.exe + msi + *.sig (updater artefaktları)
-node tools/release-manifest.mjs --version 2.1.0 --notes "..." \
+node tools/release-notes.mjs --version 2.1.0 --out release-notes.md
+node tools/release-manifest.mjs --version 2.1.0 --notes-file release-notes.md \
   --base-url https://github.com/TitanLion72/smart-screen/releases/download/v2.1.0
 ```
 
@@ -175,8 +194,8 @@ yoksa otomatik güncelleme çalışmaz.
 > güncelleme yayınlanamaz. İki kopya tut (biri çevrimdışı); anahtar ve şifresi repoya
 > girmez (`*.key` `.gitignore`'da).
 
-Sürümler GitHub Actions doğamationı yerine manuel olarak push + release komutlarıyla açılacak;
-`AGENTS.md`/`HANDOFF.md` güncellemeleri her sürüm notuna temel.
+Sürümler CI doğrulamasından sonra manuel push + release komutlarıyla açılır;
+`AGENTS.md`/`HANDOFF.md` güncellemeleri her sürüm notuna temel olur.
 
 ## Lisans
 
