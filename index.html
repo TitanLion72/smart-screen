@@ -256,6 +256,7 @@
   #diag-list       | div.diag-list | kontrol satırları (JS üretir)       | .diag-row[data-status=ok|warn|bad]; boşken .diag-empty
   #diag-run        | button.btn-primary | "Sistemi kontrol et"           | click → runDiagnostics(); toast + satırlar
   #diag-copy       | button.btn-toggle | "Raporu kopyala"               | disabled = rapor yok; click → diagReportText() panoya
+  #diag-log        | button.btn-toggle | "Günlüğü aç"                   | her zaman etkin; click → open_log (dosya yoksa klasörü açılır)
   #diag-stamp      | span.hint    | rapor zamanı/durumu ("12 kontrol · 2 uyarı") | text
   #night-btn       | button     | "Windows gece ışığı"                   | click → Windows ayar sayfası açar
   #lic-box         | div.panel-box | lisans kartı                        | —
@@ -752,6 +753,7 @@
             <div class="toolbar">
               <button id="diag-run" class="btn-primary" type="button">Sistemi kontrol et</button>
               <button id="diag-copy" class="btn-toggle" type="button" disabled>Raporu kopyala</button>
+              <button id="diag-log" class="btn-toggle" type="button">Günlüğü aç</button>
               <span class="spacer"></span>
               <span class="hint" id="diag-stamp"></span>
             </div>

@@ -353,6 +353,34 @@ async fn log_clear() -> Result<(), String> {
     run_blocking(clear_disk_log).await?
 }
 
+/// Günlük dosyasını varsayılan editörde açar (destek akışı).
+///
+/// v2.11: "Raporu kopyala" tek başına yetmiyordu; kullanıcı günlüğü
+/// `~/.config/opencode` içinde elle arıyordu. Dosya yoksa/açılamazsa
+/// klasörünü açar. Yol sabittir, komut parametre almaz (yol geçişi yok).
+#[tauri::command]
+async fn open_log(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_opener::OpenerExt;
+    let path = logger::log_path()?;
+    let shown = path.to_string_lossy().to_string();
+    if path.exists()
+        && app
+            .opener()
+            .open_path(shown.clone(), None::<String>)
+            .is_ok()
+    {
+        return Ok(shown);
+    }
+    let dir = path
+        .parent()
+        .ok_or_else(|| "günlük klasörü bulunamadı".to_string())?;
+    let dir_shown = dir.to_string_lossy().to_string();
+    app.opener()
+        .open_path(dir_shown.clone(), None::<String>)
+        .map_err(|e| format!("günlük açılamadı: {e}"))?;
+    Ok(dir_shown)
+}
+
 #[tauri::command]
 async fn pref_learn(hour: u8, light: String, name: String, mode: String) {
     let _ = run_blocking(move || remember_pref(hour, &light, &name, &mode)).await;
@@ -677,6 +705,7 @@ pub fn run() {
             log_tick,
             log_lines,
             log_clear,
+            open_log,
             pref_learn,
             pref_get,
             pref_list,

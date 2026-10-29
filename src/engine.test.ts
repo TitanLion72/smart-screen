@@ -7,12 +7,14 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  AUTO_PALETTE_DWELL_MS,
   EXTERNAL_DELTA,
   LEARN_DELTA_MAX,
   MEASURE_GAP_MS,
   RESPECT_MS,
   THEME_DWELL_MS,
   applyLearnDelta,
+  autoPaletteDue,
   extendRespect,
   finalTarget,
   isExternalChange,
@@ -126,4 +128,23 @@ test("ton medyanı tek gürültülü kareyi yutar", () => {
   assert.equal(medianTone(["cool", "neutral", "cool"]), "cool");
   // Tanınmayan adlar yok sayılır.
   assert.equal(medianTone(["flas", "warm", "warm"]), "warm");
+});
+
+test("günün rengi: kapalı, dwell ve aynı palet korunur", () => {
+  const base = { now: NOW, lastManualAt: NOW - AUTO_PALETTE_DWELL_MS, current: "kagit", want: "gece" };
+  // Anahtar kapalı → hiç dokunulmaz (kullanıcı seçimi kutsal).
+  assert.equal(autoPaletteDue({ ...base, auto: false }), false);
+  // Elle seçimden 1 ms önce: dwell sürüyor.
+  assert.equal(
+    autoPaletteDue({ ...base, auto: true, lastManualAt: NOW - AUTO_PALETTE_DWELL_MS + 1 }),
+    false,
+  );
+  // Tam sınırda uygulanır.
+  assert.equal(autoPaletteDue({ ...base, auto: true }), true);
+  // Palet zaten istenen renkse DOM'a boşuna yazılmaz.
+  assert.equal(autoPaletteDue({ ...base, auto: true, want: "kagit" }), false);
+  // Saat geri alındı (negatif fark): palet zıplamasın.
+  assert.equal(autoPaletteDue({ ...base, auto: true, lastManualAt: NOW + 60_000 }), false);
+  // Hiç elle seçim yapılmadıysa (0) hemen uygulanır.
+  assert.equal(autoPaletteDue({ ...base, auto: true, lastManualAt: 0 }), true);
 });

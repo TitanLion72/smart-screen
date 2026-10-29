@@ -186,3 +186,34 @@ export function lightKey(level: string, tone: string): string {
  * denenir; yakınsa yazım başarılı kabul edilir (WMI ±1 oynayabilir).
  */
 export const WRITE_TOLERANCE = 3;
+
+/**
+ * "Günün rengi" palet kapısı — saate göre otomatik paletin bu turda
+ * uygulanıp uygulanmayacağı (v2.11).
+ *
+ * Neden saf fonksiyon: `orchestr.applyAutoPalette` içinde karar gömülüydü ve
+ * "kullanıcı seçtikten sonra geri çevrilmiyor" davranışı yalnız gözle
+ * doğrulanabiliyordu. Dwell penceresi sessizce bozulsa hiçbir test görmezdi.
+ *
+ * Kurallar:
+ * - Anahtar kapalıysa hiçbir şey yapılmaz (kullanıcı seçimi kutsal).
+ * - Elle seçimden `AUTO_PALETTE_DWELL_MS` geçmeden değiştirilmez.
+ * - Palet zaten istenen renkse yazılmaz (DOM'a boşuna dokunma).
+ * - Saat geri alınmışsa (`now < lastManualAt`) fark negatif çıkar; bu da
+ *   "henüz dwell dolmadı" sayılır — geri saat paleti zıplatmasın.
+ */
+export const AUTO_PALETTE_DWELL_MS = 10 * 60_000;
+
+export function autoPaletteDue(p: {
+  auto: boolean;
+  now: number;
+  lastManualAt: number;
+  current: string;
+  want: string;
+}): boolean {
+  if (!p.auto) return false;
+  const elapsed = p.now - p.lastManualAt;
+  if (elapsed < 0) return false; // saat geri alındı: dwell sıfırlanmış say
+  if (elapsed < AUTO_PALETTE_DWELL_MS) return false;
+  return p.want !== p.current;
+}

@@ -21,6 +21,7 @@ import { sendNotification } from "@tauri-apps/plugin-notification";
 import { DEFAULT_DESIGN_THEME, MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
 import {
+  autoPaletteDue,
   extendRespect,
   finalTarget,
   isExternalChange,
@@ -1050,6 +1051,22 @@ export function diagReportText(): string {
   return lines.join("\n");
 }
 
+/**
+ * v2.11: günlük dosyasını varsayılan editörde açar. "Raporu kopyala"nın
+ * yanına konur: kullanıcı `~/.config/opencode` yolunu elle aramasın.
+ * Backend dosya yoksa klasörü açar ve açtığı yolu döndürür.
+ */
+export async function openLogFile(): Promise<void> {
+  try {
+    const path = await invoke<string>("open_log");
+    toast.ok("Günlük açıldı", { detail: path });
+    log("günlük dosyası açıldı", "ok");
+  } catch (e) {
+    log("günlük dosyası açılamadı: " + String(e), "bad");
+    toast.err("Günlük açılamadı", { detail: String(e) });
+  }
+}
+
 export function setGate(v: boolean): void {
   S.auditGate = v;
   setSetting("auditGate", v ? "1" : "0");
@@ -1093,8 +1110,10 @@ export function setGameBright(v: boolean): void {
  * - Elle palet seçimi 10 dk "dokunma" penceresi açar (dwell) — kullanıcı
  *   bir renk seçtiğinde hemen geri çevrilmez.
  * - Yalnız `autoPalette` açıkken, yarım saatte bir, saat dilimine göre.
+ *
+ * v2.11: dwell kararı `engine.autoPaletteDue` içine taşındı (saf fonksiyon,
+ * `npm test` ile doğrulanıyor) — burada yalnız zaman/palet girdisi toplanır.
  */
-const AUTO_PALETTE_DWELL_MS = 10 * 60 * 1000;
 
 /** Saat dilimine göre önerilen palet. */
 export function paletteForHour(hour: number): string {
@@ -1122,13 +1141,25 @@ export function setAutoPalette(v: boolean): void {
 
 /**
  * Saat dilimine göre paleti uygular. `force` yoksa dwell ve tekrar
- * denetimi yapılır (her turda yazmaz).
+ * denetimi yapılır (her turda yazmaz). Karar `engine.autoPaletteDue` —
+ * v2.11'de test edilebilir olması için dışarı alındı.
  */
 export function applyAutoPalette(force = false): void {
   if (!S.autoPalette) return;
-  if (!force && Date.now() - S.lastManualPaletteAt < AUTO_PALETTE_DWELL_MS) return;
   const want = paletteForHour(new Date().getHours());
   const current = document.documentElement.dataset.theme ?? DEFAULT_DESIGN_THEME;
+  if (
+    !force &&
+    !autoPaletteDue({
+      auto: true,
+      now: Date.now(),
+      lastManualAt: S.lastManualPaletteAt,
+      current,
+      want,
+    })
+  ) {
+    return;
+  }
   if (want === current) return;
   // Palet değişimi JS'te (panels) yapılır; döngüsel bağımlılık olmasın diye
   // callback ile: orchestr → panels yönü yok, main kablolar.

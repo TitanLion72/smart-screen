@@ -44,6 +44,7 @@ import {
   loadAudit,
   loadHistory,
   nextWarmthChange,
+  openLogFile,
   pauseRemainingText,
   pickTheme,
   restoreSeeds,
@@ -1449,6 +1450,7 @@ export function wireButtons(): void {
   btnEl("audit-refresh").addEventListener("click", () => void loadAudit());
   btnEl("diag-run").addEventListener("click", () => void runDiagnostics());
   btnEl("diag-copy").addEventListener("click", () => void copyDiagReport());
+  btnEl("diag-log").addEventListener("click", () => void openLogFile());
   btnEl("lic-activate").addEventListener("click", () => {
     void activateLicense(inputEl("lic-key").value).then(() => {
       if (S.licensePro) inputEl("lic-key").value = "";

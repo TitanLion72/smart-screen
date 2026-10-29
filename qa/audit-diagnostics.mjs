@@ -90,6 +90,10 @@ await page.addInitScript((report) => {
       if (cmd === "log_lines") return [];
       if (cmd === "log_clear") return null;
       if (cmd === "log_tick") return null;
+      if (cmd === "open_log") {
+        window.__diag.logCalls = (window.__diag.logCalls ?? 0) + 1;
+        return "C:\\Users\\qa\\.config\\opencode\\smart-screen.log";
+      }
       if (cmd === "theme_get") return ["vesper", "dark"];
       if (cmd === "theme_set") return null;
       if (cmd === "autostart_get") return true;
@@ -138,8 +142,10 @@ check(await page.locator("#diag-box").isVisible(), "#diag-box görünür değil"
 const advOpen = await page.locator("#advanced").evaluate((d) => d.open);
 check(advOpen === false, "#advanced varsayılan olarak açık (kart Gelişmiş içinde olabilir)");
 check(await page.locator("#diag-copy").isDisabled(), "rapor yokken kopyala etkin");
+check(await page.locator("#diag-log").isVisible(), "#diag-log görünür değil");
+check(!(await page.locator("#diag-log").isDisabled()), "#diag-log rapor yokken kapalı");
 check((await page.locator("#diag-list .diag-empty").count()) === 1, "boş yönlendirme satırı yok");
-console.log("   kart görünür, kopyala kapalı ✓");
+console.log("   kart görünür, kopyala kapalı, günlük açık ✓");
 
 // ── 2) Kontrol koşusu ──────────────────────────────────────────────
 console.log("2) sistemi kontrol et");
@@ -184,6 +190,23 @@ check(clip.includes("palet:"), "pano raporunda palet özeti yok");
 const t2 = await toastText();
 check(/kopyalandı/i.test(t2), `kopyalama toast'ı yok: "${t2}"`);
 console.log(`   ${clip.length} karakter panoda ✓`);
+
+// ── 3b) Günlüğü aç ─────────────────────────────────────────────────
+console.log("3b) günlüğü aç");
+const logCallsBefore = await page.evaluate(() => window.__diag.logCalls ?? 0);
+await page.locator("#diag-log").click();
+await page.waitForTimeout(400);
+const logCalls = await page.evaluate(() => window.__diag.logCalls ?? 0);
+check(logCalls === logCallsBefore + 1, `open_log ${logCalls - logCallsBefore} kez çağrıldı (1 olmalı)`);
+const tLog = await page
+  .locator("#toast-host .toast")
+  .first()
+  .textContent();
+check(/Günlük açıldı/i.test(tLog ?? ""), `günlük toast'ı yok: "${tLog}"`);
+check(/smart-screen\.log/.test(tLog ?? ""), `toast açılan yolu yazmıyor: "${tLog}"`);
+// Rapordan bağımsız: rapor yokken de çalışır (destek akışı ilk adımı).
+check(!(await page.locator("#diag-log").isDisabled()), "günlük düğmesi sonradan kapandı");
+console.log("   open_log çağrıldı, yol toast'ta ✓");
 
 // ── 4) Yan etki yok ────────────────────────────────────────────────
 console.log("4) yan etki denetimi");

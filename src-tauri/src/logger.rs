@@ -28,7 +28,9 @@ fn tmp_path(path: &Path) -> PathBuf {
     path.with_extension(format!("log.tmp-{}", std::process::id()))
 }
 
-fn log_path() -> Result<PathBuf, String> {
+/// Log dosyasının tam yolu. `open_log` komutu bunu kullanıcıya açar; yol
+/// uygulama tarafında hesaplanır (kullanıcı girdisi yok → yol geçişi yok).
+pub fn log_path() -> Result<PathBuf, String> {
     let home = std::env::var("USERPROFILE").map_err(|e| format!("USERPROFILE yok: {e}"))?;
     Ok(PathBuf::from(home)
         .join(".config")

@@ -248,6 +248,7 @@ window.__TAURI_INTERNALS__ = {
       case "log_clear":
         window.__logs = [];
         return null;
+      case "open_log": return "C:\\\\Users\\\\qa\\\\.config\\\\opencode\\\\smart-screen.log";
       case "stats_summary": return {
         buckets: ${JSON.stringify(buckets)},
         themeChangesToday: 3,
@@ -663,6 +664,13 @@ async function run() {
     check((await countOf("gamma_set_warmth")) === wBefore, "kontrol", "tanilama gamma yazdi (kalibrasyon ezilmemeli)");
     const diagToast = await page.locator("#toast-host .toast").last().textContent();
     check((diagToast ?? "").length > 0, "kontrol", "tanilama toast'i cikmadi");
+    // v2.11: gunluk dugmesi rapor olmadan da calisir ve yolu bildirir.
+    const openBefore = await countOf("open_log");
+    await page.locator("#diag-log").click();
+    await page.waitForTimeout(300);
+    check((await countOf("open_log")) === openBefore + 1, "kontrol", "gunluk dugmesi open_log cagirmadi");
+    const logToast = await page.locator("#toast-host .toast").first().textContent();
+    check(/smart-screen\.log/.test(logToast ?? ""), "kontrol", `gunluk toast'i yolu yazmiyor: ${logToast}`);
     await checkOverflow(page, "advanced");
     await shot("4-advanced.png");
   });
