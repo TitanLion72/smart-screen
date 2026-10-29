@@ -94,6 +94,24 @@ pub fn is_pro() -> bool {
     status().pro
 }
 
+/// Pro kapısı — **tek karar noktası** (SAF, test edilebilir).
+///
+/// v3.0: harici monitöre yazma iki komutta iki farklı yerde denetleniyordu;
+/// `monitor_set_color_temp` kapıyı hiç uygulamıyordu (lisanssız yazabiliyordu).
+/// Karar buraya alındı ki yeni bir yazma komutu eklenince testi de hazır olsun.
+pub fn gate(pro: bool, feature: &str) -> Result<(), String> {
+    if pro {
+        Ok(())
+    } else {
+        Err(format!("{feature} Pro lisans gerektirir"))
+    }
+}
+
+/// `gate` + gerçek lisans durumu.
+pub fn require_pro(feature: &str) -> Result<(), String> {
+    gate(is_pro(), feature)
+}
+
 /// Onbellekten durum dondurur; bosken `load` ile yukler (tek seferlik maliyet).
 /// Kilidi hicbir yerde `.await` boyunca tutulmaz (senkron yardimci).
 fn cached(
@@ -280,6 +298,16 @@ fn deactivate_with(path: &Path, public: &[u8; 32]) -> LicenseStatus {
 mod tests {
     use super::*;
     use ed25519_dalek::{Signer, SigningKey};
+
+    #[test]
+    fn pro_gate_blocks_unlicensed_writes() {
+        let err = gate(false, "harici monitöre renk sıcaklığı yazma").unwrap_err();
+        assert!(
+            err.contains("Pro lisans"),
+            "hata mesajı yönlendirici değil: {err}"
+        );
+        assert_eq!(gate(true, "harici monitöre renk sıcaklığı yazma"), Ok(()));
+    }
 
     /// Verilen hex acik anahtar, derleme zamanindaki sabitle birebir ayni mi?
     #[test]

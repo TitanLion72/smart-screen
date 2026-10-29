@@ -237,3 +237,18 @@ export function autoPaletteDue(p: {
   if (elapsed < AUTO_PALETTE_DWELL_MS) return false;
   return p.want !== p.current;
 }
+
+/**
+ * Isınma şiddeti (0-100) → harici monitörün DDC/CI renk sıcaklığı (Kelvin).
+ *
+ * v3.0: sıcak ton iki katmanda çalışır — yazılımsal gamma (her ekran) ve
+ * monitörün kendi VCP 0x0C ayarı (harici, Pro). İkisinin aynı dili konuşması
+ * için tek eşleme: 0 → 6500 K (nötr), 100 → 3000 K (belirgin sıcak).
+ * Ara değerler doğrusal; 100 K'a yuvarlanır (monitörler 100 K adım bildirir).
+ */
+export function warmthToKelvin(warmth: number): number {
+  if (!Number.isFinite(warmth)) return 6500;
+  const w = Math.max(0, Math.min(100, Math.round(warmth)));
+  const k = 6500 - ((6500 - 3000) * w) / 100;
+  return Math.round(k / 100) * 100;
+}

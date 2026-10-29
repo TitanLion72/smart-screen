@@ -32,6 +32,7 @@ import {
   medianTone,
   skipReason,
   themeGate,
+  warmthToKelvin,
 } from "./engine";
 import type { LightLevel, Tone, WriteRecord } from "./engine";
 import { toast } from "./toast";
@@ -752,12 +753,47 @@ async function autoWarmth(): Promise<number | null> {
   }
 }
 
-/** Sıcak ton: kipe göre hesaplayıp gamma'ya yazar. auto = saat + ışık. */
+/**
+ * v3.0: sıcak tonu **tüm destekli harici monitörlerin** kendi renk sıcaklığına
+ * da yazar (DDC/CI VCP 0x0C). Pro kapısı backend'de; burada yalnız "gerek var
+ * mı" kararı verilir.
+ *
+ * - Yalnız Pro + destekli (`ctSupported === true`) + HDR kapalı monitörler.
+ * - Aynı Kelvin'e ikinci kez yazılmaz (DDC yazması yavaş, monitör OSD'si titrer).
+ * - 10 dakikalık hız sınırı backend'de (`colortemp`), burada ayrıca tutulmaz.
+ * - Hata yutulur: desteksiz monitör döngüyü durdurmamalı, yazılımsal gamma
+ *   zaten çalışıyor.
+ */
+const monCtLast = new Map<string, number>();
+
+export async function applyMonitorColorTemp(warmth: number): Promise<void> {
+  if (!S.licensePro) return;
+  const kelvin = warmthToKelvin(warmth);
+  for (const m of S.monitors) {
+    if (m.info.is_internal || m.ctSupported !== true || m.hdr) continue;
+    if (monCtLast.get(m.info.id) === kelvin) continue;
+    try {
+      await invoke("monitor_set_color_temp", { device: m.info.id, kelvin });
+      monCtLast.set(m.info.id, kelvin);
+      log(`monitör renk sıcaklığı ${kelvin} K: ${m.info.id}`, "ok");
+    } catch (e) {
+      // Tek satır: monitör başına her turda değil, yalnız ilk hatada.
+      const key = "monCtErr:" + m.info.id;
+      if (S.lastGateWarn !== key) {
+        S.lastGateWarn = key;
+        log(`monitör renk sıcaklığı yazılamadı (${m.info.id}): ${String(e)}`, "warn");
+      }
+    }
+  }
+}
+
 export async function applyWarmth(force = false): Promise<void> {
   try {
     if (S.warmMode === "off") {
       await invoke("gamma_restore");
       S.lastWarmApplied = 0;
+      // Monitör de nötre dönsün; yoksa "kapattım ama ekran sarı" kalır.
+      await applyMonitorColorTemp(0);
       return;
     }
     let percent: number | null;
@@ -770,6 +806,9 @@ export async function applyWarmth(force = false): Promise<void> {
     }
     // stabilite (d): hesaplanamadıysa son uygulanan şiddet korunur.
     const value = Math.round(percent === null ? (S.lastWarmApplied ?? S.warmPercent) : percent);
+    // Monitör katmanı gamma eşiğinden bağımsız: harici ekranın kendi ayarı
+    // 3 puanlık yazılımsal farktan etkilenmesin (DDC yazması pahalı).
+    await applyMonitorColorTemp(value);
     if (!force && S.lastWarmApplied !== null && Math.abs(value - S.lastWarmApplied) < 3) return;
     await invoke("gamma_set_warmth", { percent: value });
     S.lastWarmApplied = value;

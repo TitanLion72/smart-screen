@@ -556,8 +556,13 @@ async fn monitor_color_temp_info() -> Result<Vec<colortemp::ColorTempInfo>, Stri
 }
 
 /// Monitörün renk sıcaklığını DDC/CI VCP 0x0C ile yazar (kelvin).
+///
+/// v3.0: kapı burada. Harici monitöre yazma Pro özelliğidir; okuma
+/// (`monitor_color_temp_info`) her zaman serbesttir. Kapı eklenmeden önce bu
+/// komut lisanssız da yazabiliyordu — `brightness_set_monitor` ile tutarsızdı.
 #[tauri::command]
 async fn monitor_set_color_temp(device: String, kelvin: i32) -> Result<(), String> {
+    license::require_pro("harici monitöre renk sıcaklığı yazma")?;
     run_blocking(move || colortemp::set_color_temp(&device, kelvin)).await?
 }
 

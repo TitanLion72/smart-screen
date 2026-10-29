@@ -26,6 +26,7 @@ import {
   readableTarget,
   skipReason,
   themeGate,
+  warmthToKelvin,
 } from "./engine.ts";
 
 const NOW = 1_800_000_000_000;
@@ -140,6 +141,18 @@ test("kamera yokken her tur bağımsız sayılır (kapı asılı kalmaz)", () =>
   assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: NOW }), false);
   assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: NOW - MEASURE_GAP_MS }), true);
   assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: null }), true);
+});
+
+test("ısınma şiddeti monitör Kelvin'ine doğrusal eşlenir", () => {
+  assert.equal(warmthToKelvin(0), 6500);
+  assert.equal(warmthToKelvin(100), 3000);
+  assert.equal(warmthToKelvin(50), 4800);
+  // Sınır dışı girdiler kelepçelenir; NaN nötre düşer.
+  assert.equal(warmthToKelvin(-20), 6500);
+  assert.equal(warmthToKelvin(180), 3000);
+  assert.equal(warmthToKelvin(Number.NaN), 6500);
+  // Her adım 100 K: monitörler 100 K adım bildiriyor.
+  for (let w = 0; w <= 100; w++) assert.equal(warmthToKelvin(w) % 100, 0);
 });
 
 test("günün rengi: kapalı, dwell ve aynı palet korunur", () => {
