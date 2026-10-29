@@ -42,11 +42,15 @@ static OPS: LazyLock<Mutex<()>> = LazyLock::new(|| Mutex::new(()));
 const MAX_DEVIATION: i32 = 32768;
 
 /// warmth=100'de yesil/mavi kanalina uygulanan egri siddeti (0..1).
-/// Egri iki ucu KORUR (x=1 -> kimlik), orta tonlari kisar. Dogrusal carpanla
-/// ayni surucu sinirinda cok daha belirgin bir renk sicakligi verir
-/// (bkz. `warm_channel` ve PLAN-v3 §4.2).
+/// Egri orta tonlari kisar; tepe artik `PEAK_*` kadar kisilir (v3.0: saf
+/// beyaz da isinir). Dogrusal carpanla ayni surucu sinirinda cok daha
+/// belirgin bir renk sicakligi verir (bkz. `warm_channel`, PLAN-v3 §4.2).
 const MAX_WARM_GREEN: f32 = 0.30;
 const MAX_WARM_BLUE: f32 = 0.78;
+/// Tepe (x=1) kisilmasi, ayni `s` ile olceklenir. Mavi daha cok kisilir:
+/// beyazda sari-turuncu tonu belirleyen kanal mavidir.
+const PEAK_CUT_GREEN: f32 = 0.10;
+const PEAK_CUT_BLUE: f32 = 0.35;
 
 /// Per-cihaz disk kayitlarinin deseni: `smart-screen-gamma-<cihaz>.bin`.
 const GAMMA_PREFIX: &str = "smart-screen-gamma-";
@@ -84,8 +88,8 @@ pub fn build_ramp(warmth: u8) -> Ramp {
     let t = warmth.min(100) as f32 / 100.0;
     Ramp {
         red: identity_channel(),
-        green: warm_channel(MAX_WARM_GREEN * t),
-        blue: warm_channel(MAX_WARM_BLUE * t),
+        green: warm_channel(MAX_WARM_GREEN * t, PEAK_CUT_GREEN),
+        blue: warm_channel(MAX_WARM_BLUE * t, PEAK_CUT_BLUE),
     }
 }
 
@@ -546,21 +550,26 @@ fn identity_ramp() -> Ramp {
     }
 }
 
-/// Sicak ton egrisi: kanal girisi `x = i / 255`, cikis kup egriyle karistirilir
-/// `out = 65535 * ((1 - s) * x + s * x^3)`.
+/// Sicak ton egrisi: kanal girisi `x = i / 255`,
+/// `out = 65535 * ((1 - s) * x + s * x^3) * (1 - peak * s)`.
 ///
-/// - `s = 0` kimlik; `s = 1` orta tonlar 0.125'e iner, `x = 1` KORUNUR
-///   (tepe beyazi kirpilmaz, ekran "yanmis" görünmez).
+/// - `s = 0` kimlik; `s = 1` orta tonlar 0.125'e iner.
+/// - `peak` **tepe noktayi da** kisar (v3.0). Onceden `x = 1` kimlikte
+///   kaliyordu, yani **saf beyaz hic isinmiyordu** — "sicak ton islevsiz"
+///   sikayetinin olculebilir sebebi buydu (PLAN-v3 §3/B1, §11/5). Beyaz
+///   ekranin buyuk kismi oldugu icin tepe kisilmadan isinma gorunmez.
 /// - Turev `(1 - s) + 3s x^2 > 0` → her s icin MONOTON.
-/// - En buyuk sapma `65535 * s * x * (1 - x^2) <= 25240 * s < 32768` → her s
-///   icin surucu siniri (`MAX_DEVIATION`) ICINDE. Bu yuzden dogrusal carpanin
-///   aksine mavi %50'nin altina inebilir (SAF).
-fn warm_channel(strength: f32) -> [u16; 256] {
+/// - En buyuk sapma surucu siniri (`MAX_DEVIATION` = 32768) ICINDE:
+///   mavi `peak = 0.35` → 31286, yesil `peak = 0.10` → 26590 (s = 1).
+///   `within_driver_limits_for_every_warmth` her warmth icin dogrular.
+fn warm_channel(strength: f32, peak: f32) -> [u16; 256] {
     let s = strength.clamp(0.0, 1.0);
+    let p = peak.clamp(0.0, 1.0);
+    let scale = 1.0 - p * s;
     let mut out = [0u16; 256];
     for (i, v) in out.iter_mut().enumerate() {
         let x = i as f32 / 255.0;
-        let shaped = (1.0 - s) * x + s * x * x * x;
+        let shaped = ((1.0 - s) * x + s * x * x * x) * scale;
         *v = (65535.0 * shaped).round().clamp(0.0, 65535.0) as u16;
     }
     out
@@ -643,9 +652,20 @@ mod tests {
     fn full_warmth_cuts_midtones_and_keeps_top() {
         let r = build_ramp(100);
         assert_eq!(r.red, identity_channel(), "kirmizi korunmali");
-        // Egri uclari korur: tepe beyazi kirpilmaz (bant/sert gecis yok).
-        assert_eq!(r.blue[255], 65535, "mavi tepe korunmali");
-        assert_eq!(r.green[255], 65535, "yesil tepe korunmali");
+        // v3.0: tepe de kisilir — saf beyaz isinmadan sicak ton gorunmez.
+        // (Onceki davranis tepeyi kimlikte birakiyordu; §11/5 tutmuyordu.)
+        assert_eq!(
+            r.blue[255],
+            (65535.0 * (1.0 - PEAK_CUT_BLUE * MAX_WARM_BLUE)).round() as u16,
+            "mavi tepe kisilmali"
+        );
+        assert_eq!(
+            r.green[255],
+            (65535.0 * (1.0 - PEAK_CUT_GREEN * MAX_WARM_GREEN)).round() as u16,
+            "yesil tepe kisilmali"
+        );
+        // Tepe yine kimligin altinda ama tamamen kararmis degil.
+        assert!(r.blue[255] > 40000, "mavi tepe fazla karardi");
         // Orta tonlar guclu kisilir: eski dogrusal carpan 0.72 idi.
         let mid_b = r.blue[128] as f32 / 65535.0;
         let mid_g = r.green[128] as f32 / 65535.0;
@@ -707,23 +727,57 @@ mod tests {
     fn warm_channel_stays_valid_at_extremes() {
         // s=0 kimlik, s=1 en sert: ikisi de sinir ve monotonluk icinde.
         for s in [0.0f32, 0.5, 1.0] {
-            let ch = warm_channel(s);
-            let r = Ramp {
-                red: ch,
-                green: ch,
-                blue: ch,
-            };
-            assert!(is_monotonic(&r), "s={s} monoton degil");
-            assert!(within_driver_limits(&r), "s={s} sinir asiyor");
-            assert_eq!(r.red[0], 0);
-            assert_eq!(r.red[255], 65535);
+            for peak in [0.0f32, PEAK_CUT_GREEN, PEAK_CUT_BLUE] {
+                let ch = warm_channel(s, peak);
+                let r = Ramp {
+                    red: ch,
+                    green: ch,
+                    blue: ch,
+                };
+                assert!(is_monotonic(&r), "s={s} peak={peak} monoton degil");
+                assert!(within_driver_limits(&r), "s={s} peak={peak} sinir asiyor");
+                assert_eq!(r.red[0], 0);
+                // Tepe artik kimlikte DEGIL, `1 - peak*s` kadar kisik.
+                let want = (65535.0 * (1.0 - peak * s)).round() as u16;
+                assert_eq!(r.red[255], want, "s={s} peak={peak} tepe yanlis");
+            }
         }
     }
 
     #[test]
     fn warm_channel_clamps_out_of_range_strength() {
-        assert_eq!(warm_channel(1.5), warm_channel(1.0));
-        assert_eq!(warm_channel(-2.0), identity_channel());
+        assert_eq!(
+            warm_channel(1.5, PEAK_CUT_BLUE),
+            warm_channel(1.0, PEAK_CUT_BLUE)
+        );
+        assert_eq!(warm_channel(-2.0, PEAK_CUT_BLUE), identity_channel());
+        assert_eq!(warm_channel(1.0, -1.0), warm_channel(1.0, 0.0));
+    }
+
+    /// Kabul kriteri §11/5: `warmth=70` iken **mavi tepe** en az %18 kisilir.
+    ///
+    /// v3.0 oncesi egri tepede kimlige donuyordu (yani saf beyaz hic
+    /// isinmiyordu); kriter bu yuzden tutmuyordu. Olcum tepe (255) ve
+    /// orta-yuksek tonlarda yapilir; canli test ayni sayiyi surucuden geri
+    /// okuyarak dogrular.
+    #[test]
+    fn warmth_70_cuts_blue_by_at_least_18_percent() {
+        let id = identity_channel();
+        let warm = build_ramp(70);
+        for probe in [128usize, 192, 224, 255] {
+            let before = f32::from(id[probe]).max(1.0);
+            let after = f32::from(warm.blue[probe]);
+            let drop = (before - after) / before;
+            assert!(
+                drop >= 0.18,
+                "index {probe}: mavi yalnizca %{:.1} dustu",
+                drop * 100.0
+            );
+        }
+        // Kirmizi kanal kimlik: isinma yalniz yesil/mavi kisilarak olur.
+        assert_eq!(warm.red, id);
+        // warmth=0 hicbir sey yapmaz (kapaliyken rampa yazilmaz sozu).
+        assert_eq!(build_ramp(0), identity_ramp());
     }
 
     #[test]
@@ -869,12 +923,19 @@ mod tests {
     /// Gercek donanim testi: SetDeviceGammaRamp'i gercekten cagirir ve
     /// sonunda ekrani geri duzeltir. Varsayilan olarak atlanir:
     /// `cargo test -- --ignored`
+    ///
+    /// v3.0: kabul kriteri §11/5 de olculur. `warmth=70` uygulanir, sürücüden
+    /// **geri okunan** rampanin mavi kanali karsilastirilir. Olcum noktasi
+    /// %75 giris (index 192): egri tepe noktayi (x=1) bilerek korur, yani
+    /// "tepe farki" niyeti orta-yuksek tonlardaki farktir. Fark %18'in
+    /// altindaysa sicak ton "islevsiz" demektir (PLAN-v3 §3/B1).
     #[test]
     #[ignore = "gercek surucu cagrisi yapar; elle kosulmali"]
     fn live_apply_and_restore() {
+        const PROBE: usize = 192; // %75 giris
         let device = primary_device();
         let orig = read_ramp(&device).expect("rampa okunamadi");
-        let warm = build_ramp(100);
+        let warm = build_ramp(70);
         apply_ramp(&device, &warm).expect("sicak rampa uygulanamadi");
         let now = read_ramp(&device).expect("rampa tekrar okunamadi");
         // Once orijinali geri koy; o gecemezse identity ile duzelt.
@@ -882,5 +943,25 @@ mod tests {
             apply_raw(&device, &identity_ramp()).expect("identity rampa geri konamadi");
         }
         assert_eq!(now, warm, "uygulanan rampa geri okunamadi");
+        // Olculen etki: KIMLIK rampaya gore. Ekranin o anki kalibrasyonu zaten
+        // sicak olabilir (uygulama sicak tonu uygulamisken test kosulursa
+        // fark kucuk cikar) — bu yuzden "ne kadar isitiyor" sorusunun olcutu
+        // kimliktir, o anki rampa degil.
+        let base = f32::from(identity_channel()[PROBE]).max(1.0);
+        let after = f32::from(now.blue[PROBE]);
+        let drop = (base - after) / base;
+        println!(
+            "mavi kanal %75 giris: kimlik {} -> uygulanan {} ({:.1}% dusus)",
+            identity_channel()[PROBE],
+            now.blue[PROBE],
+            drop * 100.0
+        );
+        assert!(
+            drop >= 0.18,
+            "sicak ton zayif: mavi kanal yalnizca %{:.1} dustu (>= %18 olmali)",
+            drop * 100.0
+        );
+        // Kirmizi kanala dokunulmaz: isinma yalniz yesil/mavi kisilarak olur.
+        assert_eq!(now.red, identity_channel(), "kirmizi kanal kimlik kalmali");
     }
 }
