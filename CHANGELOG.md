@@ -24,8 +24,8 @@ hiç değişmiyordu.
 - **Tema kapısı kamera yokken asılı kalıyordu.** "Aynı karar 3 bağımsız turda
   görülmeli" sayacı yalnız kamera ölçümüyle ilerliyordu; kamera okunamayınca
   (zaman moduna düşüldüğünde) sayaç `1/3`te donuyor, parlaklık uygulanırken tema
-  hiç değişmiyordu. Kameranın olmadığı durumda her tur kendi gözlemidir.
-  Kural `engine.isIndependentTurn` saf fonksiyonunda, `npm test` ile korunuyor.
+  hiç değişmiyordu. Artık kamera yokken de her tur sayılıyor, tema değişiyor.
+- Kural `engine.isIndependentTurn` saf fonksiyonunda; `npm test` ile korunuyor.
 
 ## [2.11.0] - 2026-10-29
 
