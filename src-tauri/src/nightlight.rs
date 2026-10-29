@@ -115,7 +115,7 @@ pub fn status() -> Option<bool> {
     read_blob().as_deref().and_then(parse_state)
 }
 
-/// Kullanıcıya gösterilecek kısa metin.
+/// Kullanıcıya gösterilecek kısa metin (tanılama raporu için).
 pub fn status_text(state: Option<bool>) -> &'static str {
     match state {
         Some(true) => "açık",
@@ -157,7 +157,8 @@ mod tests {
     fn short_or_empty_blob_is_none() {
         assert_eq!(parse_state(&[]), None);
         assert_eq!(parse_state(&KNOWN_HEADER), None);
-        assert_eq!(parse_state(&blob_with(0x13)[..STATE_INDEX].to_vec()), None);
+        let head = &blob_with(0x13)[..STATE_INDEX];
+        assert_eq!(parse_state(head), None);
     }
 
     #[test]

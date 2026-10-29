@@ -15,6 +15,40 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.0.0] - 2026-10-30
+
+"Derinlik" — planın son katmanı: sıcak ton artık gerçekten ısıtıyor, kimlik
+ürünün adıyla uyumlu, sahne şablonu gerçek bir ışık katmanı çiziyor.
+
+### Added
+- **Sahne WebGL ışık katmanı** — yalnız `sahne` şablonunda; renkler palet
+  değişkenlerinden okunur, `prefers-reduced-motion` ve gizli pencerede durur,
+  WebGL yoksa sessizce CSS degradesine düşer (`qa/audit-scene.mjs` denetler).
+- **Harici monitör renk sıcaklığı otomatik** — sıcak ton şiddeti destekli harici
+  monitörlerin kendi VCP 0x0C ayarına da yazılır (0 → 6500 K, 100 → 3000 K,
+  100 K adım). Pro kapılı.
+- **Windows gece ışığı algılama** — açıksa kendi gamma'mız yazılmaz (çifte
+  sararma yok); okunamıyorsa "bilinmiyor" denir, tahmin edilmez.
+- Kontrol kartında "Windows gece ışığı" satırı.
+
+### Changed
+- **Uygulama kimliği** `com.smartscreen.app` → `com.titanlion72.smart-screen`.
+  Pencere durumu ve WebView2 profili (palet/şablon/ayarlar) açılışta yeni ada
+  **kopyalanır**; eski klasör silinmez (geri alma tek adım).
+- **Otomatik tema artık yalnız kendi (`ss-*`) temalarımızdan** seçilir. Öğrenilmiş
+  tercih eski yerleşik temaları (`zenburn`, `catppuccin-*`) otomatik yola geri
+  sokamaz; sahnenin istediği modu da değiştirmez.
+
+### Fixed
+- **Sıcak ton artık saf beyazı da ısıtıyor.** Eğri tepe noktayı kimlikte
+  bırakıyordu; beyaz ekranın büyük kısmı olduğu için ısınma görünmüyordu
+  ("sıcak ton işlevsiz" şikâyetinin ölçülebilir sebebi). `warmth=70` mavi kanalı
+  %75 girişte %38 kısıyor (hedef ≥ %18), sürücüden geri okunarak doğrulandı.
+- **`monitor_set_color_temp` lisans kapısı yoktu** — ücretsiz sürüm harici
+  monitöre renk sıcaklığı yazabiliyordu. Artık `license::require_pro` ile kapalı.
+- **Gece kuralı artık teste bağlı** — 1440 dakika × 4 ışık seviyesi taranıyor;
+  gece penceresinde açık tema dönerse test düşer.
+
 ## [2.11.1] - 2026-10-29
 
 Canlı log'da yakalanan sessiz kilitlenme: kamera okunamadığında otomatik tema

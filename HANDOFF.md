@@ -22,6 +22,69 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V3.0.0 TURU (2026-10-30) — "derinlik": planın son katmanı
+
+**Tetik:** kullanıcı "hepsini yap, sırayla gidişat planını hazırlayıp" dedi.
+`ROADMAP.md` yazıldı ve sırayla yürütüldü; her adım ayrı commit.
+
+**1. Gece kuralı teste bağlandı.** PLAN-v3 §11/4 ("00:00'da açık tema yok")
+ertesi gün log'a bakmayı gerektiriyordu. Artık `auto_never_picks_light_theme_at_night`
+1440 dakikayı × 4 ışık seviyesini tarıyor. **Beklemeye bağlı kanıt kanıt değildir.**
+
+**2. Otomatik tema kendi ailemize kilitlendi.** Karar tablosu `ss-*` döndürüyordu
+ama öğrenilmiş tercih eski temaları geri sokuyordu (canlı log: `want=zenburn/dark`).
+Artık `is_own_theme` + **mod eşleşmesi** şart; gece öğrenilmiş `light` tercih
+kriter 4'ü delemez. Depo sürümü 3: yabancı temalı kayıtlar `.bak` yedeğiyle
+temizlenir, parlaklık öğrenmesi korunur.
+
+**3. Sıcak ton gerçekten ısıtıyor — ve ölçüldü.** `#[ignore]`lu canlı test hiç
+koşulmamıştı; koşunca kriter 5'in **hiç tutmadığı** görüldü: mavi %4.2 düşüyordu.
+Kök neden: kübik eğri `x=1`'i bilerek koruyordu, yani **saf beyaz hiç ısınmıyordu**
+(PLAN-v3 §3/B1 tam da bunu söylüyordu). Eğriye tepe kısması eklendi
+(mavi −35 %·s, yeşil −10 %·s), sürücü sınırı (±32768) içinde kalıyor.
+Sonuç: %38.2 düşüş, hedef ≥ %18. **Bir kriter "geçiyor" görünüyorsa testi
+koşulmamış olabilir.**
+
+**4. `identifier` göçü.** `com.smartscreen.app` → `com.titanlion72.smart-screen`.
+Kimlik değişince iki veri klasörü değişir; `identity::migrate_once` pencere
+yaratılmadan önce kopyalar (roaming 2 + local 541 dosya doğrulandı), kaynağı
+**silmez** (geri alma tek adım), hedefteki mevcut dosyanın üzerine yazmaz,
+kilitli dosyayı atlar. localStorage anahtarları ve maksimize pencere durumu korundu.
+
+**5. Monitör katmanı + lisans kapısı.** Sıcak ton artık destekli harici
+monitörlerin VCP 0x0C ayarını da sürüyor (`warmthToKelvin`). Bu sırada gerçek bir
+güvenlik açığı çıktı: **`monitor_set_color_temp` lisans kapısı yoktu** —
+`brightness_set_monitor` vardı. Tek karar noktası `license::gate` + test.
+
+**6. Windows gece ışığı.** Belgesiz registry blob'u; yalnız bilinen kodlamalar
+tanınır, gerisi `None`. **Tahmin etmemek kural:** "kapalı" varsaymak çifte
+sararma, "açık" varsaymak özelliği sessizce kapatmak olurdu.
+
+**7. Sahne WebGL katmanı.** Dekoratif; `sahne` dışında çalışmaz, ~15 fps,
+gizli pencerede durur, hareket azaltmada tek kare, WebGL yoksa sessiz düşüş.
+Renkler `getComputedStyle` ile palet değişkenlerinden (JS'te hex yok).
+
+**Ders (kalıcı)**
+1. **"Test var" ≠ "test koşuyor".** `#[ignore]`lu test 4 sürümdür oradaydı ve
+   geçtiği varsayılıyordu; ilk koşuda kriterin tutmadığı ortaya çıktı.
+2. **Korunan uç, görünmeyen kusurdur.** Eğrinin `x=1`'i koruması "beyaz
+   kırpılmasın" diye konmuştu; sonuç özelliğin tamamen görünmez olmasıydı.
+   Estetik gerekçe ölçümün önüne geçmemeli.
+3. **Kimlik göçünde kaynak silinmez.** Kopyala, işaretle, bırak. Geri alma tek
+   satır olmalı; "temizlik" sonradan yapılır.
+4. **Kapıyı tek yere koy.** Aynı kural iki komutta iki yerde yazılırsa biri
+   unutulur — `monitor_set_color_temp` tam olarak böyle kaçmıştı.
+5. **Canvas'ı opak yaptıysan arkasındaki katmanı göremezsin.** WebGL katmanı
+   ilk denemede "çalışıyordu" ama QA karesi düz siyahtı: cam plaka opaktı.
+   Piksel assert'i olmasa bu "tamam" diye geçerdi.
+
+**Doğrulama:** `npm test` 15/15 · `cargo test` 218+2 · `cargo test -- --ignored
+live_apply_and_restore` PASS (mavi %38.2) · `cargo clippy -D warnings` ·
+`cargo fmt --check` · `check:tokens` PASS · `check:security` PASS ·
+`test:security` PASS · `qa/run.mjs` · `audit-scene` · `audit-diagnostics` ·
+`audit-templates` · `audit-flyout` (48 kare) · `audit-accent` · kareler gözle
+incelendi (WebGL ışıması koyu/açık palette görünür, metin okunaklı).
+
 ## V2.11.1 TURU (2026-10-29) — canlı log'un yakaladığı sessiz kilitlenme
 
 **Tetik:** v2.11.0 kurulduktan sonra canlı log okunurken `note=bekliyor 1/3`

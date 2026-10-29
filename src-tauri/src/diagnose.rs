@@ -319,26 +319,31 @@ pub fn license_check(s: &license::LicenseStatus) -> Check {
 /// Windows gece ışığı. Açıkken kendi gamma'mız yazılmaz (çifte sararma);
 /// okunamıyorsa "bilinmiyor" denir — tahmin edilmez.
 pub fn nightlight_check(state: Option<bool>) -> Check {
+    let label = "Windows gece ışığı";
     match state {
         Some(true) => check(
             "night_light",
-            "Windows gece ışığı",
+            label,
             "warn",
             "açık — kendi sıcak tonumuz uygulanmıyor",
             "Çifte sararma olmasın diye böyle. Gece ışığını kapatırsan sıcak ton devreye girer.",
         ),
         Some(false) => check(
             "night_light",
-            "Windows gece ışığı",
+            label,
             "ok",
             "kapalı — sıcak tonu biz yönetiyoruz",
             "",
         ),
+        // Tanınmayan blob şeması: "okunamadı" demek, "kapalı" demekten dürüst.
         None => check(
             "night_light",
-            "Windows gece ışığı",
+            label,
             "ok",
-            "okunamadı (Windows sürümü desteklemiyor) — davranış değişmedi",
+            format!(
+                "{} (Windows sürümü desteklemiyor) — davranış değişmedi",
+                crate::nightlight::status_text(None)
+            ),
             "",
         ),
     }

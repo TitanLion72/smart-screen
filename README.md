@@ -7,7 +7,7 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
 - Tek pencere, serbest boyutlandırılabilir (min 760×600): alt dock + dört bölüm
   (**Durum / Profiller / Geçmiş / Ayarlar**)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.11.1)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v3.0.0)
 
 ## Kurulum (kullanıcı)
 
@@ -38,7 +38,7 @@ kullanabilirsin.
 | **Durum** | Merkezdeki büyük rakam gerçek parlaklık; altında ulaşılmak istenen değer ve sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi (canlı); monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
 | **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
-| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması; **Gelişmiş** altında okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
+| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması (Windows gece ışığı dâhil); **Gelişmiş** altında okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
 
 Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
 silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen
@@ -118,17 +118,23 @@ yazar, sıcak ton kapalıyken gamma rampası **hiç yazılmaz**.
 
 ## Tarihçe ve plan
 
-- [`ROADMAP.md`](ROADMAP.md) — v2.11.1 → v3.0.0 sırası, her adımın kabul ölçütü ve geri alma yolu.
-- [`PLAN-v3.md`](PLAN-v3.md) — tasarım sistemi + karar motorunun (v2.5–v2.11) gerekçeli arşivi.
+- [`ROADMAP.md`](ROADMAP.md) — sürüm sırası, her adımın kabul ölçütü ve geri alma yolu.
+- [`PLAN-v3.md`](PLAN-v3.md) — tasarım sistemi + karar motorunun (v2.5–v3.0) gerekçeli arşivi.
 - [`CHANGELOG.md`](CHANGELOG.md) — sürüm sürüm ne değişti.
 - [`HANDOFF.md`](HANDOFF.md) — her turun kalıcı dersleri ve bilinen sınırlar.
+
+## Veri yolları ve kimlik
+
+Uygulama kimliği **`com.titanlion72.smart-screen`**. v3.0 öncesi kurulumların
+verisi (`com.smartscreen.app`) açılışta **kopyalanır**, silinmez; geri almak için
+kimliği eski değere çevirmek yeter.
 
 ## Lisans (freemium + Pro)
 
 | Sürüm | Kapsam |
 |---|---|
 | **Ücretsiz** | Otomatik tema/parlaklık (dahili panel), sıcak ton, 3 profil, 20-20-20 molası, geçmiş/istatistik |
-| **Pro** | Harici monitör DDC kontrolü (elle + otomatik), 6 profil, uygulama bağlı profiller |
+| **Pro** | Harici monitör DDC kontrolü (parlaklık + renk sıcaklığı VCP 0x0C; elle + otomatik), 6 profil, uygulama bağlı profiller |
 
 - Etkinleştirme: **Ayarlar → Lisans** → anahtarı yapıştır → Etkinleştir.
 - Lisans offline doğrulanır (Ed25519 imzası, sunucu yok, makineye bağlı değil).
@@ -153,8 +159,8 @@ npm.cmd install        # bağımlılıklar
 npm.cmd run tauri dev  # dev pencere
 
 # Testler
-npm.cmd test                       # karar motoru (13)
-cd src-tauri; cargo test; cd ..    # backend (204 + 2 canlı test)
+npm.cmd test                       # karar motoru (15)
+cd src-tauri; cargo test; cd ..    # backend (218 + 2 canlı test; `-- --ignored` sürücü testi)
 npm.cmd run build                  # tsc + vite → dist/
 cd qa && node run.mjs              # görsel/işlevsel QA (22 senaryo)
 ```
@@ -162,15 +168,24 @@ cd qa && node run.mjs              # görsel/işlevsel QA (22 senaryo)
 - `npm.ps1` execution policy'de engelli; projede hep `npm.cmd` kullan.
 - Rust: `cargo fmt --check` ve `cargo clippy -D warnings` temiz.
 - Sıcak ton: `gamma.rs` — `SetDeviceGammaRamp` sessiz reddettiği için rampa
-  monotonluk + ±32768 kontrolünden geçer; yazımdan sonra geri okunur. Harici
-  monitör yazımı `monitor.rs` DDC/CI üzerinden ve Pro kapısına bağlıdır.
+  monotonluk + ±32768 kontrolünden geçer; yazımdan sonra geri okunur. Eğri
+  tepe noktayı da kısar (saf beyaz ısınmadan "sıcak ton" görünmezdi).
+  `cargo test -- --ignored live_apply_and_restore` sürücüye gerçekten yazar,
+  geri okur ve mavi kanalın ≥ %18 düştüğünü doğrular.
+- Harici monitör yazımı `monitor.rs` (parlaklık) ve `colortemp.rs` (VCP 0x0C
+  renk sıcaklığı) üzerinden; **ikisi de** `license::require_pro` kapısına bağlı.
+- Windows gece ışığı `nightlight.rs` ile **yalnız okunur** (belgesiz registry
+  blob'u, bilinmeyen şema → "bilinmiyor"). Açıkken kendi gamma'mız yazılmaz.
+- Sahne şablonunun WebGL katmanı `scene.ts`: yalnız `sahne`'de çalışır, ~15 fps,
+  gizli pencerede durur, WebGL yoksa sessizce CSS degradesine düşer.
+  `cd qa && node audit-scene.mjs` bunu kalıcı denetler.
 
 ## Veri yolları
 
 | Dosya | Konum | İçerik |
 |---|---|---|
 | `smart-screen.log` | `~/.config/opencode/` | Her turdan bir satır, 500 satırda döner |
-| `smart-screen-prefs.json` | `~/.config/opencode/` | Öğrenilen tema/parlaklık tercihleri |
+| `smart-screen-prefs.json` | `~/.config/opencode/` | Öğrenilen tema/parlaklık tercihleri (v3: yalnız `ss-*` temaları) |
 | `smart-screen-gamma-<DISPLAYn>.bin` | `~/.config/opencode/` | Monitör başına sıcak ton öncesi rampa (kalibrasyon korunur); eski tek dosya açılışta taşınır |
 | Temalar (`ss-paper`/`ss-dusk`/`ss-night`) | `~/.config/opencode/themes/` | Uygulama açılışta eksikse kurar, var olana dokunmaz |
 | `cli.json`, `opencode.json` | `~/.config/opencode/` | Tema seçimi buraya öğretilir; diğer alanlar bozulmaz |
