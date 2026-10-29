@@ -25,7 +25,7 @@ import {
   extendRespect,
   finalTarget,
   isExternalChange,
-  isNewMeasurement,
+  isIndependentTurn,
   learnAllowed,
   learnDelta,
   lightKey,
@@ -1713,9 +1713,14 @@ async function runTick(reason: string): Promise<void> {
     // ölçüm veto etmez (elle tema seçimi de serbest).
     const gated = bound ? null : gateReason(name, themeMode);
     const sameKey = key === appliedKeySafe();
-    // Önbellekten dönen kare bağımsız tur saymaz (PLAN-v3 §2/A2).
-    const newMeasurement = cam !== null && isNewMeasurement(S.lastCountedCamAt, cam.at);
-    if (newMeasurement) S.lastCountedCamAt = cam.at;
+    // Önbellekten dönen kare bağımsız tur saymaz (PLAN-v3 §2/A2); kamera
+    // yoksa (zaman modu) her tur bağımsızdır — v2.11.1, aksi halde kapı 1/3'te
+    // asılı kalıyordu.
+    const newMeasurement = isIndependentTurn({
+      camAt: cam ? cam.at : null,
+      lastCountedAt: S.lastCountedCamAt,
+    });
+    if (cam !== null && newMeasurement) S.lastCountedCamAt = cam.at;
 
     // Parlaklık tur başına tek okunur (PLAN-v3 §11: tur başına ≤ 1 okuma).
     const current = await invoke<number>("brightness_get").catch(() => null);

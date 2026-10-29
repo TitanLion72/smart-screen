@@ -18,6 +18,7 @@ import {
   extendRespect,
   finalTarget,
   isExternalChange,
+  isIndependentTurn,
   isNewMeasurement,
   learnAllowed,
   learnDelta,
@@ -128,6 +129,17 @@ test("ton medyanı tek gürültülü kareyi yutar", () => {
   assert.equal(medianTone(["cool", "neutral", "cool"]), "cool");
   // Tanınmayan adlar yok sayılır.
   assert.equal(medianTone(["flas", "warm", "warm"]), "warm");
+});
+
+test("kamera yokken her tur bağımsız sayılır (kapı asılı kalmaz)", () => {
+  // v2.11.1 regresyonu: kamera okunamayınca sayaç 1/3'te kilitleniyordu ve
+  // otomatik tema hiç değişmiyordu (canlı log'da 9 dk boyunca aynı not).
+  assert.equal(isIndependentTurn({ camAt: null, lastCountedAt: null }), true);
+  assert.equal(isIndependentTurn({ camAt: null, lastCountedAt: NOW }), true);
+  // Kamera varsa önbellek kuralı geçerli: aynı kare tur saymaz.
+  assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: NOW }), false);
+  assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: NOW - MEASURE_GAP_MS }), true);
+  assert.equal(isIndependentTurn({ camAt: NOW, lastCountedAt: null }), true);
 });
 
 test("günün rengi: kapalı, dwell ve aynı palet korunur", () => {

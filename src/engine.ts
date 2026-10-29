@@ -188,6 +188,26 @@ export function lightKey(level: string, tone: string): string {
 export const WRITE_TOLERANCE = 3;
 
 /**
+ * "Bağımsız tur" sayacı: tema kapısı aynı kararın kaç ayrı turda görüldüğünü
+ * sayar (PLAN-v3 §4.1/8). Önbellekten dönen kamera karesi tur saymaz.
+ *
+ * v2.11.1 — **kamera yoksa tur sayılır.**
+ * Kural `cam !== null && isNewMeasurement(...)` idi; kamera okunamayınca
+ * (zaman moduna düşüldüğünde) sayaç hiç ilerlemiyordu ve tema kapısı kalıcı
+ * olarak 1/3'te asılı kalıyordu. Canlı log'da dokuz dakika boyunca
+ * `note=bekliyor 1/3` görüldü: parlaklık uygulanıyor, tema hiç değişmiyordu.
+ * Kameranın olmadığı durumda karar zamana dayanır ve her tur kendi
+ * gözlemidir — önbellek diye bir şey yok.
+ */
+export function isIndependentTurn(p: {
+  camAt: number | null;
+  lastCountedAt: number | null;
+}): boolean {
+  if (p.camAt === null) return true;
+  return isNewMeasurement(p.lastCountedAt, p.camAt);
+}
+
+/**
  * "Günün rengi" palet kapısı — saate göre otomatik paletin bu turda
  * uygulanıp uygulanmayacağı (v2.11).
  *
