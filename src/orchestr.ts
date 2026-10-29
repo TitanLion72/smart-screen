@@ -299,6 +299,8 @@ export interface AppState {
   lastGateWarn: string;
   risk: { name: string; text: string; fixLabel: string } | null;
   licensePro: boolean;
+  /** Windows gece ışığı: true açık, false kapalı, null bilinmiyor (v3.0). */
+  nightLightOn: boolean | null;
   licenseStatus: LicenseStatus | null;
   licenseError: string | null;
   monitors: MonitorRowState[];
@@ -427,6 +429,7 @@ export const S: AppState = {
   lastGateWarn: "",
   risk: null,
   licensePro: false,
+  nightLightOn: null,
   licenseStatus: null,
   licenseError: null,
   monitors: [],
@@ -794,6 +797,19 @@ export async function applyWarmth(force = false): Promise<void> {
       S.lastWarmApplied = 0;
       // Monitör de nötre dönsün; yoksa "kapattım ama ekran sarı" kalır.
       await applyMonitorColorTemp(0);
+      return;
+    }
+    // Windows gece ışığı açıksa kendi rampaımızı yazmayız: iki katman üst
+    // üste binerse ekran iki kez sararır. Önce bizim rampayı geri al.
+    if (S.nightLightOn === true) {
+      if (S.lastWarmApplied !== 0) {
+        await invoke("gamma_restore").catch(() => undefined);
+        S.lastWarmApplied = 0;
+        log(
+          "gece ışığı açık — kendi sıcak tonumuz kapatıldı (çifte sararma olmasın)",
+          "warn",
+        );
+      }
       return;
     }
     let percent: number | null;
@@ -1615,6 +1631,10 @@ async function runTick(reason: string): Promise<void> {
     const lowPower = battery ? battery.pct < 20 && !battery.charging : false;
     S.lowPower = lowPower;
     const camLimit = lowPower ? CAM_MS_LOW : CAM_MS;
+
+    // Windows gece ışığı: yalnız okunur (programatik yazma desteklenmiyor).
+    // `null` = bilinmiyor → davranış değişmez; tahmin etmeyiz.
+    S.nightLightOn = await invoke<boolean | null>("nightlight_status").catch(() => null);
 
     // Bağlı profil gelirse onun ayarları bu turu yönetir; kilit ve dondurma
     // kuralları her durumda önde gelir.

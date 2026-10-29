@@ -23,6 +23,7 @@ mod license;
 mod light;
 mod logger;
 mod monitor;
+mod nightlight;
 mod prefs;
 mod ps;
 mod stats;
@@ -566,6 +567,13 @@ async fn monitor_set_color_temp(device: String, kelvin: i32) -> Result<(), Strin
     run_blocking(move || colortemp::set_color_temp(&device, kelvin)).await?
 }
 
+/// Windows gece ışığı durumu: `true` açık, `false` kapalı, `null` bilinmiyor
+/// (Windows sürümü blob şemasını değiştirmiş olabilir). Tahmin edilmez.
+#[tauri::command]
+async fn nightlight_status() -> Option<bool> {
+    run_blocking(nightlight::status).await.unwrap_or(None)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Kimlik göçü (v3.0) EN ÖNCE: pencere durumu ve WebView2 profili yeni
@@ -747,7 +755,8 @@ pub fn run() {
             hdr_status_all,
             flyout_hide,
             monitor_color_temp_info,
-            monitor_set_color_temp
+            monitor_set_color_temp,
+            nightlight_status
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

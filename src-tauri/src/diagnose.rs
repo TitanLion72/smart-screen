@@ -316,6 +316,34 @@ pub fn license_check(s: &license::LicenseStatus) -> Check {
     )
 }
 
+/// Windows gece ışığı. Açıkken kendi gamma'mız yazılmaz (çifte sararma);
+/// okunamıyorsa "bilinmiyor" denir — tahmin edilmez.
+pub fn nightlight_check(state: Option<bool>) -> Check {
+    match state {
+        Some(true) => check(
+            "night_light",
+            "Windows gece ışığı",
+            "warn",
+            "açık — kendi sıcak tonumuz uygulanmıyor",
+            "Çifte sararma olmasın diye böyle. Gece ışığını kapatırsan sıcak ton devreye girer.",
+        ),
+        Some(false) => check(
+            "night_light",
+            "Windows gece ışığı",
+            "ok",
+            "kapalı — sıcak tonu biz yönetiyoruz",
+            "",
+        ),
+        None => check(
+            "night_light",
+            "Windows gece ışığı",
+            "ok",
+            "okunamadı (Windows sürümü desteklemiyor) — davranış değişmedi",
+            "",
+        ),
+    }
+}
+
 pub fn log_check(last: Option<&str>) -> Check {
     match last {
         Some(line) if !line.trim().is_empty() => {
@@ -367,6 +395,9 @@ pub fn run(warmth: u8) -> Report {
     checks.push(hdr_check(&hdr::list()));
     checks.push(monitor_check(&monitor::list()));
 
+    // 5b) Windows gece ışığı: açıksa kendi sıcak tonumuz devre dışı (çifte
+    // sararma olmasın). Bilinmiyorsa "tahmin yok" denir.
+    checks.push(nightlight_check(crate::nightlight::status()));
     // 6-7) Tema ve otomatik başlatma.
     checks.push(theme_check(&theme::get_theme()));
     checks.push(autostart_check(&autostart::autostart_status()));
