@@ -73,6 +73,9 @@ değişir; kritik bulguda hızlandırılmış yama + yeni sürüm yayınlanır.
   davranıştır; `.sha256` ile bütünlük doğrulanabilir. Güncelleme paketleri ayrıca
   minisign ile imzalıdır.
 - Üçüncü taraf tema dosyalarının (`~/.config/opencode/themes`) kendi içerikleri.
+- **Yalnız Linux hedefinde derlenen GTK/glib zinciri.** `Cargo.lock` tüm platformları
+  listelediği için Dependabot `glib` uyarısını gösterir; Windows dağıtımında bu crate
+  derlenmez ve paketlenmez.
 
 ## Sırlar
 

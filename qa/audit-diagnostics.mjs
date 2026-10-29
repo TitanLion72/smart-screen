@@ -246,6 +246,21 @@ const pageOverflow = await page.evaluate(
 );
 check(pageOverflow <= 1, `sayfa yatay taşıyor (${pageOverflow}px)`);
 
+// Pencere en küçük boyutu (tauri.conf minWidth 760) — kart orada da sığmalı.
+await page.setViewportSize({ width: 760, height: 600 });
+await page.waitForTimeout(300);
+const narrowOverflow = await page.evaluate(() => {
+  const list = document.getElementById("diag-list");
+  return list ? list.scrollWidth - list.clientWidth : -1;
+});
+check(narrowOverflow <= 1, `760px'te #diag-list yatay taşıyor (${narrowOverflow}px)`);
+const narrowPage = await page.evaluate(
+  () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+);
+check(narrowPage <= 1, `760px'te sayfa yatay taşıyor (${narrowPage}px)`);
+await page.setViewportSize({ width: 1040, height: 900 });
+await page.waitForTimeout(250);
+
 // Palet gerçekten uygulanıyor mu? (Yanlış id ile sessizce koyu kare almayalım.)
 const bgOf = (pal) =>
   page.evaluate((p) => {
