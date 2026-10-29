@@ -7,7 +7,7 @@ Durum: `[ ]` bekliyor · `[~]` sürüyor · `[x]` bitti.
 
 ---
 
-## 1. `[ ]` Gece kanıtı — kriter 4'ü teste çevir
+## 1. `[x]` Gece kanıtı — kriter 4'ü teste çevir
 
 **Ne:** PLAN-v3 §11/4 "gece 00:00'da açık tema hiç uygulanmaz" maddesi şimdiye
 kadar yalnız ertesi gün log'a bakılarak doğrulanabiliyordu. Bunu 24 saatlik
@@ -24,7 +24,7 @@ düşer; `cargo test` yeşil.
 
 ---
 
-## 2. `[ ]` Otomatik karar kendi temalarımıza (`ss-*`) kilitlensin
+## 2. `[x]` Otomatik karar kendi temalarımıza (`ss-*`) kilitlensin
 
 **Ne:** Karar tablosu zaten `ss-paper`/`ss-dusk`/`ss-night` döndürüyor, ama
 **öğrenilmiş tercih** (`prefs.rs`) eski yerleşik temaları (`zenburn`,
@@ -47,7 +47,7 @@ yedeği durur; QA'da otomatik turda `theme=` daima `ss-*`.
 
 ---
 
-## 3. `[ ]` Gamma canlı doğrulama (kriter 5)
+## 3. `[x]` Gamma canlı doğrulama (kriter 5)
 
 **Ne:** `gamma.rs` içindeki `#[ignore]`lu `live_apply_and_restore` testi hiç
 koşulmamıştı. Koşulacak + kriter 5 ölçülecek: `warmth=70` iken **mavi kanal
@@ -63,7 +63,7 @@ tepe düşüşü assert edilir; ekranın kalibrasyonu test sonunda geri yükleni
 
 ---
 
-## 4. `[ ]` Planı arşivle
+## 4. `[x]` Planı arşivle
 
 **Ne:** `PLAN-v3.md` bugüne kadar untracked duruyordu (bitmiş plan). Repoya
 alınır, `README.md`'den bağlantı verilir, `ROADMAP.md` bu dosya olarak eklenir.
@@ -75,7 +75,7 @@ gerekçesini göremez.
 
 ---
 
-## 5. `[ ]` `identifier` göçü
+## 5. `[x]` `identifier` göçü
 
 **Ne:** `com.smartscreen.app` → `com.titanlion72.smart-screen`.
 
@@ -100,7 +100,7 @@ eski klasör yerinde (geri alma için); `cargo test` yeşil.
 
 ---
 
-## 6. `[ ]` Monitör başına DDC 0x0C yazma (Pro)
+## 6. `[x]` Monitör başına DDC 0x0C yazma (Pro)
 
 **Ne:** `colortemp.rs` okuma + tek monitör yazma yapıyor; `monitor_set_color_temp`
 zaten var. Eksik: **otomatik** yolun (sıcak ton öngörüsü) harici monitörün kendi
@@ -113,7 +113,7 @@ döngüsü monitör Kelvin'ini değiştirir; log'da tek satır; HDR açıkken at
 
 ---
 
-## 7. `[ ]` Windows gece ışığı entegrasyonu
+## 7. `[x]` Windows gece ışığı entegrasyonu
 
 **Ne:** Registry blob'u bu makinede boş; programatik kontrol desteklenmiyor.
 Yapılabilir olan: **algılama** (açık mı) + kullanıcıya doğru yönlendirme.
@@ -128,7 +128,7 @@ yok; QA'da iki durum da denenir.
 
 ---
 
-## 8. `[ ]` Sahne şablonuna WebGL katmanı
+## 8. `[x]` Sahne şablonuna WebGL katmanı
 
 **Ne:** `sahne` şablonunda hero arkasına gerçek WebGL (shader) ışık/gradient
 katmanı. Zorunlu kurallar:
@@ -144,7 +144,7 @@ tarayıcıda da bozulmaz; `check:tokens` yeşil (ham hex yok).
 
 ---
 
-## 9. `[ ]` v3.0.0 sürümü
+## 9. `[x]` v3.0.0 sürümü
 
 Doküman (CHANGELOG/HANDOFF/README), tam doğrulama (npm test, cargo test,
 clippy, fmt, check:tokens, check:security, test:security, 5 QA aracı), kurulum,
