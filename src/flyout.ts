@@ -8,7 +8,7 @@
    - invoke("brightness_set", { value: number })
    - invoke("hdr_status") -> boolean (kendi cihazın HDR'ı; başarısızsa
      #fx-hdr kalıcı gizli, hata gösterilmez)
-   - getVersion() -> string (opsiyonel; yoksa sabit "v2.11.0")
+   - getVersion() -> string (opsiyonel; yoksa sabit "v2.11.1")
    - invoke("flyout_hide") -> pencereyi backend gizler (UI kendini gizlemez)
    - emit("ss:action", { action })  action ∈ measure | pause-1h |
      day-off | lock | open-main
@@ -287,10 +287,10 @@ void invoke<boolean>("hdr_status")
 void getVersion()
   .then((v) => {
     const s = String(v ?? "").trim();
-    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.11.0";
+    versionEl.textContent = s ? (s.startsWith("v") ? s : `v${s}`) : "v2.11.1";
   })
   .catch(() => {
-    versionEl.textContent = "v2.11.0";
+    versionEl.textContent = "v2.11.1";
   });
 
 void listen<SsState>("ss:state", (ev) => applyState(ev.payload)).catch((err) =>

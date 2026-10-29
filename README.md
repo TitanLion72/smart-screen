@@ -7,7 +7,7 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
 - Tek pencere, serbest boyutlandırılabilir (min 760×600): alt dock + dört bölüm
   (**Durum / Profiller / Geçmiş / Ayarlar**)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.11.0)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.11.1)
 
 ## Kurulum (kullanıcı)
 

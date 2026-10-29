@@ -15,6 +15,18 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.11.1] - 2026-10-29
+
+Canlı log'da yakalanan sessiz kilitlenme: kamera okunamadığında otomatik tema
+hiç değişmiyordu.
+
+### Fixed
+- **Tema kapısı kamera yokken asılı kalıyordu.** "Aynı karar 3 bağımsız turda
+  görülmeli" sayacı yalnız kamera ölçümüyle ilerliyordu; kamera okunamayınca
+  (zaman moduna düşüldüğünde) sayaç `1/3`te donuyor, parlaklık uygulanırken tema
+  hiç değişmiyordu. Kameranın olmadığı durumda her tur kendi gözlemidir.
+  Kural `engine.isIndependentTurn` saf fonksiyonunda, `npm test` ile korunuyor.
+
 ## [2.11.0] - 2026-10-29
 
 "Günlüğü aç" — destek akışının eksik halkası; artık raporu kopyaladıktan sonra

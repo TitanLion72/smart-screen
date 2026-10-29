@@ -22,6 +22,44 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
+## V2.11.1 TURU (2026-10-29) — canlı log'un yakaladığı sessiz kilitlenme
+
+**Tetik:** v2.11.0 kurulduktan sonra canlı log okunurken `note=bekliyor 1/3`
+satırının **dokuz dakika boyunca hiç değişmediği** görüldü. Parlaklık
+uygulanıyor, tema hiç değişmiyordu.
+
+**Kök neden**
+- Tema kapısı "aynı karar 3 bağımsız turda görülmeli" diyor; sayaç yalnız
+  `cam !== null && isNewMeasurement(...)` olduğunda artıyordu.
+- Kamera okunamayınca `cam` null dönüyor (zaman moduna düşülüyor, bu desteklenen
+  bir durum) → sayaç hiç ilerlemiyor → kapı kalıcı olarak `1/3`te asılı kalıyor.
+  Yani kamerasi çalışmayan her kullanıcıda otomatik tema ölüdür.
+- Hata görünmüyordu çünkü `log()` uygulama içi günlüğe yazıyor, dosyaya yalnız
+  `diskLog()` tur satırı düşüyor. Kamera hatası dosyada **hiç** yok.
+
+**Düzeltme**
+- `engine.isIndependentTurn`: kameranın olmadığı durumda her tur bağımsızdır
+  (zaman kararı önbelleklenmez); kamera varsa eski önbellek kuralı aynen sürer.
+- `orchestr` yalnız girdiyi topluyor; `lastCountedCamAt` yalnız gerçek kare
+  sayıldığında güncelleniyor.
+- `npm test` 13 → 14 (kamera yok · aynı kare · sınır · ilk ölçüm).
+
+**Ders (kalıcı)**
+1. **Sayaç, "veri yok" durumunda ilerlemeli ya da açıkça durmalı** — sessizce
+   donmak en kötüsü: ürün çalışıyor görünür, tek özelliği ölmüştür.
+2. **Kurulumdan sonra canlı log okumak testtir.** Bu hata birim testlerden,
+   QA'dan ve clippy'den geçti; on satır log'u okuyunca çıktı. Sürüm sonrası
+   `note=` alanının tur tur değiştiğini doğrula.
+3. **`log()` ≠ dosya.** Teşhis için dosyaya bakıyorsan, orada olmayan bir hata
+   sınıfı vardır; kamera/tema hataları yalnız arayüz günlüğünde.
+4. **Bayat önbellek + kapı = ölü özellik.** Kapı sayacının girdisi (ölçüm)
+   üretilemiyorsa, kapı "bekliyor" demek zorunda değil; tur sayılmalı.
+
+**Doğrulama:** `npm test` 14/14 · `cargo test` 204+2 · `cargo clippy -D warnings` ·
+`cargo fmt --check` · `check:tokens` PASS · `check:security` PASS ·
+`qa/run.mjs` PASS (22 senaryo) · kurulum sonrası canlı log'da `note=` alanının
+tur tur ilerlediği doğrulandı.
+
 ## V2.11.0 TURU (2026-10-29) — destek akışını kapat
 
 **Tetik:** v2.10 "Kontrol" kartını getirdi ama raporu kopyalayan kullanıcı hâlâ

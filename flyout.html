@@ -26,7 +26,7 @@
   #fx-error      | div        | tek satır hata (3 sn sonra gizlenir)       | text + hidden; role="status"
   #fx-hdr        | div        | "HDR açıkken ekran sarılaştırılamıyor"      | hidden = !hdr; hata olursa kalıcı gizli
   #fx-settings   | button     | "Ayarlar →"                                | click → emit("ss:action", { action: "open-main" }) + invoke("flyout_hide")
-  #fx-version    | div        | "v2.11.0"                                   | text; getVersion() ile doldurulur, yoksa sabit
+  #fx-version    | div        | "v2.11.1"                                   | text; getVersion() ile doldurulur, yoksa sabit
 
   BACKEND SÖZLEŞMESİ (src/flyout.ts buna göre bağlanır):
   - invoke("brightness_get") -> number · invoke("brightness_set", { value })
@@ -98,7 +98,7 @@
       </div>
 
       <!-- 5. Sürüm -->
-      <div class="fx-version" id="fx-version">v2.11.0</div>
+      <div class="fx-version" id="fx-version">v2.11.1</div>
     </div>
   </body>
 </html>
