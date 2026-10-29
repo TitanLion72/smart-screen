@@ -197,6 +197,7 @@ window.__TAURI_INTERNALS__ = {
         window.__licPro = false;
         return { pro: false, email: null, issued: null };
       case "battery_status": return [85, true];
+      case "nightlight_status": return null;
       case "warmth_auto": return 35;
       // Sicak ton durumu: yazinca rampa degisir, geri okuma da onu gorur.
       case "gamma_set_warmth":

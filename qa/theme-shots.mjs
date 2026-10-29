@@ -47,6 +47,7 @@ const stub = () => {
         license_activate: { pro: true, email: "qa@test.local", issued: "2026-10-20" },
         license_deactivate: { pro: false, email: null, issued: null },
         battery_status: [85, true], hdr_status: false,
+  nightlight_status: null,
         hdr_status_all: monitors.map((m) => ({ device: m.id, hdr: false })),
         monitor_color_temp_info: monitors.map((m) => ({ device: m.id, supported: !m.is_internal, increment: 50 })),
         monitor_set_color_temp: null, warmth_auto: 30, animations_set: null, flyout_hide: null,

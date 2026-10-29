@@ -60,6 +60,7 @@ const stub = () => {
         case "license_status": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
         case "license_activate": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
         case "battery_status": return [85, true];
+      case "nightlight_status": return null;
         case "hdr_status": return false;
         case "hdr_status_all": return monitors.map((m) => ({ device: m.id, hdr: false }));
         case "monitor_color_temp_info": return monitors.map((m) => ({ device: m.id, supported: m.is_internal ? true : false, increment: 50 }));

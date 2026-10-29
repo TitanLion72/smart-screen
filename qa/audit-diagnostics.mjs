@@ -98,6 +98,8 @@ await page.addInitScript((report) => {
       if (cmd === "theme_set") return null;
       if (cmd === "autostart_get") return true;
       if (cmd === "battery_status") return [80, true];
+      // v3.0: gece ışığı okunamıyor (bu makinede blob boş).
+      if (cmd === "nightlight_status") return null;
       if (cmd === "pref_get") return null;
       if (cmd === "pref_list") return [];
       if (cmd === "stats_summary") return null;

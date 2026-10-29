@@ -151,6 +151,8 @@ const stub = () => {
           return { changes: 3, avg: 46, frozen: 2, hours: [] };
         case "hdr_status":
           return false;
+        case "nightlight_status":
+          return null;
         case "hdr_status_all":
           return window.__hdrAll;
         case "warmth_auto":

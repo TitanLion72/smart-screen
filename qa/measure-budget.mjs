@@ -47,6 +47,7 @@ const stub = () => {
         case "brightness_get_monitor": return 42;
         case "license_status": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
         case "battery_status": return [85, true];
+      case "nightlight_status": return null;
         case "hdr_status": return false;
         case "hdr_status_all": return [];
         case "monitor_color_temp_info": return [];
