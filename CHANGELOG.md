@@ -43,7 +43,7 @@ _(henüz yayınlanmadı)_
 - **Sıcak ton artık saf beyazı da ısıtıyor.** Eğri tepe noktayı kimlikte
   bırakıyordu; beyaz ekranın büyük kısmı olduğu için ısınma görünmüyordu
   ("sıcak ton işlevsiz" şikâyetinin ölçülebilir sebebi). `warmth=70` mavi kanalı
-  %75 girişte %38 kısıyor (hedef ≥ %18), sürücüden geri okunarak doğrulandı.
+  %75 girişte %38 kısıyor (hedef en az %18), sürücüden geri okunarak doğrulandı.
 - **`monitor_set_color_temp` lisans kapısı yoktu** — ücretsiz sürüm harici
   monitöre renk sıcaklığı yazabiliyordu. Artık `license::require_pro` ile kapalı.
 - **Gece kuralı artık teste bağlı** — 1440 dakika × 4 ışık seviyesi taranıyor;
