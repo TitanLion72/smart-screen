@@ -7,7 +7,7 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
 - Tek pencere, serbest boyutlandırılabilir (min 760×600): alt dock + dört bölüm
   (**Durum / Profiller / Geçmiş / Ayarlar**)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.10.0)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v2.11.0)
 
 ## Kurulum (kullanıcı)
 
@@ -109,6 +109,10 @@ sorunlu satırda "ne yapmalı" ipucu bulunur.
 satırlar, o anki düzen/palet). Raporda Pro lisans e-postası görünebilir; herkese açık
 bir yere yapıştırmadan önce kontrol et.
 
+**"Günlüğü aç"** `smart-screen.log` dosyasını varsayılan editörde açar; dosya henüz
+yoksa klasörünü açar. Rapordaki "son satır" ile günlüğün ayrıntısını yan yana
+okumak için: önce kopyala, sonra aç.
+
 Testler görünür değişiklik yapmaz: parlaklık testi ekrandaki değerin **aynısını**
 yazar, sıcak ton kapalıyken gamma rampası **hiç yazılmaz**.
 
@@ -142,7 +146,7 @@ npm.cmd install        # bağımlılıklar
 npm.cmd run tauri dev  # dev pencere
 
 # Testler
-npm.cmd test                       # karar motoru (12)
+npm.cmd test                       # karar motoru (13)
 cd src-tauri; cargo test; cd ..    # backend (204 + 2 canlı test)
 npm.cmd run build                  # tsc + vite → dist/
 cd qa && node run.mjs              # görsel/işlevsel QA (22 senaryo)

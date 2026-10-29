@@ -22,8 +22,46 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
-## V2.10.0 TURU (2026-10-29) — "Kontrol": çalışmayanın nedenini söyle
+## V2.11.0 TURU (2026-10-29) — destek akışını kapat
 
+**Tetik:** v2.10 "Kontrol" kartını getirdi ama raporu kopyalayan kullanıcı hâlâ
+`~/.config/opencode` altında `smart-screen.log` arıyordu. Tanılama "ne" diyor,
+günlük "ne zaman" diyor; ikisi arasında köprü yoktu.
+
+**Ne yapıldı**
+- `open_log` komutu: `logger::log_path()` (artık `pub`) ile yolu hesaplar,
+  `tauri-plugin-opener` ile dosyayı açar. Dosya yoksa **klasörünü** açar —
+  ilk kurulumda da düğme işe yarar. Komut parametre almaz: yol geçişi yüzeyi yok.
+- "Günlüğü aç" düğmesi (`#diag-log`) Kontrol kartının toolbar'ında, "Raporu
+  kopyala"nın yanında; her zaman etkin, açtığı yolu toast'ta yazar.
+- `qa/audit-diagnostics.mjs` adım 3b + `qa/run.mjs` assert'i: düğme `open_log`
+  çağırıyor mu, toast yolu yazıyor mu, rapor yokken de çalışıyor mu.
+
+**İkinci iş: test edilemeyen karar test edilebilir oldu**
+- "Günün rengi" dwell mantığı `orchestr.applyAutoPalette` içine gömülüydü;
+  "kullanıcı seçtikten sonra 10 dk dokunma" davranışı yalnız gözle görülüyordu.
+- `engine.autoPaletteDue` saf fonksiyonu eklendi (kapalı · dwell · tam sınır ·
+  aynı palet · saat geri alma · hiç elle seçim yok). `npm test` 12 → 13.
+- `orchestr` yalnız zaman/palet girdisini topluyor; karar tek yerde.
+
+**Ders (kalıcı)**
+1. **Tanılama + günlük ayrı yerlerdeyse köprü gerekir.** "Raporu kopyala" iyi bir
+   ilk adım ama kullanıcı dosyayı bulamıyorsa ikinci adım eksik kalıyor. Bir
+   ürünün destek akışı, kullanıcının dosya sistemi bilgisini varsaymamalı.
+2. **"Dosya yok" durumu tasarlanmalı.** `open_log` dosya yokken hata vermiyor,
+   klasörü açıyor; aksi halde yeni kurulumda düğme "bozuk" görünürdü.
+3. **Gömülü zaman kararı test edilemez.** `Date.now()` çağrısı fonksiyonun içinde
+   kalırsa davranış ancak 10 dakika bekleyerek doğrulanır; zamanı parametre yap.
+4. **Toast testinde `.first()` / `.last()` tuzağı.** Yeni toast `prepend` ile üste
+   gelir; `.last()` bir önceki toast'ı okur ve assert sessizce yanlış yeri denetler
+   (bu turda yaşandı: "günlük toast'ı yok" hatası aslında kopyalama toast'ıydı).
+
+**Doğrulama:** `npm test` 13/13 · `cargo test` 204+2 · `cargo clippy -D warnings` ·
+`cargo fmt --check` · `check:tokens` PASS · `check:security` PASS ·
+`qa/audit-diagnostics` PASS (5 kare) · `qa/run.mjs` PASS (22 senaryo) ·
+`npm run build` temiz.
+
+## V2.10.0 TURU (2026-10-29) — "Kontrol": çalışmayanın nedenini söyle
 **Tetik:** ürün olgunlaştı ama "bir şey olmadı" diyen kullanıcıya verilecek cevap hâlâ
 `smart-screen.log` idi: DDC/CI kapalı mı, HDR mi engelliyor, gamma sürücüsü yazımı
 yutuyor mu, parlaklık gerçekten tutuyor mu? Hiçbiri arayüzde yoktu (PLAN-v3 §3/B5).

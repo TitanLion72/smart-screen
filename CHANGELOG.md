@@ -15,6 +15,32 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [2.11.0] - 2026-10-29
+
+"Günlüğü aç" — destek akışının eksik halkası; artık raporu kopyaladıktan sonra
+dosyayı aramak gerekmiyor.
+
+### Added
+- **"Günlüğü aç" düğmesi** (Ayarlar → Kontrol) — `smart-screen.log` dosyasını
+  varsayılan editörde açar; dosya henüz yoksa klasörünü açar. Açılan yol toast'ta
+  görünür. Rapordan bağımsızdır: ilk kurulumda da çalışır.
+- `open_log` komutu (`src-tauri/src/lib.rs`) — yol sunucu tarafında hesaplanır,
+  komut parametre almaz (yol geçişi yüzeyi yok). `logger::log_path` artık `pub`.
+
+### Changed
+- **"Günün rengi" dwell kararı saf fonksiyona taşındı** (`engine.autoPaletteDue`).
+  Kapalı/dwell/sınır/aynı palet/saat geri alma durumlarının hepsi `npm test` ile
+  doğrulanıyor; önceden yalnız gözle görülebiliyordu.
+
+### Fixed
+- `tools/release-manifest.mjs` bilinmeyen seçeneği sessizce yutuyordu; bu yüzden
+  v2.10.0'un `latest.json` dosyası boş `notes` ile yayınlandı. Artık bilinmeyen
+  seçenek hata verir, `--notes-file` UTF-8 markdown okur ve `--notes` ile birlikte
+  verilemez.
+
+### CI
+- İş akışları Node 24'e çekildi; Node 20 `.ts` test dosyasını çalıştıramıyordu.
+
 ## [2.10.0] - 2026-10-29
 
 "Kontrol" — bir şey çalışmıyorsa **neden** çalışmadığı artık log'da değil, uygulamanın içinde.
