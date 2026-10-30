@@ -17,11 +17,15 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 3. Pencere açılır → sağ üstte **«Otomatik çalışıyor»** yazar. **«Şimdi yeniden ayarla»**
    düğmesiyle ilk turu başlatabilirsin.
 
-> **SmartScreen uyarısı normaldir.** Kurulum dosyası kod imzalı değil (sertifika maliyeti
-> ve bölgesel kısıtlar nedeniyle), bu yüzden Windows "bilinmeyen yayıncı" diyebilir →
+> **SmartScreen uyarısı normaldir.** Kurulum dosyası bugün Authenticode ile imzalı
+> değil (seçenekler ve maliyetler: [`CODE-SIGNING.md`](CODE-SIGNING.md)), bu yüzden
+> Windows "bilinmeyen yayıncı" diyebilir →
 > **Ek bilgi → Yine de çalıştır**. Dosyanın doğruluğunu release sayfasındaki `.sha256`
 > ile kontrol edebilirsin:
 > `Get-FileHash .\smart-screen_*_x64-setup.exe -Algorithm SHA256`
+>
+> Güncelleme paketi ayrıca minisign ile imzalıdır (uygulama içi doğrulama); bu,
+> kurulum dosyasının Authenticode imzasıyla aynı şey değildir.
 
 OpenCode temasını değiştirirken `cli.json` (`~/.config/opencode/cli.json`) içine
 yazılan **yalnızca** `theme.name` ve `theme.mode` alanlarıdır; diğer ayarlar
@@ -222,6 +226,26 @@ yoksa otomatik güncelleme çalışmaz.
 
 Sürümler CI doğrulamasından sonra manuel push + release komutlarıyla açılır;
 `AGENTS.md`/`HANDOFF.md` güncellemeleri her sürüm notuna temel olur.
+
+## Kod imzalama (Authenticode)
+
+Kurulum dosyaları **bugün imzasız** — SmartScreen "bilinmeyen yayıncı" uyarır.
+Seçenekler, maliyetler ve karar: [`CODE-SIGNING.md`](CODE-SIGNING.md).
+
+Sertifika elde edildiğinde derleme sonrası iki komut yeter:
+
+```powershell
+npm.cmd run sign -- --pfx C:\sertifika.pfx --password "<şifre>"   # imzala + doğrula
+npm.cmd run sign -- --thumbprint <SHA1>                           # depodaki sertifikayla
+npm.cmd run verify:signature -- <dosya>                           # release öncesi kapı
+```
+
+- `sign-artifacts.mjs` NSIS setup + MSI + uygulama exe'sini imzalar, RFC3161 zaman
+  damgası almadan bırakmaz; sertifika verilmezse hata verir (sessiz imzasız release yok).
+- `verify-signature.mjs` imza durumu, yayıncı ve damgayı okur; doğrulanamazsa
+  sıfırdan farklı çıkar. `--expect <ad>` ile yayıncı adı da denetlenir.
+- `.pfx`/`.key`/`.pem` repoya girmez; imza anahtarı değişirse SmartScreen itibarı
+  sıfırdan başlar.
 
 ## Lisans
 

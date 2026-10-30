@@ -152,8 +152,35 @@ canlı log turü, release.
 
 ---
 
+## 10. `[~]` Kod imzalama (Authenticode) — hazırlık bitti, sertifika bekliyor
+
+Kurulum dosyası imzasız olduğu için SmartScreen "bilinmeyen yayıncı" diyor.
+Karar ve seçenek tablosu: [`CODE-SIGNING.md`](CODE-SIGNING.md) (Ekim 2026
+fiyat/koşulları doğrulanmış: SignPath Foundation ücretsiz ama yayıncı adı vakıf;
+Certum €49/yıl, yayıncı kendi adımız; Azure Artifact Signing Türkiye'ye kapalı).
+
+**Bitti (bu turda):**
+- `tools/sign-artifacts.mjs` — PFX (dosya) veya depo parmak izi (HSM/token) ile
+  imzalar; zaman damgası zorunlu; sertifika yoksa hata verir.
+- `tools/verify-signature.mjs` — durum/yayıncı/damga okur, imzasız dosyada
+  sıfırdan farklı çıkar; `--expect` ile yayıncı adı denetlenir.
+- `npm.cmd run sign` / `npm.cmd run verify:signature` kısayolları.
+- Kendinden imzalı sertifikayla uçtan uca doğrulandı (imzasız → FAIL, imzalı →
+  yayıncı + RFC3161 damga görüldü); test sertifikası makineden silindi.
+
+**Kaldı (bizim yapamayacağımız kısım):** sertifika başvurusu/kimlik doğrulama
+ve ödeme. SignPath başvurusu ya da Certum siparişi tamamlanınca:
+`npm.cmd run sign -- --pfx …` → `verify:signature` PASS → release.
+SignPath seçilirse `CODE-SIGNING.md` sonundaki "Code signing policy" bölümü
+siteye eklenir (koşullar gereği). Kabul: v3.1.0 setup dosyası `Valid` +
+zaman damgalı, README'deki SmartScreen uyarısı güncellenir.
+
+**Geri alma:** imza adımı build hattından çıkarılır; dosyalar zaten `.sha256`
+ile yayınlanıyor, imzasız sürüme dönmek tek adım.
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
-- Authenticode imzalama (maliyet/bölge) — ertelendi.
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).
 - Bulut hesap/lisans sunucusu (offline tasarım kararı).

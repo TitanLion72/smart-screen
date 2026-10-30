@@ -34,8 +34,14 @@ düşüş ölçüyor, otomatik yol yalnız `ss-*` temalarından seçiyor).
 Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
 
 - **Kod imzası yok.** Kurulum dosyası Authenticode imzalı değil; SmartScreen
-  "bilinmeyen yayıncı" der (maliyet/bölge nedeniyle ertelendi). Güncelleme
-  paketi ayrıca minisign ile imzalı ve uygulama içinde doğrulanır.
+  "bilinmeyen yayıncı" der. **Hazırlık tamam:** `tools/sign-artifacts.mjs`
+  (PFX veya depo parmak izi, zorunlu RFC3161 damga) + `tools/verify-signature.mjs`
+  (imzasız dosyada FAIL) + `npm.cmd run sign` / `verify:signature` kısayolları.
+  Kalan tek adım sertifika başvurusu/kimlik doğrulama — bu bizim yerimize
+  yapılabilecek bir iş değil. Seçenekler ve fiyatlar: `CODE-SIGNING.md`
+  (SignPath Foundation ücretsiz; Certum ≈ €49/yıl; Azure Artifact Signing
+  Türkiye'den bireysel/kurumsal başvuruya kapalı). Güncelleme paketi ayrıca
+  minisign ile imzalı ve uygulama içinde doğrulanır.
 - **Pro anahtarı elle üretiliyor.** `node tools/license-gen.mjs --email ...`;
   mağaza/ödeme akışı yok. Lisans offline Ed25519, sunucu yok (bilinçli tasarım).
 - **Windows gece ışığı yalnız okunur.** Belgesiz registry blob'u; tanınmayan
@@ -55,6 +61,36 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
 - **Tek pencere, min 760×600.** Dört bölüm (Durum/Profiller/Geçmiş/Ayarlar) alt
   dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
 - **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
+
+## 2026-10-30 — kod imzalama hazırlığı (v3.0.0 sonrası)
+
+**Tetik:** kullanıcı "final mi?" sorusundan sonra dağıtım tarafındaki üç eksikten
+birincisini (Authenticode) seçti.
+
+**Yapılan:** `CODE-SIGNING.md` (seçenek tablosu, Ekim 2026 fiyat/koşulları
+kaynaklarıyla), `tools/sign-artifacts.mjs`, `tools/verify-signature.mjs`,
+`npm.cmd run sign` + `verify:signature`, README "Kod imzalama" bölümü,
+ROADMAP adım 10.
+
+**Uçtan uca kanıt:** makinede geçici kendinden imzalı kod imzalama sertifikası
+üretildi → PFX modu ve depo-parmak-izi modu ile `signtool` imzaladı → RFC3161
+zaman damgası alındı (`timestamped: true`) → `verify-signature.mjs` yayıncıyı
+gördü. Test sertifikası ve geçici dosyalar silindi; repoda sertifika yok.
+
+**Ders (kalıcı)**
+1. **PowerShell çıktısı UTF-8 değilse Türkçe hata mesajı mojibake olur** ve
+   ona bakan regex sessizce tutmaz ("kök sertifikasında" → `k�k sertifikas`).
+   Bu yüzden `[Console]::OutputEncoding = UTF8` betiğin başında sabitlendi.
+2. **`/sm` varsayılan olmamalı.** signtool'a makine deposu bayrağı kondurulunca
+   kullanıcı deposundaki sertifika (token/HSM/SimplySign) "No certificates were
+   found" verir; varsayılan kullanıcı deposu, makine deposu `--machine-store`.
+3. **Bölge gerçeği araştırılmadan "imza pahalı" denmemeli.** Azure Artifact
+   Signing $9.99/ay görünüyor ama bireysel geliştirici yalnız ABD/Kanada,
+   kuruluş yalnız ABD/Kanada/AB/BK — Türkiye kapsam dışı. SignPath Foundation
+   ise açık kaynak için ücretsiz ama yayıncı adı "SignPath Foundation" oluyor.
+4. **Araç "sessizce imzasız" bırakmamalı.** Sertifika yoksa sign aracı hata
+   veriyor; verify aracı imzasız dosyada sıfırdan farklı çıkıyor; damgasız imza
+   uyarı olarak görünüyor.
 
 ## V3.0.0 TURU (2026-10-30) — "derinlik": planın son katmanı
 

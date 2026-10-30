@@ -13,7 +13,9 @@
     "check:security:deps": "node tools/security-check.mjs --deps",
     "test:security": "node qa/security-selftest.mjs",
     "preview": "vite preview",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "sign": "node tools/sign-artifacts.mjs",
+    "verify:signature": "node tools/verify-signature.mjs"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
