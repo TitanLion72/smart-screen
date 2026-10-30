@@ -1,4 +1,4 @@
-# HANDOFF — 2026-10-17 (smart-screen) — 0.8.0 nihai
+# HANDOFF — smart-screen (güncel: v3.0.0, 2026-10-30)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -21,6 +21,40 @@ geliştirici notu duruyordu.
 4. Taşma assert'i `scrollWidth/scrollHeight` + kırpılan öğe listesi ile ölçülür
    (`body.scrollHeight` işe yaramaz).
 
+
+## Güncel durum: v3.0.0 — gerçekten geçerli sınırlar
+
+`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.0**. Aşağısı tur
+tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
+"Bilinen sınırlar" başlıkları o günü anlatır, bugünü değil** — örneğin orada
+"gamma gözle doğrulanmadı" ve "otomatik seçim hâlâ eski temaları seçiyor"
+yazıyor; ikisi de v3.0.0'da kapandı (canlı sürücü testi mavi kanalda %38.2
+düşüş ölçüyor, otomatik yol yalnız `ss-*` temalarından seçiyor).
+
+Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
+
+- **Kod imzası yok.** Kurulum dosyası Authenticode imzalı değil; SmartScreen
+  "bilinmeyen yayıncı" der (maliyet/bölge nedeniyle ertelendi). Güncelleme
+  paketi ayrıca minisign ile imzalı ve uygulama içinde doğrulanır.
+- **Pro anahtarı elle üretiliyor.** `node tools/license-gen.mjs --email ...`;
+  mağaza/ödeme akışı yok. Lisans offline Ed25519, sunucu yok (bilinçli tasarım).
+- **Windows gece ışığı yalnız okunur.** Belgesiz registry blob'u; tanınmayan
+  şema "bilinmiyor" döner, tahmin edilmez. Bu makinede blob boş.
+- **Harici renk sıcaklığı panelin VCP 0x0C desteğine bağlı.** Canlı log:
+  `DISPLAY1: renk sıcaklığı destek=false` — desteklemeyen panelde yalnız gamma
+  çalışır. Harici **yazma** (parlaklık + renk sıcaklığı) Pro kapılı.
+- **Ortam ışığı kameradan okunur** (ALS yok, doğrulandı); kamera meşgulse
+  zaman moduna düşer, karanlıkta renk tonu sayılmaz.
+- **OpenCode'nin gömülü temaları denetlenemez.** Okunabilirlik denetimi diskteki
+  tema dosyalarını ölçer; binary'ye gömülü yerleşikler için `catalog.ts`'deki
+  RISKY listesi yedek. Otomatik seçim artık yalnız `ss-*` olduğu için bu kapı
+  pratikte yalnız elle seçimde devreye girer.
+- **Profil sayısı ve uygulama bağlama kapısı arayüzde.** Profiller
+  localStorage'da tutulur, backend'de zorlanacak bir veri yok; harici monitör
+  yazımı ise backend'de (`license::is_pro` / `require_pro`) kapılı.
+- **Tek pencere, min 760×600.** Dört bölüm (Durum/Profiller/Geçmiş/Ayarlar) alt
+  dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
+- **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
 
 ## V3.0.0 TURU (2026-10-30) — "derinlik": planın son katmanı
 
@@ -1270,7 +1304,16 @@ kiriliyordu (`white-space: nowrap`), tema cipleri cok yer kapliyordu
 - Ben: `src/main.ts` + `qa/run.mjs` (kesisim noktasi + davranis + testler).
 - `reviewer`/`evren/deepseek-v4.1-flash`: 2 MINOR buldu (yukarida).
 
-## ONCEKI DURUMLAR (arsiv)
+## Önceki durumlar (arşiv — tarihsel kayıt, güncel değil)
+
+> Bu başlığın altındaki "Kalan / YARIM / HENÜZ YAPILMADI" listesi **2026-10-17
+> itibarıyla** yazıldı. Dördü de sonradan kapandı ve kodda doğrulandı:
+> hazır profilleri geri getirme (`store.ts:127 restoreSeedProfiles`) ve iki
+> aşamalı silme (`panels.ts:1486 "Emin misin? Sil"`), sıcak ton otomasyonunun
+> bağlanması (`orchestr.ts WarmMode = auto | fixed | off`), eski tema adlarının
+> kalkması (`main.ts`/`orchestr.ts`'te `vesper`/`catppuccin`/`tokyonight` yok) ve
+> tema çiplerindeki renk şeridi (`panels.ts:168 swatch-strip`). Güncel sınırlar
+> için yukarıdaki *"Güncel durum: v3.0.0"* bölümüne bak.
 
 ## 1. Hazir profilleri kazayla sildim — HENUZ YAPILMADI
 
@@ -1318,7 +1361,7 @@ kiriliyordu (`white-space: nowrap`), tema cipleri cok yer kapliyordu
 - `node tools/themes.mjs` -> PASS (degismedi).
 - `npm.cmd run build` ve QA bu degisikliklerden SONRA kosulmadi — once onlari coş.
 
-## ONCEKI DURUMLAR (0.6.0, arsiv)
+### 0.6.0 turu durumu (arşiv)
 
 ## Tamamlanan
 
@@ -1361,11 +1404,15 @@ kiriliyordu (`white-space: nowrap`), tema cipleri cok yer kapliyordu
 - `node qa/run.mjs` → SONUC: PASS (8 senaryo; taşma, sızıntı, ölü düğme, konsol hatası yok).
 - `node tools/themes.mjs` → SONUC: PASS (6 mod, hepsi AA+).
 
-## Kurulum paketi
+### Kurulum paketi (0.6.0 — tarihsel yol)
 
 `src-tauri/target/release/bundle/nsis/smart-screen_0.6.0_x64-setup.exe`
 
-## Bilinen sınırlar
+### Bilinen sınırlar (0.6.0 itibarıyla — bugün geçerli değil)
+
+> Bu liste 0.6.0 günü yazıldı. İlk iki madde v3.0.0'da kapandı: gamma canlı
+> testle ölçüldü (`cargo test -- --ignored`) ve otomatik seçim yalnız `ss-*`
+> temalarına kilitlendi. Kalan maddeler donanım/arayüz sınırı olarak sürüyor.
 
 - Grafik tema değişimi işaretini çizmiyor (yalnız özet sayıda); ipucu metni
   buna göre sadeleştirildi.

@@ -3,9 +3,9 @@
 // Visual + functional QA for the smart-screen UI shell (index.html SÖZLEŞME v2.2).
 // Serves ../dist with a stubbed Tauri bridge, walks the four tabs, captures
 // screenshots into ./shots, and fails on overflow, dead controls, swallowed
-// tick errors or console exceptions. 21 senaryo: 1-15 v2 uyarlaması,
+// tick errors or console exceptions. 22 senaryo: 1-15 v2 uyarlaması,
 // 16-21 v2.2 özellikleri (toast, Kelvin, auto-seg, profil editörü, okuma
-// geri dönüşü, geçmiş insan dili).
+// geri dönüşü, geçmiş insan dili), 22: 4 şablon × 12 palet matrisi (v2.6).
 //
 // Stub policy: UNKNOWN invoke commands THROW (never return null) so real
 // regressions surface instead of silently degrading. The Pro gate mimic in the
@@ -1485,7 +1485,7 @@ async function run() {
     await shot("21-geçmiş-dil.png");
   });
 
-  // 22. Şablon × palet matrisi (v2.6): 4 şablon × 7 palet.
+  // 22. Şablon × palet matrisi (v2.6): 4 şablon × 12 palet.
   //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu
   //     - 1040×740'ta Durum sayfası kaydırmasız mı (PLAN-v3 §7 bütçesi)
   //     - 28 kombinasyonun karesi gözle incelemek için diske düşüyor
