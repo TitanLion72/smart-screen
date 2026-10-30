@@ -1,4 +1,4 @@
-# HANDOFF — smart-screen (güncel: v3.0.0, 2026-10-30)
+# HANDOFF — smart-screen (güncel: v3.0.1, 2026-10-31)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -61,6 +61,52 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
 - **Tek pencere, min 760×600.** Dört bölüm (Durum/Profiller/Geçmiş/Ayarlar) alt
   dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
 - **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
+
+## V3.0.1 TURU (2026-10-31) — "cila": sahada bulunan üç davranış hatası
+
+**Tetik:** kullanıcı "uygulamaya son cilaları at, hata/UI bozukluğu var mı bak;
+ben ön plan uygulamalarını kazayla sildim, geri getir".
+
+**1. Bağlı profil teması hiç uygulanmıyordu (gerçek hata).** Canlı log'da 40 tur
+boyunca `want=catppuccin-macchiato` ile `want=ss-dusk` gidip geldi, `applied`
+hiç değişmedi. Kök neden: tema kapısı **10 dk + 3 bağımsız tur** istiyor; bağlı
+profil ile bağsız tur arasında geçişte `pendingKey` her turda değiştiği için
+sayaç 3'e hiç ulaşmıyordu. Yani "uygulamaya bağlı profil ön plana gelince o turda
+devralır" kuralı kağıtta vardı, kodda **hiç** çalışmıyordu. Bağlı profil artık
+niyet sayılıyor (`engine.isIntentTheme` + test) ve QA bunu gerçek zamanlayıcı
+turunda doğruluyor.
+
+**2. Tanılama "sıcak ton kapalı" diyebiliyordu.** Açılışta ilk tur çalışmadan
+"Sistemi kontrol et"e basınca `auto` kipte bile "rampa yazılmadı" görünüyordu.
+Artık tanılama **yazmadan** uygulanacak değeri hesaplıyor (kalibrasyonu ezme
+kuralı korunuyor) — ölçüm "şu an ne kullanılıyor" sorusunun doğru cevabı.
+
+**3. Kayıp uygulama listeleri geri getirilemiyordu.** `restoreSeedProfiles`
+profili zaten var sayıp hiçbir şey yapmıyordu; kullanıcı listeyi elle yeniden
+yazmak zorundaydı. Artık **boş** `apps` listesini doldurur; dolu listeye ve
+diğer alanlara (ad/mod/tema/kaydırma) dokunmaz. "Var olanı ezme" kuralı korundu,
+7 birim testiyle (`src/store.test.ts`).
+
+**4. Programatik liste değişikliği ekrana yansımıyordu.** Listeler yalnız
+`bootWidgets`'ta çiziliyordu. `syncLists` kancası eklendi; "geri getir" hem
+diske hem ekrana yazıyor. **Ders: "diske yazdım" ≠ "ekranda göründü"** — QA
+assert'i ekranı okumasa bu sessiz kalırdı.
+
+**5. Tohum temalar ss-*'a çekildi.** `İş` → `ss-dusk`, `Film` → `ss-night`.
+Var olan profiller ezilmiyor (kullanıcı verisi).
+
+**Ayrıca (altyapı):**
+- `qa/cdp-localstorage.mjs` — çalışan WebView2'ye DevTools protokolüyle bağlanıp
+  localStorage okuma/yazma. Kazayla silinen veriyi leveldb kurcalamadan kurtardı
+  (canlı doğrulama: `ss:allowlist` 6 uygulama geri yazıldı, uygulama yenilendi).
+- `npm.cmd run verify` (test + token + güvenlik + build) ve `qa` / `qa:audit`
+  kısayolları.
+- `npm.cmd test` artık iki dosya koşuyor (23 test).
+
+**Doğrulama:** `npm test` 23/23 · `npm run verify` temiz · `qa/run.mjs` 23
+senaryo PASS · `audit-templates` · `audit-diagnostics` · `audit-scene` ·
+`audit-flyout` (48 kare) · `audit-accent` · canlı tanılama: `%35 şiddet yazıldı
+— mavi %36 (beklenen %36)` · canlı log: bağlı profil teması uygulandı.
 
 ## 2026-10-30 — kod imzalama hazırlığı (v3.0.0 sonrası)
 

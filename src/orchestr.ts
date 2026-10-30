@@ -26,6 +26,7 @@ import {
   finalTarget,
   isExternalChange,
   isIndependentTurn,
+  isIntentTheme,
   learnAllowed,
   learnDelta,
   lightKey,
@@ -455,12 +456,20 @@ export interface ViewHooks {
   render(): void;
   /** Profil editörü yalnız açıkça yeniden çizilir (yazmayı silmemek için). */
   renderEditor(): void;
+  /**
+   * Uygulama listeleri (engelli/izinli) yalnız kurulumda çiziliyordu; kod
+   * onları programatik değiştirdiğinde ekranda eski etiketler kalıyordu
+   * ("geri getir" listeyi diske yazsa da boş görünüyordu). Bu kanca ikisini
+   * de S'ten tazeler.
+   */
+  syncLists(): void;
 }
 
 const defaultHooks: ViewHooks = {
   log: (msg, level) => console.log(`[log/${level}] ${msg}`),
   render: () => undefined,
   renderEditor: () => undefined,
+  syncLists: () => undefined,
 };
 
 let hooks: ViewHooks = defaultHooks;
@@ -480,6 +489,11 @@ function render(): void {
 
 function renderEditor(): void {
   hooks.renderEditor();
+}
+
+/** Uygulama listesi editörlerini S'ten tazeler (programatik değişiklik sonrası). */
+function syncLists(): void {
+  hooks.syncLists();
 }
 
 // ---------- flyout durum köprüsü ----------
@@ -1063,7 +1077,22 @@ export async function loadAudit(): Promise<void> {
 export async function runDiagnostics(): Promise<void> {
   const busy = toast.busy("Sistem kontrol ediliyor");
   try {
-    const warmth = S.warmMode === "off" ? 0 : Math.round(S.lastWarmApplied ?? S.warmPercent);
+    // `lastWarmApplied` açılışta null; ilk tur çalışmadan tanılama açılırsa
+    // "sıcak ton kapalı" diyordu — oysa kip `auto` ve birazdan uygulanacak.
+    // Burada **yazmadan** uygulanacak değeri hesaplıyoruz (tanılama kalibrasyonu
+    // ezmemeli; kural: raporda görünen değer, uygulamanın kullanacağı değer).
+    let warmth = 0;
+    if (S.warmMode !== "off") {
+      if (S.lastWarmApplied && S.lastWarmApplied > 0) {
+        warmth = S.lastWarmApplied;
+      } else if (S.warmMode === "fixed") {
+        warmth = S.warmPercent;
+      } else {
+        const auto = await autoWarmth();
+        warmth = Math.round(((auto ?? S.warmPercent) * S.warmPercent) / 100);
+      }
+    }
+    warmth = Math.max(0, Math.min(100, Math.round(warmth)));
     const report = await invoke<DiagReport>("diagnose", { warmth });
     S.diag = report;
     const checks = report.checks ?? [];
@@ -1808,9 +1837,10 @@ async function runTick(reason: string): Promise<void> {
     }
 
     if (!screenOff && !gated && !sameKey && key === S.pendingKey) {
-      // "Şimdi uygula" ve açılış kullanıcı niyetidir: 10 dk dwell beklemez
-      // (QA ve kullanıcı "bastım ama hiçbir şey olmadı" demesin).
-      const manualTheme = reason === "manuel" || reason === "açılış";
+      // "Şimdi uygula", açılış ve **bağlı profil** kullanıcı niyetidir: 10 dk
+      // dwell beklemez (QA ve kullanıcı "bastım ama hiçbir şey olmadı" demesin).
+      // Niyet tanımı `engine.isIntentTheme` içinde ve testli.
+      const manualTheme = isIntentTheme({ reason, bound: bound !== null });
       const gate = manualTheme
         ? { ok: true, reason: "ok" as const }
         : themeGate({
@@ -2413,6 +2443,31 @@ export function setAllowList(items: string[]): void {
   log("izinli liste güncellendi");
 }
 
+/**
+ * "Varsayılan listeleri geri getir" — iki uygulama listesini de fabrika
+ * değerlerine döndürür. Tek tıkla silinen listeyi elle yeniden yazmak yerine
+ * buraya basmak yeterli. Önceki hâl toast'ın "Geri al" eylemiyle döner.
+ */
+export function restoreDefaultLists(): void {
+  const before = { block: S.blockItems.slice(), allow: S.allowItems.slice() };
+  setBlockList(splitList(DEFAULT_BLOCKLIST));
+  setAllowList(splitList(DEFAULT_ALLOWLIST));
+  log("uygulama listeleri varsayılana döndü", "ok");
+  toast.action("Uygulama listeleri varsayılana döndü", {
+    action: {
+      label: "Geri al",
+      onAct: () => {
+        setBlockList(before.block);
+        setAllowList(before.allow);
+        syncLists();
+        render();
+      },
+    },
+  });
+  syncLists();
+  render();
+}
+
 export function setSleep(key: "sleepStart" | "sleepEnd" | "sleepCap", value: number): void {
   const v = Number.isFinite(value) ? Math.round(value) : 0;
   if (key === "sleepStart") S.sleepStart = v;
@@ -2560,12 +2615,26 @@ export function restoreSeeds(): void {
   const result = restoreSeedProfiles(S.profiles);
   S.profiles = result.profiles;
   saveProfiles(S.profiles);
+  const parts: string[] = [];
+  if (result.added > 0) parts.push(`+${result.added} profil`);
+  if (result.appsRestored > 0) parts.push(`${result.appsRestored} uygulama listesi`);
   log(
-    result.added > 0
-      ? `hazır profiller geri getirildi (+${result.added})`
-      : "hazır profiller zaten yerinde",
-    result.added > 0 ? "ok" : "warn",
+    parts.length > 0 ? `hazır profiller geri getirildi (${parts.join(", ")})` : "hazır profiller zaten yerinde",
+    parts.length > 0 ? "ok" : "warn",
   );
+  if (parts.length > 0) {
+    toast.ok(`Geri getirildi: ${parts.join(", ")}`);
+  } else {
+    toast.info("Hazır profiller ve uygulama listeleri zaten yerinde");
+  }
+  // Açık editör varsa taslağı tazele: aksi halde düğme listeyi diske yazarken
+  // ekranda boş görünmeye devam ediyor ve "geri getirmedi" sanılıyordu.
+  const draftProfile = S.profiles.find((p) => p.id === S.draft.id) ?? null;
+  if (draftProfile) {
+    S.draft = { ...draftProfile };
+    S.editorDirty = false;
+    renderEditor();
+  }
   render();
 }
 

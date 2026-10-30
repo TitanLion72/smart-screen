@@ -163,6 +163,20 @@ export function themeGate(p: {
 const TONE_ORDER: Tone[] = ["cool", "neutral", "warm"];
 
 /**
+ * Tema değişimi **kullanıcı niyeti** mi, yoksa otomatik turun kararı mı?
+ *
+ * Niyet varsa dwell ve tur sayısı beklenmez; yoksa 10 dk + 3 tur kuralı işler.
+ * Niyet kaynakları: "Şimdi uygula" düğmesi, açılış, ve **uygulamaya bağlı
+ * profil**. Sonuncusu kritik: bağlı profil, o uygulama ön plana geldiği turda
+ * devralır (AGENTS kuralı). Dwell beklenirse alt-tab eden kullanıcıda bekleyen
+ * anahtar her turda değişir, sayaç sıfırlanır ve profil teması hiç uygulanmaz
+ * (canlı log: 40 tur boyunca `want=` gidip geliyor, `applied` sabit kalıyordu).
+ */
+export function isIntentTheme(p: { reason: string; bound: boolean }): boolean {
+  return p.bound || p.reason === "manuel" || p.reason === "açılış";
+}
+
+/**
  * Ton için son üç örneğin medyanı (PLAN-v3 §4.1/1). Üçten az örnek varsa son
  * örnek kullanılır; tanınmayan ton `neutral` sayılır. Tek bir gürültülü kare
  * tonu oynatamaz.

@@ -169,7 +169,7 @@
 
   ─────────────────────────── 2. PROFİLLER (#page-profiles) ───────────────────────────
   #pf-add          | button.btn-primary | "Yeni"                          | click → yeni profil; disabled = limit dolu
-  #pf-restore      | button.btn-toggle | "Geri getir"                      | click → hazır profilleri geri getir
+  #pf-restore      | button.btn-toggle | "Geri getir"                      | click → eksik hazır profiller + boş uygulama listeleri geri gelir
   #profile-cards   | div.grid-profiles | profil kartları (JS üretir)      | kart click → profili aç + uygula; .active = aktif
   #profile-editor  | div.panel-box | profil editörü                       | —
   #pf-name         | input      | profil adı                             | input → draft.name
@@ -236,6 +236,7 @@
   #block-editor    | div.tag-editor | video/oyun/PDF listesi             | buildTagEditor; ".exe + Enter", .tag-x siler
   #allow-editor    | div.tag-editor | iş uygulamaları listesi            | buildTagEditor
   #add-current-btn | button     | "Ön plandakini ekle"                   | click → ön plan exe'sini listeye ekle
+  #lists-restore   | button.btn-toggle | "Varsayılan listeleri geri getir" | click → iki listeyi fabrika değerine döndür (toast "Geri al")
 
   #advanced        | details    | "Gelişmiş" katlı bölüm (kapalı gelir)   | açık/kapalı; içi aşağıda
   #auto-switch     | button.switch | Windows açılışında başlat           | bindSwitch
@@ -682,6 +683,7 @@
               </label>
               <div class="toolbar">
                 <button id="add-current-btn" class="btn-toggle" type="button">Ön plandaki uygulamayı listeye ekle</button>
+                <button id="lists-restore" class="btn-toggle" type="button">Varsayılan listeleri geri getir</button>
               </div>
               <div class="hint">Ön planda bu uygulamalardan biri varken ayar yapılmaz — bu kural her zaman önde gelir.</div>
             </div>

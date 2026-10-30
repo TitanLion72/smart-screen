@@ -15,6 +15,39 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.0.1] - 2026-10-31
+
+"Cila" — sahada bulunan üç davranış hatası ve eksik geri alma yolları.
+
+### Fixed
+- **Uygulamaya bağlı profil teması hiç uygulanmıyordu.** Bağlı profil, o
+  uygulama ön plana geldiği turda devralmalı; ama tema kapısı 10 dk + 3 bağımsız
+  tur istiyordu. Kullanıcı uygulamalar arasında geçtikçe bekleyen karar her turda
+  sıfırlanıyor, sayaç 3'e ulaşmıyordu. Canlı log: 40 tur boyunca `want=` gidip
+  geldi, `applied` sabit kaldı. Bağlı profil artık **niyet** sayılıyor
+  (`engine.isIntentTheme`, testli).
+- **"Geri getir" boş uygulama listesini doldurmuyordu.** Profil zaten var olduğu
+  için hiçbir şey yapmıyordu ("kazayla sildim" durumu). Artık tohum adını taşıyan
+  profilin **boş** `apps` listesini doldurur; dolu listeye ve diğer alanlara
+  dokunmaz.
+- **Programatik liste değişikliği ekrana yansımıyordu.** Engelli/izinli listeler
+  yalnız kurulumda çiziliyordu; "geri getir" diske yazsa da ekranda boş kalıyordu.
+  Yeni `syncLists` kancası ikisini de tazeler.
+- **Tanılama, sıcak tonu "kapalı" gösterebiliyordu.** Açılışta ilk tur
+  çalışmadan "Sistemi kontrol et"e basılırsa `auto` kipte bile "rampa yazılmadı"
+  deniyordu. Artık yazmadan, uygulanacak değer hesaplanıp raporlanıyor.
+- **Tohum profiller kendi ailemizden.** `İş` → `ss-dusk`, `Film` → `ss-night`
+  (`catppuccin-macchiato`/`vesper` değil). Var olan profiller **ezilmez**.
+
+### Added
+- **"Varsayılan listeleri geri getir"** (Ayarlar → Uygulamalar): iki listeyi
+  fabrika değerine döndürür, toast'tan "Geri al" ile eski hâle dönülür.
+- **Uygulama etiketi silmede "Geri al"** — "×" artık tek tıkla geri alınabilir.
+- `src/store.test.ts` (7 test): tohum listesi geri getirme, sınır, idempotency,
+  girdi mutasyonu yok.
+- `qa/cdp-localstorage.mjs`: çalışan WebView2'ye DevTools protokolüyle bağlanıp
+  localStorage okur/yazar (canlı veriyi elle leveldb düzenlemeden kurtarmak için).
+
 ## [3.0.0] - 2026-10-30
 
 "Derinlik" — planın son katmanı: sıcak ton artık gerçekten ısıtıyor, kimlik

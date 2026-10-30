@@ -47,6 +47,7 @@ import {
   openLogFile,
   pauseRemainingText,
   pickTheme,
+  restoreDefaultLists,
   restoreSeeds,
   saveDraft,
   selectForEdit,
@@ -801,12 +802,31 @@ export function paintEditor(): void {
   });
   if (pfAutolock) pfAutolock.set(S.draft.autoLock);
   tagApps = buildTagEditor(el("pf-apps-editor"), S.draft.apps ?? [], (items) => {
-    const prevCount = (S.draft.apps ?? []).length;
+    const prev = S.draft.apps ?? [];
+    const removed = prev.filter((a) => !items.includes(a));
     updateDraft({ apps: items });
     el("pf-apps-count").textContent = `${items.length} uygulama`;
     // duzeltme v2.2 (D): uygulama bağlama/kaldırma toast ile görünür.
-    if (items.length < prevCount) toast.info("Uygulama bağlantısı kaldırıldı");
-    else if (items.length > prevCount) toast.ok("Uygulama profili bağlandı");
+    // "×" tek tıkla siliyor; kazara silmeyi geri almak için eylem sunulur.
+    if (removed.length > 0) {
+      toast.action(
+        removed.length === 1
+          ? `"${removed[0]}" bağlantısı kaldırıldı`
+          : `${removed.length} uygulama bağlantısı kaldırıldı`,
+        {
+          action: {
+            label: "Geri al",
+            onAct: () => {
+              const restored = [...(S.draft.apps ?? []), ...removed.filter((a) => !(S.draft.apps ?? []).includes(a))];
+              updateDraft({ apps: restored });
+              el("pf-apps-count").textContent = `${restored.length} uygulama`;
+            },
+          },
+        },
+      );
+    } else if (items.length > prev.length) {
+      toast.ok("Uygulama profili bağlandı");
+    }
   });
   el("pf-apps-count").textContent = `${(S.draft.apps ?? []).length} uygulama`;
   btnEl("pf-delete").disabled = S.profiles.length <= 1;
@@ -1383,6 +1403,13 @@ function renderRisk(): void {
 // ---------- dinamik kontrol kurulumu ----------
 
 let tagBlock: TagHandle | null = null;
+let tagAllow: TagHandle | null = null;
+
+/** Uygulama listesi editörlerini S'ten tazeler (orchestr "geri getir" sonrası). */
+export function syncListEditors(): void {
+  tagBlock?.set(S.blockItems);
+  tagAllow?.set(S.allowItems);
+}
 
 export function bootWidgets(): void {
   renderThemePicker();
@@ -1396,7 +1423,7 @@ export function bootWidgets(): void {
   syncThemeChips();
 
   tagBlock = buildTagEditor(el("block-editor"), S.blockItems, (items) => setBlockList(items));
-  buildTagEditor(el("allow-editor"), S.allowItems, (items) => setAllowList(items));
+  tagAllow = buildTagEditor(el("allow-editor"), S.allowItems, (items) => setAllowList(items));
 
   pfAutolock = bindSwitch(btnEl("pf-autolock"), S.draft.autoLock, (v) => updateDraft({ autoLock: v }));
   const animSwitch = bindSwitch(btnEl("anim-switch"), S.animations, (v) => void setAnimations(v));
@@ -1468,6 +1495,7 @@ export function wireButtons(): void {
   btnEl("pf-add").addEventListener("click", () => addProfile());
   btnEl("pf-duplicate").addEventListener("click", () => duplicateDraft());
   btnEl("pf-restore").addEventListener("click", () => restoreSeeds());
+  btnEl("lists-restore").addEventListener("click", () => restoreDefaultLists());
   btnEl("pf-save").addEventListener("click", () => {
     const apps = tagApps?.get() ?? S.draft.apps ?? [];
     saveDraft(readDraftName(), apps);

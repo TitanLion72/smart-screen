@@ -124,7 +124,7 @@ window.__TAURI_INTERNALS__ = {
         window.__bright = args && typeof args.value === "number" ? args.value : window.__bright;
         return window.__bright;
       case "is_fullscreen": return false;
-      case "foreground_exe": return ${JSON.stringify(exe ?? "firefox.exe")};
+      case "foreground_exe": return window.__fgExe ?? ${JSON.stringify(exe ?? "firefox.exe")};
       // theme_get durumsal: theme_set yazdigini okur (backend davranisi).
       case "theme_get": return window.__theme;
       case "theme_set":
@@ -862,6 +862,57 @@ async function run() {
     await page.waitForTimeout(250);
     await checkOverflow(page, "bagim");
     await shot("7-uygulama.png");
+
+    // Kazara silinen uygulama listesi geri gelir mi? (v3.0.1)
+    // 1) "×" ile son baglantiyi kaldir, toast'taki "Geri al" ile geri getir.
+    const isCard = page.locator("#profile-cards .profile-card").filter({ hasText: "İş" });
+    await isCard.first().locator(".pc-name").click();
+    await page.waitForTimeout(250);
+    const pillsBefore = await page.locator("#pf-apps-editor .tag-pill").count();
+    check(pillsBefore > 0, "bagim", "İş profilinde uygulama etiketi yok (tohum bozuldu)");
+    await page.locator("#pf-apps-editor .tag-pill .tag-x").first().click();
+    await page.waitForTimeout(200);
+    const pillsAfterRemove = await page.locator("#pf-apps-editor .tag-pill").count();
+    check(pillsAfterRemove === pillsBefore - 1, "bagim", `× kaldirmadi: ${pillsBefore} -> ${pillsAfterRemove}`);
+    const toastText = await text(page, "#toast-host");
+    check(toastText.includes("kaldırıldı"), "bagim", `kaldirma toast'i yok: "${toastText.slice(0, 80)}"`);
+    await page.locator("#toast-host .toast-act").last().click();
+    await page.waitForTimeout(250);
+    const pillsAfterUndo = await page.locator("#pf-apps-editor .tag-pill").count();
+    check(pillsAfterUndo === pillsBefore, "bagim", `Geri al calismadi: ${pillsBefore} -> ${pillsAfterUndo}`);
+    await dismissToasts(page);
+
+    // 2) Liste tamamen bosaltilirsa "Geri getir" tohum listesini doldurur.
+    while ((await page.locator("#pf-apps-editor .tag-pill .tag-x").count()) > 0) {
+      await page.locator("#pf-apps-editor .tag-pill .tag-x").first().click();
+      await page.waitForTimeout(120);
+      await dismissToasts(page);
+    }
+    check(
+      (await text(page, "#pf-apps-count")) === "0 uygulama",
+      "bagim",
+      "liste bosaltilamadi",
+    );
+    await page.locator("#pf-restore").click();
+    await page.waitForTimeout(300);
+    const countRestored = await text(page, "#pf-apps-count");
+    check(
+      countRestored !== "0 uygulama",
+      "bagim",
+      `Geri getir bos uygulama listesini doldurmadi: "${countRestored}"`,
+    );
+    const storedApps = await page.evaluate(() => {
+      const raw = localStorage.getItem("ss:profiles");
+      const list = raw ? JSON.parse(raw) : [];
+      const work = Array.isArray(list) ? list.find((p) => p.name === "İş") : null;
+      return work?.apps ?? null;
+    });
+    check(
+      Array.isArray(storedApps) && storedApps.includes("code.exe"),
+      "bagim",
+      `tohum uygulama listesi kaydedilmedi: ${JSON.stringify(storedApps)}`,
+    );
+    await dismissToasts(page);
   }, "code.exe");
 
   // 8. Gecmis: ozet sayilari + SVG grafik + disk kayitlari.
@@ -1441,7 +1492,7 @@ async function run() {
     const applied = (await invocations())
       .slice(mark)
       .filter(([c]) => c === "theme_set");
-    check(applied.length > 0 && applied[0][1].name === "vesper", "profedit", `Uygula tema yazmadi: ${JSON.stringify(applied[0])}`);
+    check(applied.length > 0 && applied[0][1].name === "ss-night", "profedit", `Uygula tema yazmadi: ${JSON.stringify(applied[0])}`);
     check((await text(page, "#profile-cards .profile-card.active .pc-name")) === "Film", "profedit", "Uygula karti aktiflestirmedi");
     const hostText = await text(page, "#toast-host");
     check(hostText.includes("Film profili uygulandı"), "profedit", `uygulama toast'u yok: "${hostText.slice(0, 80)}"`);
@@ -1484,6 +1535,89 @@ async function run() {
     await checkOverflow(page, "gecmis-dil");
     await shot("21-geçmiş-dil.png");
   });
+
+  // 21b. Uygulama listeleri: tek tıkla silinen liste "Varsayılan listeleri geri
+  //      getir" ile döner; "Geri al" önceki hâle döndürür (v3.0.1).
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, openAdvanced, shot }) => {
+    await openTab("settings");
+    await openAdvanced();
+    const blockPills = page.locator("#block-editor .tag-pill");
+    const allowPills = page.locator("#allow-editor .tag-pill");
+    const blockBefore = await blockPills.count();
+    const allowBefore = await allowPills.count();
+    check(blockBefore > 0, "listeler", "engelli liste bos basladi");
+    check(allowBefore > 0, "listeler", "izinli liste bos basladi");
+
+    // Hepsini "×" ile sil.
+    while ((await blockPills.count()) > 0) {
+      await blockPills.first().locator(".tag-x").click();
+      await page.waitForTimeout(40);
+    }
+    while ((await allowPills.count()) > 0) {
+      await allowPills.first().locator(".tag-x").click();
+      await page.waitForTimeout(40);
+    }
+    check((await blockPills.count()) === 0 && (await allowPills.count()) === 0, "listeler", "listeler silinemedi");
+
+    // Geri getir → iki liste de dolu.
+    await page.locator("#lists-restore").click();
+    await page.waitForTimeout(300);
+    check((await blockPills.count()) === blockBefore, "listeler", `engelli liste geri gelmedi: ${await blockPills.count()} (beklenen ${blockBefore})`);
+    check((await allowPills.count()) === allowBefore, "listeler", `izinli liste geri gelmedi: ${await allowPills.count()} (beklenen ${allowBefore})`);
+    const storedAllow = await page.evaluate(() => localStorage.getItem("ss:allowlist"));
+    check(
+      typeof storedAllow === "string" && storedAllow.includes("windowsterminal.exe"),
+      "listeler",
+      `geri getirme diske yazmadi: "${storedAllow}"`,
+    );
+
+    // Geri al → önceki (boş) hâle döner.
+    await page.locator("#toast-host .toast-act").last().click();
+    await page.waitForTimeout(300);
+    check((await blockPills.count()) === 0 && (await allowPills.count()) === 0, "listeler", "Geri al onceki hale dondurmedi");
+    await dismissToasts(page);
+    await checkOverflow(page, "listeler");
+    await shot("21b-listeler.png");
+  });
+
+  // 21c. Bağlı profil teması GERÇEKTEN uygulanır (v3.0.1 regresyonu).
+  //      Eski davranış: alt-tab ile bağlı/bağsız arasında gidip gelen kullanıcıda
+  //      `pendingKey` her turda sıfırlanıyor, dwell sayacı 3'e ulaşmıyor ve
+  //      profil teması hiç yazılmıyordu (canlı log: 40 tur `want=` gidip geldi,
+  //      `applied` sabit kaldı). Bu senaryo gerçek zamanlayıcı turunu bekler.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, snap }) => {
+    // İş profiline kendi temasını ver (varsayılan ss-dusk zaten uygulanmış olabilir).
+    await openTab("profiles");
+    const workCard = page.locator("#profile-cards .profile-card").filter({ hasText: "İş" });
+    await workCard.first().locator(".pc-name").click();
+    await page.waitForTimeout(250);
+    await page.locator('#pf-theme-picker .chip[data-name="ss-night"]').first().click();
+    await page.waitForTimeout(200);
+    await page.locator("#pf-save").click();
+    await page.waitForTimeout(250);
+    await dismissToasts(page);
+    // Kaydetmek aktif profili hemen uygular; gözlem için farklı temaya geç.
+    await openTab("panel");
+    await snap(["ss-dusk", "dark", 30]);
+    await page.waitForTimeout(300);
+
+    // Ön plan code.exe (İş profiline bağlı) → normal "izle" turu bunu uygulamalı.
+    const mark = (await invocations()).length;
+    await page.evaluate(() => {
+      window.__fgExe = "code.exe";
+    });
+    // Tur 60 sn'de bir; iki turu garantiye al.
+    const deadline = Date.now() + 75_000;
+    let applied = null;
+    while (Date.now() < deadline) {
+      await page.waitForTimeout(1000);
+      applied = (await invocations())
+        .slice(mark)
+        .find(([c, a]) => c === "theme_set" && a && a.name === "ss-night") ?? null;
+      if (applied) break;
+    }
+    check(applied !== null, "bagim-tema", "bağlı profilin teması 75 sn içinde uygulanmadı (dwell'e takılıyor)");
+  }, "firefox.exe");
 
   // 22. Şablon × palet matrisi (v2.6): 4 şablon × 12 palet.
   //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu

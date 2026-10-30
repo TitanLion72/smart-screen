@@ -70,6 +70,12 @@ function newId(): string {
   return "p" + Date.now().toString(36) + Math.floor(Math.random() * 1e4).toString(36);
 }
 
+/**
+ * Hazır profiller. Temalar **kendi** (`ss-*`) ailemizden seçilir: bağlı profil
+ * ön plana gelince tema değişiyor, bu yüzden tohumun eski bir yerleşik tema
+ * (`catppuccin-*`, `vesper`) olması v3.0'ın "otomatik yol yalnız `ss-*`"
+ * kuralıyla çelişip terminal açıldığında beklenmedik renk sıçraması yaratıyordu.
+ */
 export function seedProfiles(): Profile[] {
   return [
     {
@@ -77,7 +83,7 @@ export function seedProfiles(): Profile[] {
       name: "İş",
       mode: "auto",
       source: "auto",
-      theme: "catppuccin-macchiato",
+      theme: "ss-dusk",
       themeMode: "dark",
       offset: 0,
       autoLock: false,
@@ -89,7 +95,7 @@ export function seedProfiles(): Profile[] {
       name: "Film",
       mode: "fixed",
       source: "night",
-      theme: "vesper",
+      theme: "ss-night",
       themeMode: "dark",
       offset: -10,
       // duzeltme v2.2 (madde 13): tohumda autoLock kapalı — öntanımlı olarak
@@ -123,18 +129,39 @@ export function loadProfiles(): Profile[] {
   return list.length > 0 ? list : seedProfiles();
 }
 
-/** Eksik tohum profilleri geri yukler; var olani EZMEZ. Kac tane eklendi doner. */
-export function restoreSeedProfiles(profiles: Profile[]): { profiles: Profile[]; added: number } {
-  const next = profiles.slice();
+/**
+ * Eksik tohum profilleri geri yükler **ve** tohum adını taşıyan bir profilin
+ * uygulama listesi boşsa varsayılan listeyi geri koyar. Var olan profilin
+ * adı/mod/tema/ayarı EZİLMEZ — yalnız boş `apps` doldurulur.
+ *
+ * Neden: "kazayla uygulama listesini sildim" durumunda eski davranış hiçbir şey
+ * yapmıyordu (profil zaten vardı), kullanıcı listeyi elle yeniden yazmak
+ * zorundaydı. Boş liste ile "hiç bağlama istemiyorum" ayırt edilemediği için
+ * geri getirme **yalnız açık düğme tıklamasında** çalışır, kendiliğinden değil.
+ */
+export function restoreSeedProfiles(profiles: Profile[]): {
+  profiles: Profile[];
+  added: number;
+  appsRestored: number;
+} {
+  const next = profiles.map((p) => ({ ...p, apps: [...(p.apps ?? [])] }));
   let added = 0;
+  let appsRestored = 0;
   for (const seed of seedProfiles()) {
-    // Ayni isimde profil varsa dokunma; yeni eklenenler sona eklenir.
-    if (profiles.some((p) => p.name === seed.name)) continue;
+    // Ayni isimde profil varsa dokunma; yalnız boş uygulama listesini doldur.
+    const existing = next.find((p) => p.name === seed.name);
+    if (existing) {
+      if (existing.apps.length === 0 && seed.apps.length > 0) {
+        existing.apps = [...seed.apps];
+        appsRestored += 1;
+      }
+      continue;
+    }
     if (next.length >= MAX_PROFILES) break;
     next.push(seed);
     added += 1;
   }
-  return { profiles: next, added };
+  return { profiles: next, added, appsRestored };
 }
 
 export function saveProfiles(profiles: Profile[]): void {

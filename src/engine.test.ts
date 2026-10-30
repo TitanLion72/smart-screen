@@ -19,6 +19,7 @@ import {
   finalTarget,
   isExternalChange,
   isIndependentTurn,
+  isIntentTheme,
   isNewMeasurement,
   learnAllowed,
   learnDelta,
@@ -172,4 +173,15 @@ test("günün rengi: kapalı, dwell ve aynı palet korunur", () => {
   assert.equal(autoPaletteDue({ ...base, auto: true, lastManualAt: NOW + 60_000 }), false);
   // Hiç elle seçim yapılmadıysa (0) hemen uygulanır.
   assert.equal(autoPaletteDue({ ...base, auto: true, lastManualAt: 0 }), true);
+});
+
+test("isIntentTheme: bağlı profil tema değişimini dwell'e takmaz", () => {
+  // Otomatik tur: niyet yok, 10 dk + 3 tur kuralı işler.
+  assert.equal(isIntentTheme({ reason: "tick", bound: false }), false);
+  // "Şimdi uygula" ve açılış: niyet var.
+  assert.equal(isIntentTheme({ reason: "manuel", bound: false }), true);
+  assert.equal(isIntentTheme({ reason: "açılış", bound: false }), true);
+  // Bağlı profil: uygulama ön plana geldiği turda devralır (AGENTS kuralı).
+  // Bu olmadan bekleyen anahtar her alt-tab'da sıfırlanıp tema hiç uygulanmıyordu.
+  assert.equal(isIntentTheme({ reason: "tick", bound: true }), true);
 });

@@ -163,7 +163,7 @@ function wireFlyoutBridge(): void {
 
 window.addEventListener("DOMContentLoaded", () => {
   // DOM'un tek yazıcısı panels; karar motoru yalnız bu kanallardan görünür.
-  O.setHooks({ log: P.appendLog, render: P.renderAll, renderEditor: P.paintEditor });
+  O.setHooks({ log: P.appendLog, render: P.renderAll, renderEditor: P.paintEditor, syncLists: P.syncListEditors });
 
   document.querySelectorAll<HTMLButtonElement>(".tab").forEach((t) => {
     t.addEventListener("click", () => P.switchTab(t.dataset.tab ?? "panel"));

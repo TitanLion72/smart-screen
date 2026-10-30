@@ -1,13 +1,13 @@
 {
   "name": "smart-screen",
   "private": true,
-  "version": "3.0.0",
+  "version": "3.0.1",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "test": "node --test src/engine.test.ts",
+    "test": "node --test src/engine.test.ts src/store.test.ts",
     "check:tokens": "node tools/check-tokens.mjs",
     "check:security": "node tools/security-check.mjs",
     "check:security:deps": "node tools/security-check.mjs --deps",
@@ -15,7 +15,10 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "sign": "node tools/sign-artifacts.mjs",
-    "verify:signature": "node tools/verify-signature.mjs"
+    "verify:signature": "node tools/verify-signature.mjs",
+    "qa": "cd qa && node run.mjs",
+    "qa:audit": "cd qa && node audit-scene.mjs && node audit-templates.mjs && node audit-diagnostics.mjs && node audit-flyout.mjs && node audit-accent.mjs",
+    "verify": "npm run test && npm run check:tokens && npm run check:security && npm run test:security && npm run build"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",
