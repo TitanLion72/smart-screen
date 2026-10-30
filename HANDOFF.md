@@ -108,6 +108,25 @@ senaryo PASS · `audit-templates` · `audit-diagnostics` · `audit-scene` ·
 `audit-flyout` (48 kare) · `audit-accent` · canlı tanılama: `%35 şiddet yazıldı
 — mavi %36 (beklenen %36)` · canlı log: bağlı profil teması uygulandı.
 
+**Yayın:** v3.0.1 (tag + release, 7 varlık) kuruldu; `latest.json` canlıda
+`3.0.1`, imza eşleşiyor. Kurulum sonrası canlı log:
+`want=catppuccin-macchiato | theme=catppuccin-macchiato|dark | note=bağlı profil
+windowsterminal.exe` — yani düzeltme gerçekten çalışıyor (eskiden `theme=` sabit
+kalıyordu). `ss:allowlist` 6 uygulama, sürüm etiketi `3.0.1`.
+
+**Ders (kalıcı)**
+1. **Dwell sayacı "her turda sıfırlanan" bir durumdaysa hiç dolmaz.** Bağlı
+   profil 40 turda bir kez olsun uygulanmadı çünkü bekleyen anahtar turdan tura
+   değişiyordu. Kural "3 bağımsız tur" diyorsa, **bağımsız olmayan** turlarda
+   sayacın sıfırlanması tasarımın kendisini iptal eder.
+2. **"Diske yazdım" ≠ "ekranda göründü".** Listeler yalnız kurulumda çiziliyordu;
+   QA ekranı okumasaydı bu sessiz kalırdı.
+3. **Tanılama yazmamalı ama doğru söylemeli.** Kalibrasyonu ezmemek için
+   "yazma" kuralı doğru; çözüm yazmak değil, **uygulanacak değeri hesaplamak**.
+4. **Canlı kullanıcı verisini kurtarmanın doğru yolu API'sidir.** leveldb
+   dosyasını elle düzenlemek yerine çalışan WebView2'ye CDP ile bağlanıp
+   `localStorage` yazmak hem güvenli hem doğrulaması kolay (`qa/cdp-localstorage.mjs`).
+
 ## 2026-10-30 — kod imzalama hazırlığı (v3.0.0 sonrası)
 
 **Tetik:** kullanıcı "final mi?" sorusundan sonra dağıtım tarafındaki üç eksikten

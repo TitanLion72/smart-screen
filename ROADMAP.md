@@ -180,6 +180,30 @@ ile yayınlanıyor, imzasız sürüme dönmek tek adım.
 
 ---
 
+## 11. `[x]` v3.0.1 "cila" — sahada bulunan davranış hataları
+
+Kullanıcı "son cilaları at, hata/UI bozukluğu var mı bak; ön plan uygulamalarını
+kazayla sildim" dedi. Üç gerçek hata + eksik geri alma yolu çıktı.
+
+- **Bağlı profil teması hiç uygulanmıyordu** (canlı log: 40 tur `want=` gidip
+  geldi, `applied` sabit). Tema kapısı 10 dk + 3 tur istiyor, bağlı/bağsız
+  geçişte sayaç sıfırlanıyordu → `engine.isIntentTheme` + birim test.
+- **Tanılama `auto` kipte "sıcak ton kapalı" diyebiliyordu** → yazmadan
+  uygulanacak değeri hesaplıyor.
+- **Kaybolan uygulama listesi geri getirilemiyordu** → boş `apps` doldurulur,
+  dolu listeye/alanlara dokunulmaz (`src/store.test.ts`, 7 test).
+- Programatik liste değişikliği ekrana yansımıyordu (`syncLists` kancası),
+  "Varsayılan listeleri geri getir" düğmesi, etiket silmede "Geri al".
+- Tohum temalar `ss-dusk`/`ss-night`; var olan profiller ezilmez.
+- `qa/cdp-localstorage.mjs`: canlı WebView2 localStorage okuma/yazma — kullanıcının
+  silinen listesi bu aletle kurtarıldı (6 uygulama).
+
+Kabul: 23 test, 6 QA aracı PASS, clippy/fmt temiz, 3.0.1 kuruldu ve canlı log
+bağlı profil temasını **uyguladı** (`theme=catppuccin-macchiato|dark`).
+Geri alma: `git revert 74be204` (veri şeması değişmedi).
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).
