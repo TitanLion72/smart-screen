@@ -204,6 +204,31 @@ Geri alma: `git revert 74be204` (veri şeması değişmedi).
 
 ---
 
+## 12. `[x]` v3.0.2 "toparlama" — review + canlı UI taraması
+
+Bağımsız kod incelemesi + gerçek uygulama kareleri. 12 bulgu, hepsi düzeltildi.
+
+**Davranış (en ciddiden):**
+- **Gece tavanı fiilen çalışmıyordu:** `min(cap)` sonra `max(floor)` sırası
+  yüzünden 15 yazan kullanıcı 25 görüyordu; Rust da hedefi yukarı çekiyordu.
+  İki katman birlikte düzeltildi (`next_brightness_with_floor` + test).
+- **Hero eğrisi 0–45 ölçeğindeydi**, `warmth_auto` 0–100 (tepe 88) → grafik
+  yanlış veri. Çapalar backend ile birebir, ölçek 100.
+- **Duraklatma/kilit oyun parlaklığını geri almıyordu** (%100'de takılı kalma).
+- Profil kartı kayıttan sonra bayat; tray işaretleri gerçek durumla senkron
+  değil; `applyProfile` başarısız yazmayı başarı sayıyor; okuma profili tema
+  tercihine yazılıyor; çıkışta gamma geri alınmıyor; flyout parlaklığı dış
+  müdahale sayılıyor; yarım kimlik göçü işaretleniyor; HDR bağlantısı yanlış
+  sayfa; ofset düğmeleri çöp kalibrasyon yazıyor.
+
+**UI (canlı kareden):** hero dikey ortalandı, tek monitörde kart içerik boyunda,
+uzun DDC/CI hatası kendi satırında okunur.
+
+Kabul: 23 frontend + 219 Rust testi, 6 QA aracı PASS, clippy/fmt temiz.
+Geri alma: `git revert` (şema değişmedi).
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

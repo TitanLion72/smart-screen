@@ -45,3 +45,6 @@ tools/.license-private.pem
 .playwright-mcp/
 qa/find_overflow.mjs
 qa/audit/
+
+# Canli ekran goruntuleri (qa/cdp-localstorage.mjs --screenshot)
+qa/live/

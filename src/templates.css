@@ -745,6 +745,11 @@ body::after {
   grid-area: monitors;
   min-height: 0;
   overflow-y: auto;
+  /* Kart içeriği kadar yer kaplar: tek monitörde 360px'lik kutunun altı boş
+     kalıyordu (ekranın yarısı boş kart). `max-height` satır sınırını korur,
+     çok monitörde kaydırma devam eder. */
+  align-self: start;
+  max-height: 100%;
 }
 
 #page-panel > .asym {
@@ -861,6 +866,25 @@ body::after {
 
   #page-panel .mon-err {
     grid-area: err;
+  }
+
+  /* Hata varsa mesaj üçüncü satıra taşar: "err" alanı zaten dar, uzun DDC/CI
+     açıklaması orada kırpılıyordu. Tek satırda okunur hale gelir. */
+  #page-panel .monitor-row.has-err {
+    grid-template-areas:
+      "name name val"
+      "kind ct   err"
+      "efull efull efull";
+  }
+
+  #page-panel .monitor-row.has-err .mon-err {
+    grid-area: efull;
+    justify-self: stretch;
+    white-space: normal;
+    line-height: 1.35;
+    overflow: visible;
+    text-overflow: clip;
+    padding-top: 2px;
   }
 }
 

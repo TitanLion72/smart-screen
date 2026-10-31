@@ -79,23 +79,31 @@ pub fn migrate_dir(src: &Path, dst: &Path) -> Result<u64, String> {
         copy_tree(src, dst)?
     };
     fs::create_dir_all(dst).map_err(|e| format!("hedef klasör açılamadı: {e}"))?;
-    fs::write(dst.join(MARKER), b"1").map_err(|e| format!("işaret yazılamadı: {e}"))?;
-    Ok(copied)
+    // Kısmi göç işaretlenmez: kilitli bir dosya yüzünden eksik kalan veri
+    // (ör. localStorage) bir daha kopyalanmaz ve sessizce kaybolurdu. İşaret
+    // yoksa sonraki açılışta `copy_tree_missing` yalnız eksikleri tamamlar.
+    if copied.1 == 0 {
+        fs::write(dst.join(MARKER), b"1").map_err(|e| format!("işaret yazılamadı: {e}"))?;
+    }
+    Ok(copied.0)
 }
 
 /// Ağacı kopyalar; var olan dosyanın üzerine YAZMAZ (yarıda kalan göç
 /// yeniden denenebilsin, kullanıcı verisi ezilmesin).
-fn copy_tree(src: &Path, dst: &Path) -> Result<u64, String> {
+fn copy_tree(src: &Path, dst: &Path) -> Result<(u64, u64), String> {
     copy_tree_inner(src, dst, true)
 }
 
 /// Yalnız eksik dosyaları kopyalar.
-fn copy_tree_missing(src: &Path, dst: &Path) -> Result<u64, String> {
+fn copy_tree_missing(src: &Path, dst: &Path) -> Result<(u64, u64), String> {
     copy_tree_inner(src, dst, false)
 }
 
-fn copy_tree_inner(src: &Path, dst: &Path, overwrite: bool) -> Result<u64, String> {
-    let mut count = 0u64;
+/// Döner: (kopyalanan, kopyalanamayan). İkincisi sıfırdan büyükse göç
+/// tamamlanmamıştır ve işaret yazılmamalıdır.
+fn copy_tree_inner(src: &Path, dst: &Path, overwrite: bool) -> Result<(u64, u64), String> {
+    let mut copied = 0u64;
+    let mut failed = 0u64;
     fs::create_dir_all(dst).map_err(|e| format!("klasör açılamadı {}: {e}", dst.display()))?;
     let entries =
         fs::read_dir(src).map_err(|e| format!("klasör okunamadı {}: {e}", src.display()))?;
@@ -107,19 +115,23 @@ fn copy_tree_inner(src: &Path, dst: &Path, overwrite: bool) -> Result<u64, Strin
             .metadata()
             .map_err(|e| format!("bilgi okunamadı {}: {e}", from.display()))?;
         if meta.is_dir() {
-            count += copy_tree_inner(&from, &to, overwrite)?;
+            let (c, f) = copy_tree_inner(&from, &to, overwrite)?;
+            copied += c;
+            failed += f;
         } else {
             if !overwrite && to.exists() {
                 continue;
             }
-            // Kilitli dosya (WebView2 günlüğü gibi) göçü durdurmasın: atla,
-            // işareti yine bırakma kararı çağıranın (kısmi göç kabul edilir).
+            // Kilitli dosya (WebView2 günlüğü gibi) göçü durdurmasın: atla ama
+            // say — işaret bırakmama kararı buna dayanıyor.
             if fs::copy(&from, &to).is_ok() {
-                count += 1;
+                copied += 1;
+            } else {
+                failed += 1;
             }
         }
     }
-    Ok(count)
+    Ok((copied, failed))
 }
 
 #[cfg(test)]

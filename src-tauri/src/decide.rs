@@ -247,7 +247,18 @@ pub fn min_brightness(hour: u8, minute: u8) -> u8 {
 /// Alt sinirin altina inmez, hedefi asmaz. Ust sinir PLAN-v3 §4.1/4 ve kabul
 /// kriteri (§11) ile ayni: tek turda 8 puandan fazla degisim yok.
 pub fn next_brightness(current: u8, desired: u8, hour: u8, minute: u8) -> u8 {
-    let floor = min_brightness(hour, minute);
+    step_toward(current, desired, min_brightness(hour, minute))
+}
+
+/// `next_brightness`'in alt siniri disaridan alan hali. Frontend gece/okuma
+/// tavanini alt sinirin altina indirdiginde ayni degeri buraya gecirir; aksi
+/// halde `min_brightness` (25) hedefi yukari cekip kullanicinin tavanini
+/// sessizce iptal ediyordu (v3.0.2). `floor`, `desired`i asla yukseltmez.
+pub fn next_brightness_with_floor(current: u8, desired: u8, floor: u8) -> u8 {
+    step_toward(current, desired, floor.min(desired))
+}
+
+fn step_toward(current: u8, desired: u8, floor: u8) -> u8 {
     let desired = desired.max(floor).min(100);
     let gap = desired.abs_diff(current);
     if gap < 2 {
@@ -631,6 +642,32 @@ mod tests {
         assert_eq!(next_brightness(30, 0, 0, 15), 22);
         assert_eq!(min_brightness(1, 30), 0);
         assert_eq!(min_brightness(1, 31), 25);
+    }
+
+    /// v3.0.2: kullanıcı gece tavanını (`sleepCap`) alt sınırın altına
+    /// indirdiyse alt sınır onu YUKARI ÇEKMEMELİ. Eski davranış: cap 15,
+    /// `min_brightness` 25 → ekran 25'te kalıyordu (kullanıcı 15 yazmıştı).
+    #[test]
+    fn cap_below_floor_wins() {
+        // 01:31 sonrası `min_brightness` 25 döner.
+        assert_eq!(min_brightness(3, 0), 25);
+        // Tavan-kırpılmış alt sınır verilince hedef 15'e iner (25'e çıkmaz).
+        let mut value = 60u8;
+        for _ in 0..40 {
+            value = next_brightness_with_floor(value, 15, 15);
+        }
+        assert!(value < 25, "gece tavani alt siniri ezemedi: {value}");
+        // 2 puan esigi yuzunden 15'e tam oturmaz (16'da durur) — asil kural
+        // tavanin altina inebilmek.
+        assert!(value <= 16, "beklenenden yuksek: {value}");
+        // Alt sınır hedefi asla yukseltmez: floor 40 > hedef 10 → hedef 10'a iner.
+        assert_eq!(
+            next_brightness_with_floor(50, 10, 40),
+            42,
+            "floor hedefi yukseltti"
+        );
+        // Tavan yoksa eski davranis korunur (floor gercekten korur).
+        assert_eq!(next_brightness(50, 0, 12, 0), 42);
     }
 
     /// kabul kriteri (§11): 24 saatlik seride tek turda |degisim| <= 8,

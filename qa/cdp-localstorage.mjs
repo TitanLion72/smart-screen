@@ -23,7 +23,8 @@
    Yazma sonrası sayfa yenilenir; uygulama veriyi kendi okuyucusuyla alır.
    ═══════════════════════════════════════════════════════════════════ */
 
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 
 const argv = process.argv.slice(2);
 const flag = (name) => argv.includes(name);
@@ -40,10 +41,13 @@ const setKey = valueOf("--set");
 const valueFile = valueOf("--value-file");
 const valueLiteral = valueOf("--value");
 const evalExpr = valueOf("--eval");
+const shotPath = valueOf("--screenshot");
 const reload = !flag("--no-reload");
 
-if (!dump && !key && !setKey && !evalExpr) {
-  console.error("kullanım: --dump | --get <anahtar> | --set <anahtar> --value-file <dosya> | --eval <ifade>");
+if (!dump && !key && !setKey && !evalExpr && !shotPath) {
+  console.error(
+    "kullanım: --dump | --get <anahtar> | --set <anahtar> --value-file <dosya> | --eval <ifade> | --screenshot <yol>",
+  );
   process.exit(2);
 }
 
@@ -142,6 +146,14 @@ try {
 
   if (evalExpr) {
     console.log(JSON.stringify(await evaluate(evalExpr), null, 2));
+  }
+
+  if (shotPath) {
+    // Hedef klasör yoksa oluştur: "--screenshot qa/live/x.png" çalışsın.
+    mkdirSync(dirname(shotPath), { recursive: true });
+    const res = await send("Page.captureScreenshot", { format: "png" });
+    writeFileSync(shotPath, Buffer.from(res.data, "base64"));
+    console.log(`kare yazıldı: ${shotPath}`);
   }
 } finally {
   ws.close();

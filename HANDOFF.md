@@ -1,4 +1,4 @@
-# HANDOFF — smart-screen (güncel: v3.0.1, 2026-10-31)
+# HANDOFF — smart-screen (güncel: v3.0.2, 2026-10-31)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -22,9 +22,9 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
-## Güncel durum: v3.0.0 — gerçekten geçerli sınırlar
+## Güncel durum: v3.0.2 — gerçekten geçerli sınırlar
 
-`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.0**. Aşağısı tur
+`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.2**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
 "Bilinen sınırlar" başlıkları o günü anlatır, bugünü değil** — örneğin orada
 "gamma gözle doğrulanmadı" ve "otomatik seçim hâlâ eski temaları seçiyor"
@@ -62,6 +62,47 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
   dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
 - **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
 
+## V3.0.2 TURU (2026-10-31) — "toparlama": review + canlı UI taraması
+
+**Tetik:** kullanıcı "küçük UI hataları ve UX var, araştır ve çöz; onun dışında
+genel bir review at". İki paralel hat: (a) canlı ekran kareleri, (b) bağımsız
+kod incelemesi. 12 bulgu çıktı, hepsi koddan doğrulanıp düzeltildi.
+
+**En ciddi bulgu — gece tavanı hiç çalışmıyordu.** `finalTarget` sırası
+`min(t, cap)` → `max(t, floor)` idi; 01:31–07:00 arası `min_brightness` 25
+döndüğü için **kullanıcı gece tavanını 15 yapsa da ekran 25'te kalıyordu**.
+Üstelik Rust `next_brightness` da alt sınırı kendi hesaplayıp hedefi yukarı
+çekiyordu — yani düzeltme yalnız frontend'te kalsaydı da işe yaramazdı.
+İki katman birlikte düzeltildi: tavan alt sınırı kırpıyor, kırpılmış değer
+`decide_brightness`'a `floor` olarak geçiyor (`next_brightness_with_floor`).
+
+**İkinci: hero eğrisi yanlış veri çiziyordu.** Çapalar eski 0–45 ölçeğindeydi;
+`warmth_auto` ise 0–100 (tepe 88). Kullanıcı grafikte gerçek sarılık eğrisini
+görmüyordu ve `data-warm` yanlış değer taşıyordu. "Çapalar backend ile birebir
+aynıdır" yorumu yıllardır yanlıştı — yorum doğru olsun diye kodu düzelttim.
+
+**Üçüncü: duraklatma oyun parlaklığını geri almıyordu.** Video sırasında
+%100'e çıkan parlaklık "1 saat duraklat"/"Kilitli" sonrası %100'de kalıyordu —
+"kilitliyken dokunma" kuralının ihlali, gece parlaması.
+
+**UI (canlı kareden, stub değil):**
+- Hero içeriği 360px kartın üst yarısına sıkışmış, alt yarısı boştu → dikey ortalama.
+- Tek monitörde monitör kartı 360px'i doldurup altında ölü alan bırakıyordu → `align-self: start`.
+- Uzun DDC/CI hata metni "… (OSD'den …" diye kırpılıyordu → kendi satırına taşındı.
+
+**Ders (kalıcı)**
+1. **Sıralama hatası sessizdir.** `min` sonra `max` yazmak tek satır; "tavan
+   çalışmıyor" şikâyeti ancak gece 15 yazıp 25 görünce anlaşılıyor. Aynı kural
+   iki katmanda (TS + Rust) yeniden hesaplanıyorsa **ikisi birlikte** düzeltilmeli.
+2. **Yorum "birebir aynıdır" diyorsa test yoksa yalan söyleyebilir.** Çapa
+   listesi iki yerde elle tutuluyorsa eşitliği bir test ya da tek kaynak korumalı.
+3. **Canlı kare ≠ QA karesi.** QA stub veriyle çalışır (3 monitör, hata satırları);
+   gerçek uygulamada tek monitör var ve yerleşim farklı davranıyor. Yeni
+   `--screenshot` bayrağı bu boşluğu kapatıyor.
+
+**Doğrulama:** `npm test` 23/23 · `cargo test` 219+2 · clippy/fmt temiz ·
+`npm run verify` temiz · `qa/run.mjs` 23 senaryo PASS · 5 audit aracı PASS ·
+canlı karede hero ortalanmış, monitör kartı içerik boyunda, hata metni tam.
 ## V3.0.1 TURU (2026-10-31) — "cila": sahada bulunan üç davranış hatası
 
 **Tetik:** kullanıcı "uygulamaya son cilaları at, hata/UI bozukluğu var mı bak;

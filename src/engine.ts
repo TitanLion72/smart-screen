@@ -135,8 +135,15 @@ export function finalTarget(p: {
   mode: string;
 }): number {
   let t = applyLearnDelta(p.base, p.learnDelta ?? null) + (p.offset ?? 0);
-  if (p.cap !== null && p.cap !== undefined) t = Math.min(t, p.cap);
-  t = Math.max(t, p.floor ?? 0);
+  let floor = p.floor ?? 0;
+  // Tavan alt sınırı EZER: kullanıcı gece tavanını 15 yaptıysa "ekran okunur
+  // kalsın" diye 25'e çıkarmak onun açık isteğini iptal eder. Alt sınır yalnız
+  // tavanın ALTINDA kalabildiği sürece korur (v3.0.2).
+  if (p.cap !== null && p.cap !== undefined) {
+    t = Math.min(t, p.cap);
+    floor = Math.min(floor, p.cap);
+  }
+  t = Math.max(t, floor);
   t = Math.min(t, 95);
   if (p.cap === null || p.cap === undefined) t = readableTarget(t, p.mode);
   return Math.round(clamp(t, 0, 100));

@@ -516,6 +516,11 @@ body {
 .hero {
   position: relative;
   flex: none;
+  /* İçerik dikeyde ORTALANIR. Eskiden normal akışta üstte kalıyordu: 360px'lik
+     hero'da 177px metin + 180px ölü boşluk (maximize pencerede bariz). */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   border-radius: var(--r-lg);
   transform-style: preserve-3d;
   /* Fare paralaksı: --mx/--my (−1..1). JS'siz 0 → hareketsiz. */
@@ -1310,6 +1315,23 @@ button:disabled:active {
   white-space: nowrap;
   color: var(--danger);
   font-size: 11px;
+}
+
+/* Hata varsa mesaj KENDİ satırına geçer: 1.1fr'lik sütunda "DDC/CI bu
+   monitorda çalışmıyor (OSD'den …" diye kırpılıyordu, kullanıcı okuyamıyordu. */
+.monitor-row.has-err {
+  grid-template-columns: minmax(0, 1fr) auto auto 52px;
+  row-gap: 2px;
+  align-items: center;
+  padding-bottom: 6px;
+}
+
+.monitor-row.has-err .mon-err {
+  grid-column: 1 / -1;
+  white-space: normal;
+  line-height: 1.35;
+  overflow: visible;
+  text-overflow: clip;
 }
 
 .mon-slider {

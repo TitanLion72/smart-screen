@@ -207,10 +207,12 @@ window.addEventListener("DOMContentLoaded", () => {
       O.log("gece ışığı açılamadı: " + String(e), "bad");
     });
   });
-  // duzeltme v2.2 (E): HDR notundaki bağlantı night-btn ile aynı ayar sayfasını açar.
+  // HDR notundaki bağlantı HDR bölümünü açmalı. Eskiden gece ışığı sayfasını
+  // açıyordu: kullanıcı "HDR'ı kapat" tavsiyesine tıklayıp yanlış sayfaya
+  // düşüyordu (v3.0.2).
   el("warm-hdr-link").addEventListener("click", (e) => {
     e.preventDefault();
-    openUrl("ms-settings:nightlight").catch((err: unknown) => {
+    openUrl("ms-settings:display-advanced").catch((err: unknown) => {
       O.log("HDR ayar sayfası açılamadı: " + String(err), "bad");
     });
   });

@@ -39,7 +39,7 @@ use activity::{
 use autostart::{autostart_status, set_autostart};
 use battery::battery_status as query_battery_status;
 use brightness::{get_brightness, set_brightness};
-use decide::{next_brightness, scene_target, Level, Source};
+use decide::{scene_target, Level, Source};
 use light::{classify, sample_light};
 use logger::{
     clear_log as clear_disk_log, log_tick as write_disk_log, read_lines as read_disk_log,
@@ -308,8 +308,19 @@ async fn decide_target(
 }
 
 #[tauri::command]
-async fn decide_brightness(current: u8, desired: u8, hour: u8, minute: u8) -> u8 {
-    next_brightness(current, desired, hour % 24, minute % 60)
+async fn decide_brightness(
+    current: u8,
+    desired: u8,
+    hour: u8,
+    minute: u8,
+    floor: Option<u8>,
+) -> u8 {
+    // `floor` verilmişse (gece/okuma tavanına göre kırpılmış) onu kullan:
+    // yoksa `min_brightness` kullanıcının tavanını yukarı çekiyordu.
+    match floor {
+        Some(f) => decide::next_brightness_with_floor(current, desired, f.min(100)),
+        None => decide::next_brightness(current, desired, hour % 24, minute % 60),
+    }
 }
 
 /// Olcum seviyesini histerezle gunceller: tek bir gurultulu kare sahneyi
@@ -642,6 +653,32 @@ pub fn run() {
             let quit = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&open, &pause, &dayoff, &separator, &quit])?;
             app.manage(TrayChecks { pause, dayoff });
+            // Menü işaretleri GERÇEK durumla senkron kalsın: tıklama anında
+            // yerel olarak ters çevirmek yetmiyordu (frontend isteği reddederse
+            // — "bugün kapatma etkinken 1 saat" gibi — işaret yalan söylüyordu).
+            // Frontend her durum değişiminde `ss:state` yayıyor; buradan okuyoruz.
+            use tauri::Listener;
+            let listen_handle = app.handle().clone();
+            app.listen("ss:state", move |event| {
+                let Some(state) = listen_handle.try_state::<TrayChecks>() else {
+                    return;
+                };
+                let Ok(payload) = serde_json::from_str::<serde_json::Value>(event.payload()) else {
+                    return;
+                };
+                let paused = payload
+                    .get("pausedUntil")
+                    .map(|v| !v.is_null())
+                    .unwrap_or(false);
+                let day_off = payload
+                    .get("dayOff")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                // "1 saat" işareti yalnız saatlik duraklamayı gösterir; "Bugün
+                // kapat" ayrı ögedir (ikisi aynı anda işaretli görünmemeli).
+                let _ = state.pause.set_checked(paused && !day_off);
+                let _ = state.dayoff.set_checked(day_off);
+            });
             TrayIconBuilder::new()
                 .menu(&menu)
                 // Sol tık flyout açar; menü yalnız sağ tıkla çıkar.
@@ -662,7 +699,13 @@ pub fn run() {
                         }
                         let _ = app.emit("ss:action", serde_json::json!({ "action": "day-off" }));
                     }
-                    "quit" => app.exit(0),
+                    "quit" => {
+                        // Sıcak ton açıkken çıkılırsa ekran sarı kalmasın: rampa
+                        // geri yazılmadan süreç kapanmamalı. `gamma_restore`
+                        // komutuna bağlıydı, tray "Çıkış" onu atlıyordu.
+                        let _ = gamma::restore_original();
+                        app.exit(0);
+                    }
                     _ => {}
                 })
                 .on_tray_icon_event(|tray, event| {

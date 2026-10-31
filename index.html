@@ -122,10 +122,11 @@
   #hero-sub        | div        | YENİ: TEK satır özet — "Ulaşılmak istenen %30 · 06:00'da değişecek" | text (JS hedef + nextWarmthChange birleştirir)
   #why-line        | span       | neden satırı ("ölçüme göre akıyor" / "kilitli — dokunmuyoruz") | text
   #sub-bright      | div        | GERİYE UYUM: hedef satırı — hidden gelir, JS açmaz | text (panels.ts temizlenince kaldırılır)
-  #hero-curve      | svg        | YENİ: ışık→parlaklık→sarılık eğrisi (viewBox 0 0 264 96, aria-hidden) | dekoratif; JS günceller:
+  #hero-curve      | svg        | YENİ: ışık→parlaklık→sarılık eğrisi (viewBox 0 0 264 84, aria-hidden) | dekoratif; JS günceller:
                      kök data-* : data-now (dakika 0–1440), data-light / data-bright / data-warm (0–100).
-                     Noktalar: #hc-light, #hc-bright, #hc-warm (circle) — cx = 16 + now/1440×232,
-                     cy = 84 − değer/100×72. Yollar: #hc-light-path, #hc-bright-path, #hc-warm-path
+                     Geometri (gerçek): eksen y=82, üst sınır y=6.
+                     Noktalar: #hc-light, #hc-bright, #hc-warm (circle) — cx = now/1440×264,
+                     cy = 82 − değer/100×74. Yollar: #hc-light-path, #hc-bright-path, #hc-warm-path
                      (path d, JS gün eğrisini yeniden çizer). Renkler CSS'te (.hc-light/.hc-bright/.hc-warm).
   #hc-light        | circle     | YENİ: eğri üzerinde ışık noktası       | cx/cy (JS)
   #hc-bright       | circle     | YENİ: eğri üzerinde parlaklık noktası  | cx/cy (JS)

@@ -7,7 +7,7 @@ Oyun / video / PDF açıkken veya kilitliyken hiçbir şeye dokunmaz. Göz sağl
 - Platform: Windows (Tauri v2, Rust backend, vanilla TS frontend)
 - Tek pencere, serbest boyutlandırılabilir (min 760×600): alt dock + dört bölüm
   (**Durum / Profiller / Geçmiş / Ayarlar**)
-- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v3.0.1)
+- Yayınlar: [GitHub Releases](https://github.com/TitanLion72/smart-screen/releases) (v0.1.0 → v3.0.2)
 
 ## Kurulum (kullanıcı)
 
@@ -164,7 +164,7 @@ npm.cmd run tauri dev  # dev pencere
 
 # Testler
 npm.cmd test                       # karar motoru (15)
-cd src-tauri; cargo test; cd ..    # backend (218 + 2 canlı test; `-- --ignored` sürücü testi)
+cd src-tauri; cargo test; cd ..    # backend (219 + 2 canlı test; `-- --ignored` sürücü testi)
 npm.cmd run build                  # tsc + vite → dist/
 cd qa && node run.mjs              # görsel/işlevsel QA (22 senaryo)
 ```

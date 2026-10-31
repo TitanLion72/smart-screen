@@ -15,6 +15,62 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.0.2] - 2026-10-31
+
+"Toparlama" — kod incelemesi + canlı ekran taraması: 9 davranış hatası, 3 UI hatası.
+
+### Fixed
+- **Gece tavanı fiilen çalışmıyordu.** `finalTarget` tavanı uyguladıktan sonra
+  alt sınırı (01:31–07:00 arası 25) uyguluyordu; kullanıcı tavanı 15 yapsa da
+  ekran 25'te kalıyordu. Rust tarafı da `min_brightness`'ı yeniden hesaplayıp
+  hedefi yukarı çekiyordu. Tavan artık alt sınırı kırpıyor ve kırpılmış değer
+  `decide_brightness`'a açıkça geçiyor (`next_brightness_with_floor` + test).
+- **Hero eğrisi eski 0–45 ölçeğindeydi.** Çapalar `warmth_auto` ile uyuşmuyordu
+  (gerçek tepe 88, çizilen 40) ve `data-warm` yanlış değer taşıyordu. Çapalar
+  backend ile birebir, ölçek 0–100, geometri gerçek viewBox (264×84, eksen 82).
+- **Duraklatma/kilit oyun parlaklığını geri almıyordu.** Video sırasında %100'e
+  çıkan parlaklık "1 saat duraklat" veya "Kilitli" sonrası %100'de takılı
+  kalıyordu. İki erken dönüşte de `gameBoostOff()` çağrılıyor.
+- **Profil kartı kayıttan sonra bayat kalıyordu.** Render imzası yalnız
+  `id:ad` idi; mod/tema/ofset değişince kart eski değeri gösteriyordu. İmza
+  kartta görünen tüm alanları kapsıyor.
+- **Tray "1 saat"/"Bugün" işaretleri gerçek durumla senkron değildi.** Tıklama
+  anında ters çevriliyordu; frontend isteği reddettiğinde (bugün kapatma
+  etkinken saatlik duraklatma) işaret yalan söylüyordu. Artık `ss:state`
+  yayınından okunuyor.
+- **Profil "Uygula" başarısız yazmayı başarı sayıyordu.** `appliedKey` promise
+  beklenmeden atanıyordu; `cli.json` yazılamazsa arayüz ve disk log uygulanmamış
+  temayı "uygulanmış" gösteriyordu. Artık yalnız başarılı yazmada güncelleniyor.
+- **Okuma profili öğrenilmiş tercihe yazılıyordu.** Geçici kip tema niyeti
+  değildir; `ss-dusk` öğrenilip akşam sahnenin `ss-night` kararını ezip kalıcı
+  hale geliyordu (`pickTheme(..., { learn: false })`).
+- **Sıcak ton açıkken çıkışta ekran sarı kalıyordu.** Tray "Çıkış" `gamma_restore`
+  çağırmıyordu; artık rampa geri yazılıyor.
+- **Flyout'tan yapılan parlaklık değişikliği "dış müdahale" sayılıyordu.**
+  `lastWritten` güncellenmediği için döngü 15 dk saygı penceresi açıyor,
+  otomasyon sessizce duruyordu.
+- **Yarım kalan kimlik göçü kalıcı hale geliyordu.** Kilitli bir dosya
+  kopyalanamazsa bile işaret yazılıyor, eksik veri (localStorage) bir daha
+  denenmiyordu. Artık kopyalanamayan varsa işaret yazılmaz; sonraki açılış
+  yalnız eksikleri tamamlar.
+- **"HDR ayarlarını aç" yanlış sayfayı açıyordu** (gece ışığı). Artık
+  `ms-settings:display-advanced`.
+- **Ofset düğmeleri çöp kalibrasyon verisi yazıyordu.** Taslak ofsetini
+  değiştirip global (eski) ofsetle öğreniyordu; öğrenme artık kayıtta, doğru
+  tabanla.
+
+### Changed
+- **Hero içeriği dikeyde ortalanır.** 360px'lik kartın alt yarısı boş
+  kalıyordu (maximize pencerede bariz).
+- **Tek monitörde monitör kartı içeriği kadar yer kaplar** (`align-self: start`
+  + `max-height`), altında ölü boşluk kalmaz.
+- **Uzun monitör hata metni kendi satırında okunur** (eskiden "DDC/CI bu
+  monitorda çalışmıyor (OSD'den …" diye kırpılıyordu).
+
+### Added
+- `qa/cdp-localstorage.mjs --screenshot <yol>` — çalışan uygulamadan anlık kare
+  (canlı UI doğrulaması; QA kareleri stub veriyle çalışır).
+
 ## [3.0.1] - 2026-10-31
 
 "Cila" — sahada bulunan üç davranış hatası ve eksik geri alma yolları.

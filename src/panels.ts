@@ -40,7 +40,6 @@ import {
   deleteDraft,
   duplicateDraft,
   fixRisk,
-  learnBrightness,
   loadAudit,
   loadHistory,
   nextWarmthChange,
@@ -667,6 +666,9 @@ function rebuildMonitorRows(): void {
     val.textContent = "%-";
     const err = document.createElement("span");
     err.className = "mon-err";
+    // Hata metni kendi satırına geçer (aşağıdaki CSS): 1.1fr'lik sütunda
+    // "DDC/CI bu monitorda çalışmıyor (OSD'den …" diye kırpılıyordu ve
+    // kullanıcı ne olduğunu okuyamıyordu.
     row.append(name, kind, ct, val, err);
     row.addEventListener("click", () => void selectMonitor(m.info.id));
     host.append(row);
@@ -685,6 +687,8 @@ function renderMonitors(): void {
     if (!els) continue;
     els.row.classList.toggle("active", m.info.id === S.monitorSel);
     els.row.classList.toggle("bad", m.error !== null);
+    // Hata varsa satır iki satıra açılır (CSS): mesaj kırpılmaz.
+    els.row.classList.toggle("has-err", m.error !== null);
     // HDR açık monitör satırı soluk: otomasyon oraya sıcak ton yazamaz.
     els.row.classList.toggle("hdr", m.hdr);
     els.row.title = m.error ?? m.info.id;
@@ -773,8 +777,16 @@ function renderProfileCards(): void {
 }
 
 function renderProfiles(): void {
-  const sig = `${S.profiles.map((p) => `${p.id}:${p.name}`).join("|")}@${S.activeId}`;
-  if (sig !== pfCardsSig) {
+  // İmza kartta GÖRÜNEN her alanı kapsamalı: mod/tema/şerit/ofset/bağlı
+  // uygulama sayısı. Yalnız id+ad olsaydı, kaydettikten sonra kart "eski
+  // tema" gösterip ekranda bayat kalırdı ("diske yazdım ≠ ekranda göründü").
+  const sig =
+    S.profiles
+      .map(
+        (p) =>
+          `${p.id}:${p.name}:${p.mode}:${p.theme}:${p.themeMode}:${p.offset}:${p.autoLock ? 1 : 0}:${(p.apps ?? []).length}`,
+      )
+      .join("|") + `@${S.activeId}`;  if (sig !== pfCardsSig) {
     pfCardsSig = sig;
     renderProfileCards();
   }
@@ -925,12 +937,14 @@ function renderHero(): void {
 
 /**
  * Hero eğrisi: gün boyunca ekran sarılığı (tek eğri).
- * Çapa noktaları `src-tauri/src/decide.rs` ANCHORS ile BİREBİR aynıdır —
- * uydurma eğri çizmiyoruz, backend'in gerçek karar eğrisini gösteriyoruz.
+ * Çapa noktaları `src-tauri/src/decide.rs::warmth_auto` ANCHORS ile BİREBİR
+ * aynıdır — uydurma eğri çizmiyoruz, backend'in gerçek karar eğrisini
+ * gösteriyoruz. Ölçek 0–100'dür (v3.0.2'ye kadar eski 0–45 ölçeği kalmıştı;
+ * eğri gerçekte olduğundan çok daha düz görünüyordu ve `data-warm` yanlıştı).
  */
 const WARM_ANCHORS: Array<[number, number]> = [
-  [0, 40], [300, 40], [360, 25], [420, 10], [480, 0],
-  [900, 0], [1020, 10], [1140, 25], [1260, 35], [1380, 40], [1440, 40],
+  [0, 88], [300, 88], [360, 56], [420, 22], [480, 0], [900, 0],
+  [1020, 22], [1140, 56], [1260, 78], [1380, 88], [1440, 88],
 ];
 
 function warmAt(minute: number): number {
@@ -952,7 +966,9 @@ function renderHeroCurve(): void {
   const now = new Date();
   const minute = now.getHours() * 60 + now.getMinutes();
   const xOf = (m: number): number => (m / 1440) * 264;
-  const yOf = (v: number): number => 82 - (v / 45) * 74; // tavan 45 (decide.rs), eksen y=82
+  // Gerçek SVG geometrisi (index.html · #hero-curve): viewBox 264×84, eksen
+  // y=82, üst sınır y=6. Değer 0–100 → y 82–8.
+  const yOf = (v: number): number => 82 - (v / 100) * 74;
 
   // Eğri: her 10 dakikada bir örnekle (147 nokta, düzgün).
   const pts: string[] = [];
@@ -1526,12 +1542,9 @@ export function wireButtons(): void {
 
   btnEl("pf-off-minus").addEventListener("click", () => {
     updateDraft({ offset: Math.max(-20, S.draft.offset - 5) });
-    // stabilite (c): ofset düzeltmesi BİLİNÇLİ kalibrasyondur — öğrenmeye devam.
-    void learnBrightness();
   });
   btnEl("pf-off-plus").addEventListener("click", () => {
     updateDraft({ offset: Math.min(20, S.draft.offset + 5) });
-    void learnBrightness();
   });
 
   // v2.4 (inceleme #3): setWarmPercent zaten applyWarmth çağırıyor; buradaki

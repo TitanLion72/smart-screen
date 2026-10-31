@@ -929,7 +929,7 @@ export async function toggleReading(): Promise<void> {
       S.warmMode = "fixed";
       setSetting("warmMode", "fixed");
       await applyWarmth();
-      await pickTheme("ss-dusk", "dark");
+      await pickTheme("ss-dusk", "dark", { learn: false });
       await setAnimations(false, true);
       log("okuma profili: sıcak sakin tema, düşük tavan, animasyon kapalı", "ok");
       toast.info("Okuma profili açıldı");
@@ -979,10 +979,14 @@ async function pushUndo(currentName: string, currentValue: number): Promise<void
   render();
 }
 
-export async function pickTheme(name: string, themeMode: string): Promise<void> {
+export async function pickTheme(
+  name: string,
+  themeMode: string,
+  opts: { learn?: boolean } = {},
+): Promise<void> {
   try {
     const current = await invoke<number>("brightness_get");
-    // stabilite: appliedKey yoksa (soğuk açılış) geri alınacak tema yoktur —
+    // stabilite: appliedKey yoksa (soğuk açılış) geri alınacak tema yoktur -
     // pushUndo aynı temaya dönen anlamsız kayıt yazmasın.
     if (S.appliedKey) {
       await pushUndo(S.appliedKey.split("|")[0], current);
@@ -993,8 +997,13 @@ export async function pickTheme(name: string, themeMode: string): Promise<void> 
     S.pendingKey = null;
     S.pendingCount = 0;
     S.lastPendingNote = null;
-    const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
-    await invoke("pref_learn", { hour: new Date().getHours(), light, name, mode: themeMode });
+    // `learn: false` — okuma profili gibi geçici kip kullanıcı tema tercihi
+    // DEĞİLDİR. Öğrenilirse akşam açılan okuma profili (`ss-dusk`) sonradan
+    // `pref_get` ile sahnenin `ss-night` kararını ezip kalıcı hale gelirdi.
+    if (opts.learn !== false) {
+      const light = S.lastCam ? `${S.lastCam.level}/${S.lastCam.tone}` : "unknown";
+      await invoke("pref_learn", { hour: new Date().getHours(), light, name, mode: themeMode });
+    }
     log(`elle tema: ${name} (${themeMode})`, "ok");
     // stabilite (c): elle tema seçimi parlaklık kalibrasyonunu KİRLETMEZ —
     // learnBrightness burada çağrılmaz; kalibrasyon yalnız bilinçli parlaklık
@@ -1466,6 +1475,10 @@ export function noteExternalBrightness(value: number): void {
   const v = Math.max(0, Math.min(100, Math.round(value)));
   if (!Number.isFinite(v)) return;
   S.lastAppliedBright = v;
+  // Flyout'tan gelen değişiklik BİZİM yazımımızdır: `lastWritten` güncellenmezse
+  // döngü bunu "dış müdahale" sanıp 15 dk saygı penceresi açıyordu; kullanıcı
+  // flyout'ta parlaklığı değiştirince otomasyon sessizce duruyordu.
+  S.lastWritten = { value: v, at: Date.now() };
   render();
 }
 
@@ -1564,12 +1577,20 @@ async function gameBoostOff(): Promise<void> {
 
 async function runTick(reason: string): Promise<void> {
   S.lastAct = Date.now();
-  S.freezeReason = null;  if (isPaused()) {
+  S.freezeReason = null;
+  if (isPaused()) {
+    // Oyun/video %100 parlaklığa çıkardıysa duraklatma onu geri almalı;
+    // yoksa "1 saat duraklat" dedikten sonra ekran %100'de takılı kalır
+    // (gece parlaması, kilit kuralının ihlali).
+    await gameBoostOff();
     resetPending();
     log("duraklatıldı, atlandı", "warn");
     await refresh();
     return;
   }
+  // Kullanıcı kilidi de aynı kurala tabidir: kilitliyken parlaklık yazılmaz,
+  // dolayısıyla oyun boost'u açık kalmamalı.
+  if (S.locked) await gameBoostOff();
   // Uygulamaya bağlı profil: dondurma kuralları dışında bu turu yönetir.
   const exe = await foregroundExe();
   const bound = exe ? S.profiles.find((p) => (p.apps ?? []).includes(exe)) ?? null : null;
@@ -1783,8 +1804,12 @@ async function runTick(reason: string): Promise<void> {
 
     // Nihai hedef: taban + delta + ofset; gece/okuma tavanı ve okunaksız
     // kombinasyon kapısı motor kurallarıyla (engine.ts).
-    const floor = await invoke<number>("brightness_floor", { hour, minute }).catch(() => 0);
+    const floorRaw = await invoke<number>("brightness_floor", { hour, minute }).catch(() => 0);
     const cap = comfortCap(hour);
+    // Alt sınır tavana göre kırpılır: Rust da aynı değeri almalı, yoksa
+    // `next_brightness` hedefi yeniden 25'e çekip gece tavanını iptal ediyordu
+    // (v3.0.2: kullanıcı 15 yazsa da ekran 25'te kalıyordu).
+    const floor = cap === null ? floorRaw : Math.min(floorRaw, cap);
     const target = finalTarget({
       base: desired,
       learnDelta: learnedDelta,
@@ -1895,6 +1920,9 @@ async function runTick(reason: string): Promise<void> {
           desired: target,
           hour,
           minute,
+          // Rust `min_brightness`'ı kendi hesaplarsa gece tavanını yeniden
+          // yükseltir; tavan-kırpılmış alt sınırı açıkça geçiyoruz.
+          floor,
         });
         if (lowPower) next = Math.round(current + (next - current) / 2);
         if (next !== current) {
@@ -2502,10 +2530,18 @@ export function applyProfile(p: Profile): void {
   setSetting("mode", S.mode);
   setSetting("source", S.source);
   setSetting("brightOffset", String(S.offset));
-  void invoke("theme_set", { name: p.theme, mode: p.themeMode }).catch((e) =>
-    log("tema değişmedi: " + String(e), "bad"),
-  );
-  S.appliedKey = `${p.theme}|${p.themeMode}`;
+  const key = `${p.theme}|${p.themeMode}`;
+  // `appliedKey` YALNIZ yazma başarılıysa güncellenir. Eskiden promise
+  // beklenmeden yazılıyordu: `cli.json` yok/bozuksa arayüz ve disk log
+  // uygulanmamış temayı "uygulanmış" gösteriyor, dwell de yanlış hesaplanıyordu.
+  void invoke("theme_set", { name: p.theme, mode: p.themeMode })
+    .then(() => {
+      S.appliedKey = key;
+      S.lastThemeAt = Date.now();
+      void diskLog(`profil ${p.name}`, 0, S.lastAppliedBright, key);
+      render();
+    })
+    .catch((e) => log("tema değişmedi: " + String(e), "bad"));
   resetPending();
   if (!S.editorDirty) {
     S.draft = { ...p };
@@ -2514,7 +2550,6 @@ export function applyProfile(p: Profile): void {
   log(`profil uygulandı: ${p.name}`, "ok");
   // duzeltme v2.2 (D): profil uygulama artık toast ile de görünür.
   toast.ok(`${p.name} profili uygulandı`);
-  void diskLog(`profil ${p.name}`, 0, S.lastAppliedBright, S.appliedKey);
   render();
   void tick("profil");
 }
@@ -2530,6 +2565,7 @@ export function saveDraft(name: string, apps: string[]): void {
   toast.ok("Profil kaydedildi");
   // Aktif profil kaydedildiyse global state'i de ona göre senkronla.
   if (S.draft.id === S.activeId) {
+    const offsetChanged = S.offset !== S.draft.offset;
     S.mode = S.draft.mode;
     S.source = S.draft.source;
     S.offset = S.draft.offset;
@@ -2541,6 +2577,10 @@ export function saveDraft(name: string, apps: string[]): void {
     );
     S.appliedKey = `${S.draft.theme}|${S.draft.themeMode}`;
     resetPending();
+    // Kalibrasyon yalnız KAYDEDİLEN ve aktif olan ofsetten öğrenilir. Ofset
+    // düğmeleri taslağı değiştiriyordu; orada `learnBrightness` çağrıldığında
+    // gözlem yanlış tabana (S.offset) göre yazılıyordu — ~0 puanlık çöp veri.
+    if (offsetChanged) void learnBrightness();
   }
   renderEditor();
   render();
