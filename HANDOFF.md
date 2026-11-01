@@ -1,4 +1,4 @@
-# HANDOFF — smart-screen (güncel: v3.0.3, 2026-11-01)
+# HANDOFF — smart-screen (güncel: v3.1.0, 2026-11-01)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -22,9 +22,9 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
-## Güncel durum: v3.0.3 — gerçekten geçerli sınırlar
+## Güncel durum: v3.1.0 — gerçekten geçerli sınırlar
 
-`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.3**. Aşağısı tur
+`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
 "Bilinen sınırlar" başlıkları o günü anlatır, bugünü değil** — örneğin orada
 "gamma gözle doğrulanmadı" ve "otomatik seçim hâlâ eski temaları seçiyor"
@@ -42,8 +42,11 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
   (SignPath Foundation ücretsiz; Certum ≈ €49/yıl; Azure Artifact Signing
   Türkiye'den bireysel/kurumsal başvuruya kapalı). Güncelleme paketi ayrıca
   minisign ile imzalı ve uygulama içinde doğrulanır.
-- **Pro anahtarı elle üretiliyor.** `node tools/license-gen.mjs --email ...`;
-  mağaza/ödeme akışı yok. Lisans offline Ed25519, sunucu yok (bilinçli tasarım).
+- **Pro anahtarı elle üretiliyor.** `node tools/license-batch.mjs --orders …` ile
+  toplu, `tools/license-gen.mjs` ile tek anahtar; **mağaza/ödeme entegrasyonu
+  yok**. Satın alma düğmesi `src/catalog.ts` → `PURCHASE_URL` sabitini açar;
+  ödeme sağlayıcı seçilince o tek satır değişir. Lisans offline Ed25519, sunucu
+  yok (bilinçli tasarım).
 - **Windows gece ışığı yalnız okunur.** Belgesiz registry blob'u; tanınmayan
   şema "bilinmiyor" döner, tahmin edilmez. Bu makinede blob boş.
 - **Harici renk sıcaklığı panelin VCP 0x0C desteğine bağlı.** Canlı log:
@@ -61,6 +64,68 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
 - **Tek pencere, min 760×600.** Dört bölüm (Durum/Profiller/Geçmiş/Ayarlar) alt
   dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
 - **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
+
+## V3.1.0 TURU (2026-11-01) — "satışa hazır": güncelleme, tema, lisans, ikon
+
+**Tetik:** kullanıcı dört iş sıraladı: (1) güncelleme tuşu eksik, (2) uygulamanın
+kendi teması da zamana göre ayarlansın, (3) Pro lisans işi halledilsin,
+(4) uygulamaya ikon.
+
+**1. Elle güncelleme denetimi.** Zamanlanmış kontrol 24 saatte bir ve açılıştan
+10 sn sonra çalışıyor; "yeni sürüm çıktı mı?" diye bakmak isteyen için pratikte
+tek yol uygulamayı yeniden başlatmaktı. Hakkında'ya düğme eklendi: anında
+`check()`, sonuç ("güncel" / "yeni sürüm var") ve **son kontrol saati**
+(`ss:updateLastCheck`). Elle kontrol ertelemeyi (snooze) bilerek yok sayar —
+kullanıcı açıkça istedi.
+
+**2. Tema artık kendi kendine akıyor.** `autoPalette` varsayılanı "0"dı; ayarı
+bulup açmayan kullanıcıda palet gün boyu sabit kalıyordu. Artık varsayılan AÇIK.
+Bu sırada palet seçimi `orchestr.ts`ten `engine.ts`e taşındı: orchestr Tauri
+import ettiği için `npm test` altında çalışmıyordu, yani saat aralıkları hiç
+test edilmiyordu. Yeni testler: gece (20:00–07:00) asla açık palet seçilmiyor,
+etiket ile palet çelişmiyor, bozuk saat çevrimsel kelepçeleniyor.
+
+**3. Pro lisans akışı.** Üç parça:
+- **UI**: kart artık ne dahil / ne Pro olduğunu listeliyor, "Anahtarım var"
+  (girişe odaklar) + "Pro'yu al" (satın alma sayfası), Enter ile etkinleştirme.
+  Pro etkinken bu düğmeler ve liste gizleniyor.
+- **`tools/license-batch.mjs`**: sipariş CSV'sinden toplu anahtar. Var olan çıktı
+  dosyasının üzerine **yazmıyor** — anahtar arşivi, sessizce ezilmemeli.
+- **`tools/license-check.mjs`**: gelen anahtarı **özel anahtar olmadan** doğrular
+  (gömülü açık anahtar, `PROD_PUBLIC_KEY` ile birebir). Destek için "bu anahtar
+  bizim mi?" sorusunu uygulamayı açmadan cevaplar.
+- Satın alma adresi `PURCHASE_URL` (src/catalog.ts), tek satır: ödeme sağlayıcı
+  seçilince değişecek. Şu an GitHub sayfasına gidiyor — **olmayan bir satış
+  sayfasını varmış gibi göstermemek için**.
+
+**4. İkon.** Görsel üretimi (model) bakiye yokluğuyla düştü; zaten geometrik mark
+için SVG daha doğru: her boyutta keskin, sürüm kontrolünde diff'i okunur.
+`assets/icon.svg` tek kaynak, `tools/make-icon.mjs` Playwright ile çizip 14 PNG
++ `icon.ico` (16–256 gömülü) + 9 Store logosu üretiyor. 32px ve 16px'te okunurluk
+gözle doğrulandı (monitör çerçevesi + sensör noktası net).
+
+**Yol boyu bulunan hata:** "Günün rengi" her otomatik palet değişiminde
+"Renkler: …" toast'ı çıkarıyordu. Saat başı bildirim gürültüsü — otomatik
+değişim sessiz olmalı, toast yalnız elle seçimde.
+
+**Ders (kalıcı)**
+1. **Saf mantık, Tauri import eden modülde test edilemez.** `paletteForHour`
+   orchestr'daydı; `npm test` hiç görmüyordu. Motora taşındı, iki test eklendi.
+   "Ayar var" ≠ "ayar doğru çalışıyor" — ölçen test yoksa bilinmiyor.
+2. **Varsayılan, ürünün davranışıdır.** `autoPalette: "0"` yüzünden özellik
+   vardı ama kimse görmedi. İyi bir varsayılan, özellik eklemekten daha çok
+   değer üretir.
+3. **Arşiv dosyasının üzerine yazmak veri kaybıdır.** `license-batch` çıktı
+   dosyası varsa durur; anahtar listesi yeniden üretilemez (Ed25519 imzası
+   zaman damgasına bağlı değil ama kayıt kaybolur).
+4. **Doğrulayıcı özel anahtar istememeli.** Destek ekibi gizli anahtara
+   dokunmadan "bu anahtar bizim mi?" diyebilmeli — açık anahtar yeter.
+
+**Doğrulama:** `npm test` 25/25 · `cargo test` 219+2 · clippy/fmt temiz ·
+`check:tokens`/`check:security`/`test:security` PASS · `qa/run.mjs` 24 senaryo
+PASS (güncelleme düğmesi + günün rengi dahil) · 5 audit aracı PASS ·
+`license-check` gerçek anahtarla GEÇERLİ · toplu üretim + doğrulama uçtan uca
+(3 anahtar, 3/3 geçerli) · ikon 32px gözle kontrol.
 
 ## V3.0.3 TURU (2026-11-01) — "yerleşim": iki şablonun üst bölümü
 

@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024" role="img" aria-label="smart-screen">
+  <!--
+    smart-screen ikonu — elle çizilmiş geometrik mark (v3.1).
+    Tek kaynak: bu dosya. `node tools/make-icon.mjs` bunu çizip
+    src-tauri/icons altındaki tüm boyutları (png/ico) üretir.
+
+    Fikir: bir ekran çerçevesi ve ortasında ışık sensörü; arkasındaki hâle
+    gündüz→gece geçişini anlatır (sol-alt sıcak, sağ-üst soğuk).
+
+    32px'te okunur kalsın diye: tek kalın çerçeve, tek daire, hâle ÇOK soluk
+    (kontrastı bozmasın). Ayak yok — kalabalık yapıyordu.
+  -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1c1815"/>
+      <stop offset="1" stop-color="#0d0b0a"/>
+    </linearGradient>
+    <!-- Hâle: sol-alt sıcak (akşam), sağ-üst soğuk (gündüz). -->
+    <linearGradient id="halo" x1="0.2" y1="0.9" x2="0.8" y2="0.1">
+      <stop offset="0" stop-color="#e8a26a"/>
+      <stop offset="0.5" stop-color="#d8b98a"/>
+      <stop offset="1" stop-color="#7d9cc4"/>
+    </linearGradient>
+    <linearGradient id="frame" x1="0.1" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#fbf7f0"/>
+      <stop offset="1" stop-color="#cbbfa9"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0.7" y2="1">
+      <stop offset="0" stop-color="#d8b98a" stop-opacity="0.14"/>
+      <stop offset="1" stop-color="#7d9cc4" stop-opacity="0.10"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.44" r="0.58">
+      <stop offset="0" stop-color="#d8b98a" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#d8b98a" stop-opacity="0"/>
+    </radialGradient>
+    <!-- Hâle çizgisi ekranın ARKASINDAN geçiyor gibi dursun: maske ile alt
+         yarısı yumuşatılıyor (üstte belirgin, altta kaybolur). -->
+    <mask id="haloMask">
+      <rect x="0" y="0" width="1024" height="1024" fill="white"/>
+      <rect x="212" y="286" width="600" height="416" rx="56" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Yuvarlatılmış kare zemin -->
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="url(#bg)"/>
+  <rect x="0" y="0" width="1024" height="1024" rx="232" fill="url(#glow)"/>
+
+  <!-- Işık halesi: ekranın arkasında, çerçevenin dışında kalan halka -->
+  <g mask="url(#haloMask)">
+    <circle cx="512" cy="488" r="286" fill="none" stroke="url(#halo)"
+            stroke-width="30" opacity="0.42"/>
+  </g>
+
+  <!-- Ekran çerçevesi -->
+  <rect x="212" y="286" width="600" height="416" rx="56"
+        fill="url(#screen)" stroke="url(#frame)" stroke-width="28"/>
+
+  <!-- Işık sensörü: dış halka + iç nokta -->
+  <circle cx="512" cy="494" r="82" fill="none" stroke="url(#frame)"
+          stroke-width="26" opacity="0.92"/>
+  <circle cx="512" cy="494" r="30" fill="url(#frame)"/>
+</svg>

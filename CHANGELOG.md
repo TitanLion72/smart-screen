@@ -15,6 +15,44 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.1.0] - 2026-11-01
+
+"Satışa hazır" — elle güncelleme denetimi, kendi kendine akan tema, Pro
+satın alma akışı ve yeni uygulama ikonu.
+
+### Added
+- **Güncellemeyi elle denetle** (Ayarlar → Gelişmiş → Hakkında). Zamanlanmış
+  kontrol 24 saatte bir ve açılıştan 10 sn sonra çalışıyordu; "yeni sürüm çıktı
+  mı?" diye bakmak isteyen kullanıcının pratikte uygulamayı yeniden başlatmaktan
+  başka yolu yoktu. Yeni düğme anında denetler, sonucu ("güncel" / "yeni sürüm
+  var") ve son kontrol saatini gösterir.
+- **Pro satın alma akışı.** Lisans kartı artık üç adımlı ve anlaşılır:
+  ne dahil (ücretsiz ✓ / Pro ●), **Anahtarım var** (girişe odaklanır) ve
+  **Pro'yu al** (satın alma sayfasını açar). Anahtar girişinde **Enter**
+  etkinleştirir. Pro etkinken bu düğmeler ve özellik listesi gizlenir.
+- `tools/license-batch.mjs` — sipariş listesinden (csv/txt) toplu anahtar üretir,
+  `email,date,key` CSV'si yazar. Var olan çıktı dosyasının üzerine **yazmaz**
+  (anahtar kaybı olmasın), `--dry-run` ile önizleme verir.
+- `tools/license-check.mjs` — gelen anahtarı **özel anahtar olmadan** doğrular
+  (gömülü açık anahtar); destek için "bu anahtar bizim mi?" sorusunu cevaplar.
+- `tools/make-icon.mjs` + `assets/icon.svg` — ikonun tek kaynağı SVG; araç
+  Playwright ile çizip `src-tauri/icons/` altındaki tüm PNG'leri, `icon.ico`
+  (16–256) ve Store logolarını üretir. `--check` eksikleri listeler.
+
+### Changed
+- **"Günün rengi" artık varsayılan AÇIK.** Uygulamanın kendi teması da saate
+  göre akıyor (sabah aydınlık, gündüz nötr, akşam sıcak, gece derin). Elle
+  seçim 10 dk korunur; kapatan kullanıcı için ayar yerinde.
+- **Yeni uygulama ikonu**: ekran çerçevesi + ışık sensörü, arkasında gündüz→gece
+  geçişini anlatan hâle. 32px ve 16px'te okunur kalacak şekilde sadeleştirildi.
+- Palet seçimi motoruna taşındı (`engine.paletteForHour`), böylece `npm test`
+  saat aralıklarını doğruluyor: gece asla açık palet seçilmiyor, etiket ile
+  palet çelişmiyor.
+- Otomatik palet değişimi artık toast çıkarmıyor (saat başı bildirim gürültüsü).
+
+### Fixed
+- Palet değişimi toast'ı otomatik değişimde de çıkıyordu; artık yalnız elle seçimde.
+
 ## [3.0.3] - 2026-11-01
 
 "Yerleşim" — kullanıcı iki ekran görüntüsüyle bildirdi: dergi ve sahne

@@ -715,7 +715,10 @@ async function run() {
     await page.locator("#lic-activate").click();
     await page.waitForTimeout(400);
     const lic = await text(page, "#lic-status");
-    check(lic.includes("Pro") && lic.includes("qa@test.local"), "lisans", `etkinlesen kart eksik: ${lic}`);
+    check(lic.includes("qa@test.local"), "lisans", `etkinlesen kart eksik: ${lic}`);
+    check((await text(page, "#lic-badge")) === "pro", "lisans", "pro rozeti gelmedi");
+    check(await page.locator("#lic-activate-row").isHidden(), "lisans", "Pro'da anahtar girişi hâlâ görünür");
+    check(await page.locator("#lic-buy").isHidden(), "lisans", "Pro'da 'Pro'yu al' hâlâ görünür");
     check(await page.locator("#lic-err").isHidden(), "lisans", "etkinlesten sonra hata hala gorunuyor");
     check(await page.locator("#lic-deactivate").isVisible(), "lisans", "etkinlesten sonra Kaldir gorunmedi");
 
@@ -1173,7 +1176,29 @@ async function run() {
   });
 
   // 13. Güncelleme bandı: check sürüm döndürünce band açılır, ertele gizler.
-  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, shot }) => {
+  await scenario("catppuccin-macchiato", "dark", async ({ page, invocations, openTab, openAdvanced, shot }) => {
+    // v3.1: Hakkında'daki elle denetim düğmesi — zamanlanmış kontrolü beklemeden
+    // "yeni sürüm var mı?" sorusuna cevap (eskiden 24 saat / 10 sn beklemek
+    // gerekiyordu, pratikte uygulamayı yeniden başlatmak).
+    await openTab("settings");
+    await openAdvanced();
+    const checkBefore = (await invocations()).filter(([c]) => c === "plugin:updater|check").length;
+    await page.locator("#about-check-update").click();
+    await page.waitForTimeout(700);
+    const checkAfter = (await invocations()).filter(([c]) => c === "plugin:updater|check").length;
+    check(checkAfter > checkBefore, "guncelleme", "elle denetim plugin:updater|check çağırmadı");
+    check(
+      await page.locator("#update-band").isVisible(),
+      "guncelleme",
+      "elle denetim güncelleme bandını açmadı",
+    );
+    const stText = await text(page, "#about-update-status");
+    check(stText.includes("yeni sürüm"), "guncelleme", `durum metni güncellenmedi: "${stText}"`);
+    check(
+      !(await page.locator("#about-check-update").isDisabled()),
+      "guncelleme",
+      "denetim sonrası düğme kilitli kaldı",
+    );
     // İlk kontrol açılıştan 10 sn sonra gelir; QA o kadar bekler.
     await page.waitForTimeout(10_500);
     const checked = (await invocations()).some(([c]) => c === "plugin:updater|check");
@@ -1618,6 +1643,36 @@ async function run() {
     }
     check(applied !== null, "bagim-tema", "bağlı profilin teması 75 sn içinde uygulanmadı (dwell'e takılıyor)");
   }, "firefox.exe");
+
+  // 21d. "Günün rengi" (v3.1): varsayılan AÇIK, nota saat dilimi yazılır.
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab }) => {
+    await openTab("settings");
+    const sw = page.locator("#auto-palette");
+    const pressed = await sw.getAttribute("aria-checked");
+    check(pressed === "true", "gunun-rengi", `auto-palette varsayılan açık değil: ${pressed}`);
+    const note = await text(page, "#auto-palette-note");
+    check(
+      note.includes("otomatik palet"),
+      "gunun-rengi",
+      `not saat dilimini göstermiyor: "${note.slice(0, 80)}"`,
+    );
+    // Elle palet seçimi otomatiği EZMEZ ama 10 dk korunur: seçim uygulanmalı.
+    await page.locator('#design-picker [data-design="gece"]').click();
+    await page.waitForTimeout(300);
+    const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+    check(theme === "gece", "gunun-rengi", `elle seçim uygulanmadı: ${theme}`);
+    // Kapatınca not "kapalı" der ve otomatik yazma durur.
+    await sw.click();
+    await page.waitForTimeout(300);
+    const note2 = await text(page, "#auto-palette-note");
+    check(
+      note2.includes("Kapalıyken"),
+      "gunun-rengi",
+      `kapatınca not değişmedi: "${note2.slice(0, 60)}"`,
+    );
+    await sw.click();
+    await page.waitForTimeout(300);
+  });
 
   // 22. Şablon × palet matrisi (v2.6): 4 şablon × 12 palet.
   //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu

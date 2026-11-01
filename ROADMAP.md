@@ -249,6 +249,33 @@ PASS — assert gerçekten yakalıyor. 23 frontend + 219 Rust testi, tüm audit'
 yeşil. Geri alma: `git revert` (şema değişmedi).
 ---
 
+## 14. `[x]` v3.1.0 "satışa hazır" — güncelleme, tema, lisans, ikon
+
+Dört kullanıcı isteği:
+
+- **Elle güncelleme denetimi** (Ayarlar → Hakkında): anında `check()`, sonuç ve
+  son kontrol saati. Zamanlanmış kontrol 24 saatte bir olduğu için "yeni sürüm
+  var mı?" sorusunun pratikte cevabı yoktu.
+- **"Günün rengi" varsayılan açık**: uygulamanın kendi teması da saate göre
+  akıyor. Palet seçimi `engine.paletteForHour`e taşındı (test edilebilir hale
+  geldi; gece açık palet seçilmediğini doğrulayan test var).
+- **Pro lisans akışı**: lisans kartı (ne dahil / Pro), "Anahtarım var" +
+  "Pro'yu al", Enter ile etkinleştirme; `tools/license-batch.mjs` (toplu üretim,
+  çıktıyı ezmez) + `tools/license-check.mjs` (özel anahtar gerektirmeyen
+  doğrulama). Satın alma adresi `PURCHASE_URL` — tek satır.
+- **Yeni ikon**: `assets/icon.svg` tek kaynak, `tools/make-icon.mjs` 14 PNG +
+  `icon.ico` (16–256) + 9 Store logosu üretir; 16/32px'te okunurluk gözle
+  doğrulandı.
+
+**Kabul:** 25 frontend + 219 Rust testi, `qa/run.mjs` 24 senaryo, 5 audit aracı,
+clippy/fmt temiz; lisans batch→check uçtan uca 3/3 geçerli. Geri alma:
+`git revert` (lisans şeması değişmedi).
+
+**Açık kalan (bilinçli):** gerçek ödeme sağlayıcı entegrasyonu — `PURCHASE_URL`
+doldurulunca uygulama tarafı hazır; anahtar dağıtımı hâlâ elle/CSV.
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

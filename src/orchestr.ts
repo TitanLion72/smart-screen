@@ -422,7 +422,8 @@ export const S: AppState = {
   gameBright: getSetting("gameBright", "1") === "1",
   gameBoost: false,
   gameBoostPrev: null,
-  autoPalette: getSetting("autoPalette", "0") === "1",
+  // v3.1: varsayılan AÇIK. Kullanıcı kapattıysa "0" kalır (ayar korunur).
+  autoPalette: getSetting("autoPalette", "1") === "1",
   lastManualPaletteAt: 0,
   diag: null,
   audits: [],
@@ -1208,14 +1209,10 @@ export function setGameBright(v: boolean): void {
  * `npm test` ile doğrulanıyor) — burada yalnız zaman/palet girdisi toplanır.
  */
 
-/** Saat dilimine göre önerilen palet. */
-export function paletteForHour(hour: number): string {
-  if (hour >= 7 && hour < 11) return "fildisi"; // sabah: aydınlık kâğıt
-  if (hour >= 11 && hour < 17) return "kagit"; // gündüz: nötr açık
-  if (hour >= 17 && hour < 20) return "gunbatimi"; // akşam: sıcak amber
-  if (hour >= 20 && hour < 23) return "obsidyen"; // gece başı: sıcak kömür
-  return "gece"; // gece: derin lacivert
-}
+/** Palet seçimi motorda (`engine.paletteForHour`) — buradan yalnız yeniden dışa
+ *  aktarılır; böylece panels ve testler aynı kaynağı kullanır. */
+import { paletteForHour, palettePhaseLabel } from "./engine";
+export { paletteForHour, palettePhaseLabel };
 
 export function setAutoPalette(v: boolean): void {
   S.autoPalette = v;

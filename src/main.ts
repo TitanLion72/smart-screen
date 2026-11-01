@@ -21,6 +21,7 @@ import * as O from "./orchestr";
 import * as P from "./panels";
 import { initScene } from "./scene";
 import { toast } from "./toast";
+import { PURCHASE_URL } from "./catalog";
 
 const WATCH_MS = 60 * 1000;
 /** Canlı saat + gün şeridi imleci: tur dışında hafif tazeleme. */
@@ -65,6 +66,80 @@ function writeSnooze(until: number): void {
 
 let pendingUpdate: Update | null = null;
 let updateBusy = false;
+const UPDATE_LAST_KEY = "ss:updateLastCheck";
+
+function writeLastCheck(at: number): void {
+  try {
+    localStorage.setItem(UPDATE_LAST_KEY, String(at));
+  } catch {
+    /* storage yoksa yalnız bu oturumda görünür */
+  }
+}
+
+function readLastCheck(): number {
+  try {
+    return Number(localStorage.getItem(UPDATE_LAST_KEY) ?? "0") || 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** "son kontrol: 14:32" / "güncelleme var" / "güncel" metni. */
+function paintUpdateStatus(state: "idle" | "checking" | "current" | "found" | "error"): void {
+  const node = document.getElementById("about-update-status");
+  if (!node) return;
+  const at = readLastCheck();
+  const when = at
+    ? new Date(at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })
+    : "-";
+  node.textContent =
+    state === "checking"
+      ? "denetleniyor…"
+      : state === "current"
+        ? `güncel — son kontrol ${when}`
+        : state === "found"
+          ? `yeni sürüm var — son kontrol ${when}`
+          : state === "error"
+            ? `denetlenemedi — son kontrol ${when}`
+            : `son kontrol: ${when}`;
+}
+
+/**
+ * Elle güncelleme denetimi (Hakkında → "Güncellemeyi denetle").
+ *
+ * Neden ayrı: zamanlanmış kontrol 24 saatte bir ve 10 sn gecikmeyle çalışıyor;
+ * "yeni sürüm çıktı mı?" diye bakmak isteyen kullanıcının bekleyecek yolu
+ * yoktu, uygulamayı yeniden başlatmak gerekiyordu. Elle kontrol ertelemeyi
+ * (snooze) YOK SAYAR: kullanıcı açıkça istedi.
+ */
+async function manualUpdateCheck(): Promise<void> {
+  const btn = btnEl("about-check-update");
+  btn.disabled = true;
+  paintUpdateStatus("checking");
+  const busy = toast.busy("Güncelleme denetleniyor…");
+  try {
+    const update = await check();
+    writeLastCheck(Date.now());
+    if (update) {
+      pendingUpdate = update;
+      el("update-text").textContent = `v${update.version} hazır — şimdi kur?`;
+      el("update-band").hidden = false;
+      paintUpdateStatus("found");
+      busy.done(`Yeni sürüm: v${update.version}`);
+      O.log(`güncelleme bulundu: v${update.version}`, "ok");
+    } else {
+      paintUpdateStatus("current");
+      busy.done("Güncel sürümü kullanıyorsun");
+    }
+  } catch (e) {
+    paintUpdateStatus("error");
+    busy.done("Güncelleme denetlenemedi");
+    toast.err("Güncelleme denetlenemedi", { detail: String(e) });
+    O.log("güncelleme kontrolü yapılamadı: " + String(e), "warn");
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 /** check() QA stub'ında null döner: güncelleme yok sayılır. */
 async function runUpdateCheck(): Promise<void> {
@@ -77,6 +152,8 @@ async function runUpdateCheck(): Promise<void> {
     let update: Update | null = null;
     try {
       update = await check();
+      writeLastCheck(Date.now());
+      paintUpdateStatus("idle");
     } catch (e) {
       // Başarısız kontrol sessiz spam yapmaz: tek satır log.
       O.log("güncelleme kontrolü yapılamadı: " + String(e), "warn");
@@ -127,6 +204,8 @@ function wireUpdater(): void {
     el("update-band").hidden = true;
     writeSnooze(Date.now() + UPDATE_INTERVAL_MS);
   });
+  btnEl("about-check-update").addEventListener("click", () => void manualUpdateCheck());
+  paintUpdateStatus("idle");
   window.setTimeout(() => void runUpdateCheck(), UPDATE_FIRST_MS);
 }
 
@@ -314,6 +393,30 @@ window.addEventListener("DOMContentLoaded", () => {
     openUrl(SOURCE_URL).catch((e: unknown) => {
       O.log("kaynak kodu sayfası açılamadı: " + String(e), "bad");
     });
+  });
+
+  // ---------- Pro satın alma akışı ----------
+  // Lisans offline (Ed25519); uygulama yalnız satın alma sayfasını açar ve
+  // gelen anahtarı doğrular. Sunucu, hesap, makine bağı yok.
+  el("lic-buy").addEventListener("click", () => {
+    openUrl(PURCHASE_URL)
+      .then(() => O.log("satın alma sayfası açıldı", "ok"))
+      .catch((e: unknown) => {
+        O.log("satın alma sayfası açılamadı: " + String(e), "bad");
+        toast.err("Sayfa açılamadı", { detail: PURCHASE_URL });
+      });
+  });
+  // "Anahtarım var" → girişe odaklan (satın alma sonrası en sık yol).
+  el("lic-have").addEventListener("click", () => {
+    const input = inputEl("lic-key");
+    input.scrollIntoView({ block: "center", behavior: "smooth" });
+    input.focus();
+  });  // Enter ile etkinleştir (yapıştır → Enter en doğal akış).
+  inputEl("lic-key").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      void O.activateLicense(inputEl("lic-key").value);
+    }
   });
 
   wireUpdater();

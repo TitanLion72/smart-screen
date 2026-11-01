@@ -2447,6 +2447,49 @@ button.swatch[aria-pressed="true"] {
   color: var(--danger);
 }
 
+/* Lisans kartındaki özellik listesi (v3.1): neyin ücretsiz, neyin Pro olduğu
+   tek bakışta görünsün. Pro satırları soluk değil — "alınca ne olacak"
+   sorusunun cevabı okunur olmalı. */
+.lic-features {
+  margin: 2px 0 4px;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 3px;
+  font-size: 12.5px;
+  color: var(--text-2);
+}
+
+.lic-features li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  line-height: 1.35;
+}
+
+.lic-features li::before {
+  /* İşaret metin değil, çizilmiş: ekran okuyucu listeyi olduğu gibi okur. */
+  content: "";
+  flex: none;
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.lic-features li.ok::before {
+  background: var(--success);
+}
+
+.lic-features li.pro {
+  color: var(--text-1);
+}
+
+.lic-features li.pro::before {
+  background: var(--accent);
+}
+
 /* ═══════════════ Erişilebilirlik / hareket ═══════════════ */
 
 /* Hareket azaltma: paralaks ve 3B açılış kapanır, yalnız 100 ms sönüm kalır. */

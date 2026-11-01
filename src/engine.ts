@@ -150,6 +150,35 @@ export function finalTarget(p: {
 }
 
 /**
+ * Saat dilimine göre önerilen palet ("Günün rengi").
+ *
+ * v3.1: motorun parçası (saf) — önceden orchestr.ts'teydi, orada Tauri importu
+ * olduğu için test edilemiyordu. Artık `npm test` saat aralıklarını doğruluyor.
+ */
+export function paletteForHour(hour: number): string {
+  const h = ((Math.floor(hour) % 24) + 24) % 24;
+  if (h >= 7 && h < 11) return "fildisi"; // sabah: aydınlık kâğıt
+  if (h >= 11 && h < 17) return "kagit"; // gündüz: nötr açık
+  if (h >= 17 && h < 20) return "gunbatimi"; // akşam: sıcak amber
+  if (h >= 20 && h < 23) return "obsidyen"; // gece başı: sıcak kömür
+  return "gece"; // gece: derin lacivert
+}
+
+/**
+ * Paletin kısa adı (UI'da "şu an akşam · otomatik palet: gunbatimi" için).
+ * `paletteForHour` ile AYNI aralıkları kullanmalı — test ikisini birlikte
+ * doğruluyor (etiket ile palet çelişirse kullanıcıya yanlış bilgi gider).
+ */
+export function palettePhaseLabel(hour: number): string {
+  const h = ((Math.floor(hour) % 24) + 24) % 24;
+  if (h >= 7 && h < 11) return "sabah";
+  if (h >= 11 && h < 17) return "gündüz";
+  if (h >= 17 && h < 20) return "akşam";
+  if (h >= 20 && h < 23) return "gece başı";
+  return "gece";
+}
+
+/**
  * Tema değişim kapısı: son değişimden `THEME_DWELL_MS` geçmeli ve aynı karar
  * en az `required` bağımsız turda görülmeli (PLAN-v3 §4.1/8). Elle seçim
  * bu kapıyı kullanmaz — kullanıcı niyeti her zaman öndedir.

@@ -28,6 +28,17 @@ export const MODE_OPTIONS = (Object.keys(MODE_LABEL) as Mode[]).map((value) => (
   label: MODE_LABEL[value],
 }));
 
+/**
+ * Pro satın alma sayfası (v3.1).
+ *
+ * TEK DEĞİŞTİRİLECEK YER: gerçek ödeme sayfası adresi buraya yazılır. Lisans
+ * tamamen offline olduğu için uygulama yalnız bir bağlantı açar; ödeme
+ * sağlayıcı (Lemon Squeezy / Polar / Gumroad / kendi sayfan) seçildikten sonra
+ * bu sabiti güncellemek yeterlidir. Şu an GitHub "sponsor/iletişim" sayfasına
+ * gider — olmayan bir satış sayfasını varmış gibi göstermemek için.
+ */
+export const PURCHASE_URL = "https://github.com/TitanLion72/smart-screen#lisans-freemium--pro";
+
 export const SOURCE_OPTIONS = (Object.keys(SOURCE_LABEL) as Source[]).map((value) => ({
   value,
   label: SOURCE_LABEL[value],

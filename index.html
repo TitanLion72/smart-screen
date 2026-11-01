@@ -263,6 +263,12 @@
   #night-btn       | button     | "Windows gece ışığı"                   | click → Windows ayar sayfası açar
   #lic-box         | div.panel-box | lisans kartı                        | —
   #lic-status      | span.lic-status | lisans durumu metni               | text
+  #lic-badge       | span.badge | "ücretsiz" / "pro"                     | text + className
+  #lic-features    | ul.lic-features | ne dahil / ne Pro'da              | .ok / .pro li
+  #lic-buy         | button.btn-toggle | "Pro'yu al"                   | click → PURCHASE_URL (src/catalog.ts) açılır
+  #lic-have        | button.btn-primary | "Anahtarım var"                 | click → #lic-key odaklanır
+  #lic-note        | span.hint  | satın alma notu                        | text
+  #lic-activate-row | div.lic-row | anahtar girişi                       | Pro iken gizlenir
   #lic-key         | input      | "SS-… lisans anahtarı"                 | text; Enter veya butonla gönder
   #lic-activate    | button.btn-primary | "Etkinleştir"                   | click → license_activate(key); boşsa #lic-err
   #lic-deactivate  | button.btn-danger | "Kaldır"                          | click → license_deactivate; hidden = !licensePro
@@ -271,6 +277,8 @@
   #about-version   | span       | sürüm (getVersion)                     | text
   #about-license   | span       | "GPL-3.0-or-later"                     | text (statik)
   #about-source    | button     | "Kaynak kodu"                          | click → opener ile GitHub sayfası
+  #about-check-update | button.btn-toggle | "Güncellemeyi denetle"         | click → anında check(); sonuç #about-update-status'ta
+  #about-update-status | span.hint | "son kontrol: 14:32" / "güncel"        | text (JS)
   #about-warranty  | div.hint   | garanti yok satırı                     | statik metin
 
   ETKİLEŞİM TÜRLERİ: button=click · input=change/input · div.seg=buildSeg ·
@@ -806,11 +814,23 @@
               <div class="panel-box inner" id="lic-box">
                 <div class="box-title">Lisans</div>
                 <div class="lic-row">
-                  <span id="lic-status" class="lic-status">Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama</span>
+                  <span id="lic-status" class="lic-status">Ücretsiz sürüm (3 profil)</span>
                   <span class="spacer"></span>
+                  <span id="lic-badge" class="badge muted">ücretsiz</span>
                   <button id="lic-deactivate" class="btn-toggle btn-danger" type="button" hidden>Kaldır</button>
                 </div>
+                <ul class="lic-features" id="lic-features">
+                  <li class="ok">Otomatik tema, parlaklık, sıcak ton</li>
+                  <li class="ok">3 profil, 20-20-20, geçmiş</li>
+                  <li class="pro">Pro: harici monitör parlaklığı + renk sıcaklığı (DDC/CI)</li>
+                  <li class="pro">Pro: 6 profil ve uygulamaya bağlı profiller</li>
+                </ul>
                 <div class="lic-row">
+                  <button id="lic-have" class="btn-primary" type="button">Anahtarım var</button>
+                  <button id="lic-buy" class="btn-toggle" type="button">Pro'yu al</button>
+                  <span class="hint" id="lic-note">Ödeme sonrası anahtar e-postana gelir; internet gerekmez.</span>
+                </div>
+                <div class="lic-row" id="lic-activate-row">
                   <input id="lic-key" type="text" spellcheck="false" placeholder="SS-… lisans anahtarı" aria-label="Lisans anahtarı" />
                   <button id="lic-activate" class="btn-primary" type="button">Etkinleştir</button>
                 </div>
@@ -823,6 +843,10 @@
                   <span class="hint">sürüm <span id="about-version">-</span></span>
                   <span class="spacer"></span>
                   <span class="hint">lisans: <span id="about-license">GPL-3.0-or-later</span></span>
+                </div>
+                <div class="lic-row">
+                  <button id="about-check-update" class="btn-toggle" type="button">Güncellemeyi denetle</button>
+                  <span class="hint" id="about-update-status" role="status">son kontrol: -</span>
                 </div>
                 <div class="hint" id="about-warranty">Bu program hiçbir garanti olmadan, "olduğu gibi" dağıtılır (GPL-3.0 §15–16).</div>
                 <div class="toolbar">

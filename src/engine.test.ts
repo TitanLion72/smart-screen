@@ -20,6 +20,8 @@ import {
   isExternalChange,
   isIndependentTurn,
   isIntentTheme,
+  paletteForHour,
+  palettePhaseLabel,
   isNewMeasurement,
   learnAllowed,
   learnDelta,
@@ -184,4 +186,48 @@ test("isIntentTheme: bağlı profil tema değişimini dwell'e takmaz", () => {
   // Bağlı profil: uygulama ön plana geldiği turda devralır (AGENTS kuralı).
   // Bu olmadan bekleyen anahtar her alt-tab'da sıfırlanıp tema hiç uygulanmıyordu.
   assert.equal(isIntentTheme({ reason: "tick", bound: true }), true);
+});
+
+test("paletteForHour: her saat bir palet döner, gece açık palet yok", () => {
+  const LIGHT = new Set(["fildisi", "kagit"]);
+  for (let h = 0; h < 24; h += 1) {
+    const p = paletteForHour(h);
+    assert.equal(typeof p, "string");
+    assert.ok(p.length > 0, `saat ${h} paletsiz`);
+    // 20:00–07:00 arasında AÇIK palet seçilmemeli (gece göz yormasın).
+    const night = h >= 20 || h < 7;
+    if (night) assert.ok(!LIGHT.has(p), `saat ${h} gece açık palet seçti: ${p}`);
+  }
+  // Gündüz açık, akşam sıcak — sözleşme.
+  assert.equal(paletteForHour(9), "fildisi");
+  assert.equal(paletteForHour(13), "kagit");
+  assert.equal(paletteForHour(18), "gunbatimi");
+  assert.equal(paletteForHour(21), "obsidyen");
+  assert.equal(paletteForHour(2), "gece");
+});
+
+test("palettePhaseLabel paletle çelişmez (aynı aralıklar)", () => {
+  const expected: Record<string, string> = {
+    fildisi: "sabah",
+    kagit: "gündüz",
+    gunbatimi: "akşam",
+    obsidyen: "gece başı",
+    gece: "gece",
+  };
+  for (let h = 0; h < 24; h += 1) {
+    const p = paletteForHour(h);
+    assert.equal(
+      palettePhaseLabel(h),
+      expected[p],
+      `saat ${h}: palet ${p} ama etiket ${palettePhaseLabel(h)}`,
+    );
+  }
+  // Sınırlar: 07:00 sabaha, 20:00 gece başına geçer.
+  assert.equal(palettePhaseLabel(6), "gece");
+  assert.equal(palettePhaseLabel(7), "sabah");
+  assert.equal(palettePhaseLabel(19), "akşam");
+  assert.equal(palettePhaseLabel(20), "gece başı");
+  // Bozuk girdi çevrimsel kelepçelenir (23 → 23, 25 → 1, -1 → 23).
+  assert.equal(palettePhaseLabel(-1), "gece");
+  assert.equal(paletteForHour(25), paletteForHour(1));
 });

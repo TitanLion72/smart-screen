@@ -47,6 +47,8 @@ import {
   pauseRemainingText,
   pickTheme,
   restoreDefaultLists,
+  paletteForHour,
+  palettePhaseLabel,
   restoreSeeds,
   saveDraft,
   selectForEdit,
@@ -278,7 +280,10 @@ export function setDesignTheme(id: string, opts: { manual?: boolean } = {}): voi
   });
   // v2.8.1: palet değişti → o paletin vurgusu geçerli (yabancı renk sızmaz).
   applyAccentForPalette(id);
-  if (changed) {
+  // Toast YALNIZ elle seçimde: "Günün rengi" saat başı paleti kendisi
+  // değiştirdiğinde bildirim çıkarmak gürültü (v3.1). Otomatik arka plan
+  // değişimi kullanıcıyı dürtmez; sonucu zaten ekranda görünür.
+  if (changed && opts.manual !== false) {
     const t = DESIGN_THEMES.find((x) => x.id === id);
     toast.ok(`Renkler: ${t?.label ?? id}`, { detail: t?.note });
   }
@@ -291,10 +296,29 @@ export function initDesignTheme(): void {
   document.documentElement.dataset.theme = valid;
 }
 
+/** "Günün rengi" notunu S'ten yazar (her render'da; palet kartları değil). */
+function renderAutoPaletteNote(): void {
+  const note = el("auto-palette-note");
+  if (S.autoPalette) {
+    const hour = new Date().getHours();
+    const phase = palettePhaseLabel(hour);
+    const target = paletteForHour(hour);
+    note.textContent =
+      `Şu an ${phase} · otomatik palet: ${target}. ` +
+      "Sabah aydınlık, akşam sıcak, gece derin palet seçilir; elle seçtiğin renk 10 dk korunur.";
+  } else {
+    note.textContent =
+      "Kapalıyken renk seçimin sabit kalır. Açıksa palet saat dilimine göre değişir; elle seçtiğin renk 10 dk korunur.";
+  }
+}
+
 function renderDesignThemes(): void {
   const host = el("design-picker");
   host.replaceChildren();
   const current = document.documentElement.dataset.theme ?? DEFAULT_DESIGN_THEME;
+  // v3.1: "Günün rengi" açıkken hangi paletin neden seçildiği görünür olsun.
+  // (Not ayrı fonksiyonda: renderAll her turda onu tazeliyor, kartlar değil.)
+  renderAutoPaletteNote();
   for (const t of DESIGN_THEMES) {
     const b = document.createElement("button");
     b.type = "button";
@@ -1192,11 +1216,21 @@ function buildModeCards(): void {
 
 function renderLicense(): void {
   const st = S.licenseStatus;
-  el("lic-status").textContent = S.licensePro
-    ? `Pro — ${st?.email ?? "?"} (${st?.issued ?? "?"})`
-    : "Ücretsiz sürüm (3 profil) — Pro: harici monitör kontrolü, 6 profil, uygulama bağlama";
-  // duzeltme v2.2: #lic-mini-status SİLİNDİ — lisans yalnız Ayarlar'da (#lic-status).
-  btnEl("lic-deactivate").hidden = !S.licensePro;
+  const pro = S.licensePro;
+  el("lic-status").textContent = pro
+    ? `${st?.email ?? "?"} · ${st?.issued ?? "?"}`
+    : "Ücretsiz sürüm — 3 profil, harici monitör kapalı";
+  const badge = el("lic-badge");
+  badge.textContent = pro ? "pro" : "ücretsiz";
+  badge.className = "badge " + (pro ? "ok" : "muted");
+  // Pro iken anahtar girişi ve "Pro'yu al" gizlenir: yapılacak iş kalmaz.
+  el("lic-activate-row").hidden = pro;
+  btnEl("lic-buy").hidden = pro;
+  btnEl("lic-have").hidden = pro;
+  el("lic-note").hidden = pro;
+  btnEl("lic-deactivate").hidden = !pro;
+  // Pro iken özellik listesi anlamsız (hepsi zaten açık) — kaldır.
+  el("lic-features").hidden = pro;
   el("lic-err").textContent = S.licenseError ?? "";
   el("lic-err").hidden = !S.licenseError;
 }
@@ -1397,6 +1431,7 @@ export function renderAll(): void {
   renderProfiles();
   renderHistory();
   syncThemeChips();
+  renderAutoPaletteNote();
   renderAudit();
   renderDiagnostics();
   // Editörün yalnız metin etiketleri güncellenir; input değeri çizilmez.
