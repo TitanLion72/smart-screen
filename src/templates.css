@@ -287,10 +287,20 @@ body::after {
 /* Dergi'de üst bant "kapak" gibi nefes alsın: 1040×740'ta alt bölüm
    (olay akışı + ayarlar) kısa kaldığında sayfa yarısı boş görünüyordu. */
 [data-template="dergi"] .hero {
-  min-height: 190px;
   display: flex;
   flex-direction: column;
+  /* `justify-content: flex-end` — dergi alt hizalı editoryal düzen ister.
+     min-height burada DEĞİL: `#page-panel > .hero { min-height: 0 }` daha
+     güçlü (id seçici) ve bu satırı eziyordu. Aşağıda id'li varyantı var. */
   justify-content: flex-end;
+}
+
+/* v3.0.3: dergi hero'sunun alt sınırı gerçekten uygulanmalı. Eski hâli
+   `[data-template="dergi"] .hero` = (0,2,0) özgüllükteydi ve
+   `#page-panel > .hero { min-height: 0 }` (1,1,0) onu eziyordu — kural ölüydü,
+   üst satır da `1fr` olduğu için hero 0px'e çöküyordu. */
+[data-template="dergi"] #page-panel > .hero {
+  min-height: 190px;
 }
 
 [data-template="dergi"] .hero-body {
@@ -342,7 +352,12 @@ body::after {
    zaten "hafif" duruyor; sabit 360px satır geniş ekranda koca boşluk
    bırakıyordu. Bento/konsol sabit satırı korur (mozaik/readout geometrisi). */
 [data-template="dergi"] #page-panel {
-  grid-template-rows: minmax(0, 1fr) auto;
+  /* v3.0.3: kural TERS yazılmıştı (`minmax(0,1fr) auto` = üst satır esnek, alt
+     satır içerik). Sonuç: hero satırı 66px'e iniyor, 190px'lik hero satırını
+     taşıp alt satıra biniyordu — dergi modunda "bozuk" görünen şey buydu.
+     Doğrusu: üst satır içerik kadar (`auto`), kalan yer alt satıra. Alt satıra
+     ayrıca 180px taban: kısa pencerede kartlar 52px'e eziliyordu. */
+  grid-template-rows: auto minmax(180px, 1fr);
   align-content: stretch;
 }
 
@@ -728,12 +743,18 @@ body::after {
      içi boşalıyordu. Artık üst sınırlı: büyüyen pay alt satıra gider. */
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr);
-  grid-template-rows: minmax(0, min(40vh, 360px)) minmax(0, 1fr);
+  /* v3.0.3: alt satıra 180px TABAN. Eski `minmax(0, 1fr)` kısa pencerede üç
+     kartı 76px'e eziyordu (başlık görünür, içerik görünmez). Sığmazsa sayfa
+     kaydırır — ezilmiş kart göstermekten iyidir. Üst satır 40vh/360px tavanını
+     korur (maximize pencerede hero şişmesin). */
+  grid-template-rows: minmax(0, min(40vh, 360px)) minmax(180px, 1fr);
   grid-template-areas:
     "hero monitors"
     "asym asym";
   gap: var(--panel-gap);
-  overflow: hidden;
+  overflow-x: hidden;
+  /* Taşan içerik kırpılmasın: kısa pencerede kaydırılabilir olsun. */
+  overflow-y: auto;
 }
 
 #page-panel > .hero {
@@ -741,15 +762,49 @@ body::after {
   min-height: 0;
 }
 
+/* v3.0.3: KISA PENCERE (yükseklik ≤ 720px, ör. mola bandı açıkken 1512×560).
+   Izgara satırları burada içerikten küçük hesaplanıyor (satır 120px, hero
+   içeriği 260px) ve hero ALT KARTLARIN üstüne biniyordu. Izgarayı bırak,
+   dikey akışa geç: kartlar içeriği kadar yer alır, sığmazsa sayfa kaydırır.
+   Geniş pencerede (740+) ızgara aynen kalır — orada bütçe sığıyor. */
+@media (max-height: 720px) and (min-width: 901px) {
+  #page-panel {
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+    gap: var(--panel-gap);
+  }
+
+  #page-panel > .hero,
+  #page-panel > #monitor-box,
+  #page-panel > .asym {
+    flex: none;
+  }
+
+  #page-panel > #monitor-box {
+    overflow: visible;
+  }
+
+  #page-panel > .asym {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr);
+    align-items: start;
+  }
+
+  #page-panel .asym > .col-stack {
+    display: contents;
+  }
+
+  #page-panel .asym .panel-box {
+    overflow: visible;
+  }
+}
+
 #page-panel > #monitor-box {
   grid-area: monitors;
   min-height: 0;
   overflow-y: auto;
-  /* Kart içeriği kadar yer kaplar: tek monitörde 360px'lik kutunun altı boş
-     kalıyordu (ekranın yarısı boş kart). `max-height` satır sınırını korur,
-     çok monitörde kaydırma devam eder. */
-  align-self: start;
-  max-height: 100%;
 }
 
 #page-panel > .asym {
@@ -783,6 +838,11 @@ body::after {
 #page-panel .hero-body {
   padding: var(--sp-4) var(--sp-5);
   gap: var(--sp-4);
+  /* v3.0.3: hero bir flex kolonu; gövde `flex: 0 1 auto` olduğu için kısa
+     pencerede SIKIŞIYOR ve metin (229px) 190px'lik gövdeden taşıp alttaki
+     kartların üstüne biniyordu. Küçülmesin: hero'nun min-content'i gerçek
+     içerik olsun, grid satırı da onu ölçeklesin. */
+  flex: 0 0 auto;
 }
 
 #page-panel .hero-curve-side svg {

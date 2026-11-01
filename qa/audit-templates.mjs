@@ -286,6 +286,103 @@ for (const s of sizes) {
   await page.close();
 }
 
+// 3b) ŞABLON GEOMETRİSİ (v3.0.3): satır çökmesi / satır taşması denetimi.
+//     Gerçek hata: `dergi` şablonunda `#page-panel` satırları TERS yazılmıştı
+//     (`minmax(0,1fr) auto`) → üst satır 66px'e iniyor, hero (min-height 190)
+//     satırını taşıp ALT SATIRIN üstüne biniyordu. Ekranda "bozuk" görünen şey
+//     buydu. `overflow` assert'i bunu yakalamaz: taşan metin değil, kartın
+//     kendisi; üstelik hero'nun kendi yüksekliği doğru (190px), yanlış olan
+//     satır. Bu yüzden doğrudan "komşu satırla çakışma" ölçülür.
+{
+  console.log("3b) şablon geometrisi — satır çökmesi / komşu satıra binme");
+  for (const [w, h] of [
+    [1040, 740],
+    [1512, 560],
+    [1512, 700],
+    [1512, 730],
+  ]) {
+    const page = await browser.newPage({ viewport: { width: w, height: h } });
+    await page.addInitScript(stub);
+    await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
+    await page.waitForTimeout(900);
+    // Mola bandı gerçek kullanımda sık açılır ve yer yüksekliği yer; onunla ölç.
+    await page.evaluate(() => {
+      const b = document.getElementById("break-band");
+      if (b) b.hidden = false;
+    });
+    for (const tpl of TPLS) {
+      await page.evaluate((t) => {
+        document.documentElement.dataset.template = t;
+      }, tpl);
+      await page.waitForTimeout(220);
+      const geo = await page.evaluate(() => {
+        const panel = document.querySelector("#page-panel");
+        const hero = document.querySelector("#page-panel > .hero");
+        if (!hero) return null;
+        const hr = hero.getBoundingClientRect();
+        const inter = (a, b) => {
+          const w = Math.min(a.right, b.right) - Math.max(a.left, b.left);
+          const h = Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top);
+          return w > 1 && h > 1 ? Math.round(h) : 0;
+        };
+        // Aday komşular: gerçek kutusu olan paneller. `display: contents`
+        // olanlar (bento'da .asym) kutudan yoksundur; onların çocuklarına bakılır.
+        const raw = [
+          ...panel.querySelectorAll(":scope > #monitor-box, :scope > .asym"),
+          ...panel.querySelectorAll(".asym > *, .log-box, .auto-box"),
+        ];
+        const seen = new Set();
+        let worst = 0;
+        for (const el of raw) {
+          if (el === hero || el.contains(hero) || hero.contains(el)) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width < 2 || r.height < 2) continue; // display:contents → kutu yok
+          const key = `${r.top}:${r.left}:${r.width}:${r.height}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const v = inter(hr, r);
+          if (v > worst) worst = v;
+        }
+        // ASIL ÖLÇÜT: hero KENDİ içeriğini taşıyor mu? Gerçek hata buydu —
+        // satır 120px'e iniyor, hero-body 261px kalıyor ve metin alttaki
+        // kartların üstüne biniyordu. Kutu çakışması olmadığı için (hero 120px,
+        // asym 270px'te) komşu-çakışma assert'i bunu GÖRMÜYORDU.
+        const body = hero.querySelector(".hero-body");
+        const bodyOverflow = body
+          ? Math.round(body.getBoundingClientRect().height - hr.height)
+          : 0;
+        const heroOverflow = Math.round(hero.scrollHeight - hero.clientHeight);
+        return {
+          heroH: Math.round(hr.height),
+          rowH: Math.round(parseFloat(getComputedStyle(panel).gridTemplateRows) || 0),
+          overlap: worst,
+          bodyOverflow,
+          heroOverflow,
+        };
+      });
+      if (!geo) {
+        problems.push(`geo ${tpl} ${w}x${h}: hero bulunamadı`);
+        continue;
+      }
+      if (geo.overlap > 4) {
+        problems.push(
+          `geo ${tpl} ${w}x${h}: hero komşu panelle ${geo.overlap}px çakışıyor (satır ${geo.rowH}px, hero ${geo.heroH}px)`,
+        );
+      }
+      // İçerik kabından taşıyorsa görsel olarak komşu kartın üstüne biner.
+      if (geo.bodyOverflow > 4 || geo.heroOverflow > 4) {
+        problems.push(
+          `geo ${tpl} ${w}x${h}: hero içeriği kabından ${Math.max(geo.bodyOverflow, geo.heroOverflow)}px taşıyor (hero ${geo.heroH}px)`,
+        );
+      }
+      if (geo.heroH < 120) {
+        problems.push(`geo ${tpl} ${w}x${h}: hero çökmüş (${geo.heroH}px < 120px)`);
+      }
+    }
+    await page.close();
+  }
+}
+
 // 3) Sayfalar × şablon: 1040×740'ta her sekme her şablonda.
 //    Durum dışındaki sayfalar kaydırabilir (uzun formlar) — burada yatay
 //    taşma ve kırpılma aranır; dikey taşma yalnız raporlanır.

@@ -42,6 +42,7 @@ const valueFile = valueOf("--value-file");
 const valueLiteral = valueOf("--value");
 const evalExpr = valueOf("--eval");
 const shotPath = valueOf("--screenshot");
+const sizeArg = valueOf("--size");
 const reload = !flag("--no-reload");
 
 if (!dump && !key && !setKey && !evalExpr && !shotPath) {
@@ -98,6 +99,22 @@ const evaluate = async (expression) => {
   }
   return res.result.value;
 };
+
+// `--size 1512x900`: yerleşimi farklı pencerede ölçmek için. Emülasyon gerçek
+// pencereyi değiştirmez (kullanıcı penceresini bozmadan UI doğrulaması).
+if (sizeArg) {
+  const m = /^(\d+)x(\d+)$/.exec(sizeArg);
+  if (!m) {
+    console.error("--size biçimi: <genişlik>x<yükseklik>, ör. 1512x900");
+    process.exit(2);
+  }
+  await send("Emulation.setDeviceMetricsOverride", {
+    width: Number(m[1]),
+    height: Number(m[2]),
+    deviceScaleFactor: 0,
+    mobile: false,
+  });
+}
 
 try {
   if (dump) {

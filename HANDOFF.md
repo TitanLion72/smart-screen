@@ -1,4 +1,4 @@
-# HANDOFF — smart-screen (güncel: v3.0.2, 2026-10-31)
+# HANDOFF — smart-screen (güncel: v3.0.3, 2026-11-01)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -22,9 +22,9 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
-## Güncel durum: v3.0.2 — gerçekten geçerli sınırlar
+## Güncel durum: v3.0.3 — gerçekten geçerli sınırlar
 
-`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.2**. Aşağısı tur
+`ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.0.3**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
 "Bilinen sınırlar" başlıkları o günü anlatır, bugünü değil** — örneğin orada
 "gamma gözle doğrulanmadı" ve "otomatik seçim hâlâ eski temaları seçiyor"
@@ -61,6 +61,49 @@ Bugün geçerli olan sınırlar — her biri bilinçli karar ya da dış koşul:
 - **Tek pencere, min 760×600.** Dört bölüm (Durum/Profiller/Geçmiş/Ayarlar) alt
   dock'tan geçer; küçük pencerede bölüm kendi içinde kayar.
 - **20-20-20 tek seferliktir** — onay gelene kadar tekrar etmez (bilinçli).
+
+## V3.0.3 TURU (2026-11-01) — "yerleşim": iki şablonun üst bölümü
+
+**Tetik:** kullanıcı iki ekran görüntüsü gönderdi ("dergi modunda burası bozuk,
+sahnede de"). İkisi de gerçek, ikisi de yıllardır orada.
+
+**1. Dergi'de satır tanımı ters yazılmıştı.** `grid-template-rows:
+minmax(0,1fr) auto` — üst satır esnek, alt satır içerik. Sonuç: hero satırı
+66px'e iniyor, 190px'lik hero satırını taşıp alt kartların üstüne biniyordu.
+Yorumunda "üst bant içeriğe göre daralır" yazıyordu, kodun yaptığı tam tersiydi.
+
+**2. Dergi hero'sunun `min-height: 190px` kuralı ÖLÜYDÜ.** `[data-template="dergi"]
+.hero` (0,2,0) özgüllükte, `#page-panel > .hero { min-height: 0 }` (1,1,0) onu
+eziyordu. Yani kural hiç çalışmamış; satır 1fr olduğu için hero çöküyordu.
+
+**3. Kısa pencerede (≤720px) içerik satırın üstüne biniyor.** 1512×560'ta ızgara
+satırı 120px, hero gövdesi 260px. Bu aralıkta dikey akışa geçildi.
+
+**Neden QA görmedi:** `audit-templates` "taşma" ölçüyordu — kırpılan metin,
+yatay kaydırma. Burada taşan şey metin değil, **kartın kendisiydi**; üstelik
+hero'nun kendi yüksekliği (190px) doğruydu, yanlış olan satırdı. Komşu-çakışma
+assert'i de yetmedi: hero 120px, alt karte 270px'te → kutu çakışması yok, ama
+hero'nun İÇİ taşıyor. Doğru ölçüt `hero.scrollHeight - clientHeight`.
+
+**Ders (kalıcı)**
+1. **CSS özgüllüğü sessizce öldürür.** `[data-x] .y` (0,2,0) ile `#id > .y`
+   (1,1,0) çakışırsa ikincisi kazanır ve birincisi hiç çalışmaz — hata vermez,
+   test düşürmez, sadece "kural var ama etkisi yok" olur. Aynı öğe için kural
+   yazarken özgüllüğü ölç.
+2. **"Taşma" tek bir şey değil.** Kırpılan metin, yatay kaydırma, kabın dışına
+   çıkan kutu, kabın içinde taşan içerik — dördü ayrı assert ister. Yalnız
+   birini ölçmek diğer üçünü görmez.
+3. **Kırık hâli geri koyup testin düştüğünü görmeden "assert ekledim" denmez.**
+   Bu turda ilk yazdığım iki assert kırık kodu PASS etti; üçüncüsü gerçekten
+   yakaladı (4 şablon × FAIL). Doğrulama: düzeltmeyi geri al → FAIL, geri koy → PASS.
+4. **Emülasyon gerçek pencereyi bozmaz.** `--size` ile 1512×560'ı ölçmek,
+   kullanıcının penceresini yeniden boyutlandırmaktan iyidir.
+
+**Doğrulama:** `npm test` 23/23 · `cargo test` 219+2 · `npm run verify` temiz ·
+`qa/run.mjs` 23 senaryo PASS · `audit-templates` (4 şablon × 4 boyut, geometri
+dahil) · `audit-diagnostics` · `audit-scene` · `audit-flyout` · `audit-accent` ·
+kareler gözle: dergi hero tam ve altında kartlar, sahne 1512×560'ta kaydırmalı
+ama çakışmasız, 1040×740 bütçesi korunmuş.
 
 ## V3.0.2 TURU (2026-10-31) — "toparlama": review + canlı UI taraması
 

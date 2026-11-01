@@ -15,6 +15,34 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.0.3] - 2026-11-01
+
+"Yerleşim" — kullanıcı iki ekran görüntüsüyle bildirdi: dergi ve sahne
+şablonlarında üst bölüm bozuk. İki kök neden bulundu, ikisi de yıllardır oradaydı.
+
+### Fixed
+- **Dergi şablonunda satır tanımı tersti.** `grid-template-rows: minmax(0,1fr)
+  auto` üst satırı esnek, alt satırı içerik yapıyordu; hero satırı 66px'e iniyor,
+  190px'lik hero satırını taşıp alt kartların üstüne biniyordu. Artık üst satır
+  `auto` (içerik kadar), alt satır `minmax(180px, 1fr)`.
+- **Dergi hero'sunun `min-height`'ı ölü kuraldı.** `[data-template="dergi"]
+  .hero` (0,2,0) özgüllükteydi, `#page-panel > .hero { min-height: 0 }` (1,1,0)
+  onu eziyordu. `#page-panel` id'siyle yazıldı, kural artık gerçekten uygulanıyor.
+- **Kısa pencerede hero içeriği kartların üstüne biniyordu.** Yükseklik ≤720px
+  olunca (mola bandı açıkken 1512×560 gibi) ızgara satırı 120px'e iniyor, hero
+  gövdesi 260px kalıyordu. Bu aralıkta sayfa dikey akışa geçiyor: kartlar içeriği
+  kadar yer alır, sığmazsa kaydırır. 740px ve üstünde ızgara aynen kalıyor.
+- **Kısa pencerede alt kartlar 76px'e eziliyordu** (başlık görünür, içerik yok).
+  Alt satıra 180px taban verildi.
+
+### Added
+- `qa/audit-templates.mjs` §3b: **şablon geometrisi** denetimi — 4 şablon ×
+  4 pencere boyutu, mola bandı açıkken. Hero kabından taşarsa veya komşu panelle
+  çakışırsa FAIL. Gerçek hata geri konup doğrulandı: düzeltme kaldırıldığında
+  4 şablonun hepsinde "hero içeriği kabından taşıyor" veriyor, geri konunca PASS.
+- `qa/cdp-localstorage.mjs --size WxH`: çalışan uygulamayı farklı pencere
+  boyutunda emüle edip kare alır (gerçek pencere değişmez).
+
 ## [3.0.2] - 2026-10-31
 
 "Toparlama" — kod incelemesi + canlı ekran taraması: 9 davranış hatası, 3 UI hatası.

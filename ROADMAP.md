@@ -229,6 +229,26 @@ Geri alma: `git revert` (şema değişmedi).
 
 ---
 
+## 13. `[x]` v3.0.3 "yerleşim" — iki şablonun üst bölümü
+
+Kullanıcı ekran görüntüsüyle bildirdi: dergi ve sahne şablonlarında üst bölüm
+bozuk. İki kök neden:
+
+- **Dergi satır tanımı tersti** (`minmax(0,1fr) auto`): hero satırı 66px'e
+  iniyor, 190px'lik hero satırını taşıyıp alt kartlara biniyordu. Doğrusu
+  `auto minmax(180px, 1fr)`.
+- **Dergi hero'sunun `min-height`'ı ölü kuraldı**: `[data-template] .hero`
+  (0,2,0) özgüllüğünü `#page-panel > .hero` (1,1,0) eziyordu. `#page-panel`
+  id'siyle yazıldı.
+- Kısa pencerede (≤720px) hero gövdesi satırını taşıyordu → dikey akışa geçiş
+  (kaydırır, ezmez). Alt satıra 180px taban.
+
+**Kabul:** `audit-templates` §3b geometri denetimi (4 şablon × 4 boyut, mola
+bandı açık) eklendi; kırık hâl geri konunca 4 şablonun hepsinde FAIL, düzeltmeyle
+PASS — assert gerçekten yakalıyor. 23 frontend + 219 Rust testi, tüm audit'ler
+yeşil. Geri alma: `git revert` (şema değişmedi).
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).
