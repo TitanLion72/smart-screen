@@ -112,11 +112,46 @@ fn should_toggle_open(visible: bool, ms_since_autohide: Option<u64>) -> bool {
     }
 }
 
+/// Tray tooltip metni (SAF, sözleşme C3):
+/// `smart-screen · %<parlaklık> · <tema> · <durum>`.
+///
+/// `ss:state` içinde bir alan yoksa "—" yazılır: uydurma sayı göstermek
+/// yerine "bilmiyorum" demek dürüst.
+fn tray_tooltip(brightness: Option<i64>, theme: Option<&str>, status: &str) -> String {
+    let bright = match brightness {
+        Some(b) => format!("%{b}"),
+        None => "%—".to_string(),
+    };
+    format!(
+        "smart-screen · {bright} · {} · {status}",
+        theme.unwrap_or("—")
+    )
+}
+
+/// Duraklatma/kilit durumunu tek kelimeye indirir (SAF). Sıra sözleşmeden:
+/// gün kapatma > duraklatma > kilit > otomatik. Gün kapatma da bir duraklatma
+/// olduğu için önce yazılır — yoksa tooltip "duraklatıldı" der, sebebi kaçar.
+fn tray_status(day_off: bool, paused: bool, locked: bool) -> &'static str {
+    if day_off {
+        "bugün kapalı"
+    } else if paused {
+        "duraklatıldı"
+    } else if locked {
+        "kilitli"
+    } else {
+        "otomatik"
+    }
+}
+
 /// Tray menüsündeki işaretlenebilir ögeler (durum güncellemesi için).
 struct TrayChecks {
     pause: CheckMenuItem<tauri::Wry>,
     dayoff: CheckMenuItem<tauri::Wry>,
 }
+
+/// Yedek dosyası üst sınırı (2 MB): ayarlar + profiller birkaç KB tutar;
+/// sınır yanlış dosya seçiminde belleği korur.
+const MAX_SETTINGS_BYTES: u64 = 2 * 1024 * 1024;
 
 /// Flyout penceresinin boyutları (mantıksal piksel).
 const FLYOUT_W: f64 = 340.0;
@@ -394,6 +429,69 @@ async fn open_log(app: AppHandle) -> Result<String, String> {
     Ok(dir_shown)
 }
 
+/// Ayar yedeğini kullanıcının seçtiği dosyaya yazar ve tam yolu döndürür.
+///
+/// JSON'u Rust üretmez: şema (C2) ön yüzde kurulur, burada yalnız dosya
+/// seçtirilip yazılır. Böylece ayar anahtarlarının tek doğruluk kaynağı kalır.
+/// Diyalog `spawn_blocking` içinde açılır — ana thread hiç beklemez.
+#[tauri::command]
+async fn settings_export(app: AppHandle, json: String) -> Result<String, String> {
+    use tauri_plugin_dialog::DialogExt;
+    run_blocking(move || -> Result<String, String> {
+        let picked = app
+            .dialog()
+            .file()
+            .set_file_name("smart-screen-ayarlar.json")
+            .add_filter("JSON", &["json"])
+            .blocking_save_file();
+        // Kullanıcı vazgeçtiyse dosya yazılmaz; hata metni ön yüzde toast olur.
+        let Some(file) = picked else {
+            return Err("iptal edildi".into());
+        };
+        let path = file
+            .into_path()
+            .map_err(|e| format!("yol çözülemedi: {e}"))?;
+        std::fs::write(&path, json.as_bytes()).map_err(|e| format!("yazılamadı: {e}"))?;
+        Ok(path.to_string_lossy().to_string())
+    })
+    .await?
+}
+
+/// Yedek dosyasını seçtirir ve içeriğini olduğu gibi döndürür.
+///
+/// Doğrulama (app/version) ön yüzde: uymayan yedek hiçbir şey yazmadan
+/// reddedilmeli. Buradaki tek kapı boyut — yanlış dosya seçimi belleği
+/// şişirmesin.
+#[tauri::command]
+async fn settings_import(app: AppHandle) -> Result<String, String> {
+    use tauri_plugin_dialog::DialogExt;
+    run_blocking(move || -> Result<String, String> {
+        let picked = app
+            .dialog()
+            .file()
+            .add_filter("JSON", &["json"])
+            .blocking_pick_file();
+        let Some(file) = picked else {
+            return Err("iptal edildi".into());
+        };
+        let path = file
+            .into_path()
+            .map_err(|e| format!("yol çözülemedi: {e}"))?;
+        let size = std::fs::metadata(&path)
+            .map_err(|e| format!("dosya okunamadı: {e}"))?
+            .len();
+        if size > MAX_SETTINGS_BYTES {
+            return Err(format!(
+                "dosya çok büyük ({} KB) — yedek en fazla {} KB olabilir",
+                size / 1024,
+                MAX_SETTINGS_BYTES / 1024
+            ));
+        }
+        std::fs::read_to_string(&path).map_err(|e| format!("dosya okunamadı: {e}"))
+    })
+    .await?
+}
+
 #[tauri::command]
 async fn pref_learn(hour: u8, light: String, name: String, mode: String) {
     let _ = run_blocking(move || remember_pref(hour, &light, &name, &mode)).await;
@@ -619,6 +717,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_process::init())
+        // Ayar yedeği (C2): kaydet/aç diyalogları. Dosya yazma/okuma Rust'ta,
+        // diyalog yalnız yol seçer.
+        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Kendi goz konforu temalarimizi kur (eksikse), sonra onceki
@@ -678,8 +779,25 @@ pub fn run() {
                 // kapat" ayrı ögedir (ikisi aynı anda işaretli görünmemeli).
                 let _ = state.pause.set_checked(paused && !day_off);
                 let _ = state.dayoff.set_checked(day_off);
+
+                // Tooltip aynı yayından beslenir (C3): simgenin üstüne gelince
+                // "ne durumdayım" cevabı görünür. Tray henüz kurulmadıysa ya da
+                // OS yazmayı reddederse sessiz geçilir — tooltip süs, hata değil.
+                let locked = payload
+                    .get("locked")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                let brightness = payload.get("brightness").and_then(|v| v.as_i64());
+                let theme = payload.get("theme").and_then(|v| v.as_str());
+                if let Some(tray) = listen_handle.tray_by_id("main") {
+                    let text =
+                        tray_tooltip(brightness, theme, tray_status(day_off, paused, locked));
+                    let _ = tray.set_tooltip(Some(text));
+                }
             });
-            TrayIconBuilder::new()
+            TrayIconBuilder::with_id("main")
+                // İlk metin: ss:state gelene kadar durum "otomatik" varsayılır.
+                .tooltip("smart-screen · otomatik")
                 .menu(&menu)
                 // Sol tık flyout açar; menü yalnız sağ tıkla çıkar.
                 .show_menu_on_left_click(false)
@@ -799,7 +917,9 @@ pub fn run() {
             flyout_hide,
             monitor_color_temp_info,
             monitor_set_color_temp,
-            nightlight_status
+            nightlight_status,
+            settings_export,
+            settings_import
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
@@ -885,6 +1005,27 @@ mod tests {
             "300 ms: sınırı geçince açmalı"
         );
         assert!(should_toggle_open(false, Some(301)), "301 ms: açmalı");
+    }
+
+    #[test]
+    fn tray_tooltip_matches_contract() {
+        assert_eq!(
+            tray_tooltip(Some(42), Some("ss-dusk"), "otomatik"),
+            "smart-screen · %42 · ss-dusk · otomatik"
+        );
+        // Eksik alan panik değil "—": uydurma değer göstermek yanlış olurdu.
+        assert_eq!(
+            tray_tooltip(None, None, "otomatik"),
+            "smart-screen · %— · — · otomatik"
+        );
+    }
+
+    #[test]
+    fn tray_status_priority() {
+        assert_eq!(tray_status(true, true, true), "bugün kapalı");
+        assert_eq!(tray_status(false, true, true), "duraklatıldı");
+        assert_eq!(tray_status(false, false, true), "kilitli");
+        assert_eq!(tray_status(false, false, false), "otomatik");
     }
 
     #[test]

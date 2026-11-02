@@ -66,6 +66,15 @@ const REPORT = {
     { id: "brightness-read", label: "Parlaklık okuma", status: "ok", detail: "42% · \\\\.\\DISPLAY1", hint: "" },
     { id: "brightness-write", label: "Parlaklık yazma", status: "ok", detail: "42% yazıldı, 42% okundu", hint: "" },
     { id: "gamma", label: "Sıcak ton sürücüsü", status: "warn", detail: "sıcak ton kapalı — rampa yazılmadı", hint: "Sıcak tonu açıp yeniden dene." },
+    // v3.2: kamera satırı. Kare okunamazsa uygulama zaman moduna düşer —
+    // "bad" değil "warn" (çalışmaya devam ediyor).
+    {
+      id: "camera",
+      label: "Ortam ışığı (kamera)",
+      status: "warn",
+      detail: "kamera okunamadı: kamera meşgul — zaman moduna düşülür",
+      hint: "Kamerayı başka bir uygulama kullanıyor olabilir; ışık ölçümü zaman moduna düşer.",
+    },
     { id: "monitors", label: "Monitörler", status: "bad", detail: "hiç monitör bulunamadı", hint: "Ekran bağlantısını denetle." },
     { id: "log", label: "Günlük", status: "ok", detail: "son satır 20:58", hint: "" },
   ],
@@ -77,7 +86,8 @@ const ctx = await browser.newContext({
   permissions: ["clipboard-read", "clipboard-write"],
 });
 const page = await ctx.newPage();
-await page.addInitScript((report) => {
+await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
+  await page.addInitScript((report) => {
   window.__diag = { report, fail: false, calls: [] };
   window.__TAURI_INTERNALS__ = {
     metadata: { currentWindow: { label: "main" }, currentWebview: { label: "main" } },
@@ -164,6 +174,17 @@ const statuses = await page
 check(
   statuses.includes("ok") && statuses.includes("warn") && statuses.includes("bad"),
   `durum sınıfları eksik: ${statuses.join(",")}`,
+);
+// v3.2: kamera satırı gerçekten listeleniyor ve uyarı sınıfında (bad değil).
+const camRow = await textOf('#diag-list .diag-row[data-check="camera"]');
+check(camRow.includes("kamera"), `kamera satırı yok: "${camRow.slice(0, 60)}"`);
+check(
+  (await page.locator('#diag-list .diag-row[data-check="camera"][data-status="warn"]').count()) === 1,
+  "kamera satırı warn sınıfında değil (kamera yoksa uygulama zaman moduna düşer, bad olmamalı)",
+);
+check(
+  camRow.includes("zaman moduna"),
+  `kamera satırı zaman moduna düşüşü söylemiyor: "${camRow.slice(0, 90)}"`,
 );
 // İpucu yalnız sorunlu satırda görünür (ok satırlar sade kalır).
 const okAction = await page

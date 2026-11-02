@@ -85,7 +85,8 @@ const PALS = ["obsidyen", ...[...PAL_CSS.matchAll(/\[data-theme="([a-z0-9-]+)"\]
 const problems = [];
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 340, height: 420 } });
-await page.addInitScript(stub);
+await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
+  await page.addInitScript(stub);
 await page.goto(`http://localhost:${port}/flyout.html`, { waitUntil: "networkidle" });
 await page.waitForTimeout(500);
 

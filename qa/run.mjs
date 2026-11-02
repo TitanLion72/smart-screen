@@ -198,6 +198,16 @@ window.__TAURI_INTERNALS__ = {
         return { pro: false, email: null, issued: null };
       case "battery_status": return [85, true];
       case "nightlight_status": return null;
+      // v3.2: ayar yedegi. Kaydet diyalogu QA'da dosya yazmaz; sabit bir yol
+      // dondurur ve icerigi window.__exported'a alir (icerik assert edilebilsin).
+      case "settings_export":
+        window.__exported = (args && args.json) || "";
+        return "C:\\\\qa\\\\smart-screen-ayarlar.json";
+      // Ice aktarma: window.__importPayload varsa onu dondurur (senaryo kurar),
+      // yoksa iptal gibi davranir.
+      case "settings_import":
+        if (typeof window.__importPayload === "string") return window.__importPayload;
+        return Promise.reject("iptal edildi");
       case "warmth_auto": return 35;
       // Sicak ton durumu: yazinca rampa degisir, geri okuma da onu gorur.
       case "gamma_set_warmth":
@@ -341,13 +351,23 @@ async function run() {
     await page.addInitScript(stubScript(themeName, themeMode, exe, opts));
     // Senaryo izolasyonu: aynı origin'de localStorage senaryolar arası sızıyordu
     // (ör. önceki senaryoda 3 profil kalınca #pf-add disabled olup tıklanamıyordu).
-    await page.addInitScript(() => {
+    // v3.2: onboarding modal olduğu için VARSAYILAN "dönen kullanıcı" kurulur
+    // (ss:onboarded=1); aksi hâlde overlay tüm senaryoları kapatıyordu.
+    // Onboarding'in kendisi ayrı senaryoda `onboard: false` ile test edilir.
+    const skipOnboard = opts?.onboard !== false;
+    // Init script HER yönlenmede çalışır; korumasız sıfırlama reload'da
+    // onboarding durumunu da siler ve "kapatınca bir daha çıkmaz" testini
+    // yalancı yapar. sessionStorage işareti: senaryo başına YALNIZ bir kez.
+    await page.addInitScript((skip) => {
       try {
+        if (sessionStorage.getItem("__qa_seeded") === "1") return;
+        sessionStorage.setItem("__qa_seeded", "1");
         localStorage.clear();
+        if (skip) localStorage.setItem("ss:onboarded", "1");
       } catch {
         /* storage kapalı */
       }
-    });
+    }, skipOnboard);
     await page.goto(base, { waitUntil: "networkidle" });
     await page.waitForTimeout(600);
     const invocations = async () => page.evaluate(() => window.__invocations);
@@ -1673,6 +1693,155 @@ async function run() {
     await sw.click();
     await page.waitForTimeout(300);
   });
+
+  // 21e. v3.2: kamera ifşası, gece özeti, kısayol, yedekleme.
+  //      Onboarding burada `onboard: false` ile AÇIK bırakılır (diğer tüm
+  //      senaryolarda kapatılır — modal olduğu için her şeyi örtüyordu).
+  await scenario(
+    "catppuccin-macchiato",
+    "dark",
+    async ({ page, invocations, openTab, openAdvanced, shot }) => {
+      // ── Onboarding: ilk açılışta görünür, kapatınca bir daha çıkmaz ──
+      check(await page.locator("#onboard").isVisible(), "onboard", "ilk açılışta tanıtım çıkmadı");
+      const obText = await text(page, "#onboard");
+      check(
+        obText.toLowerCase().includes("kamera"),
+        "onboard",
+        `tanıtım kameradan söz etmiyor: "${obText.slice(0, 80)}"`,
+      );
+      await shot("22-onboarding.png");
+      await page.locator("#onboard-done").click();
+      await page.waitForTimeout(400);
+      check(!(await page.locator("#onboard").isVisible()), "onboard", "tanıtım kapanmadı");
+      const onboarded = await page.evaluate(() => localStorage.getItem("ss:onboarded"));
+      check(onboarded === "1", "onboard", `ss:onboarded yazılmadı: ${onboarded}`);
+      await page.reload({ waitUntil: "networkidle" });
+      await page.waitForTimeout(700);
+      check(
+        !(await page.locator("#onboard").isVisible()),
+        "onboard",
+        "kapatıldıktan sonra yeniden açılışta tanıtım yine çıktı",
+      );
+
+      // ── Kamera ifşası: ışık kartında açıkça yazıyor ──
+      const camNote = await text(page, "#cam-note");
+      check(
+        camNote.toLowerCase().includes("kamera"),
+        "kamera",
+        `kamera notu yok: "${camNote}"`,
+      );
+      check(
+        camNote.toLowerCase().includes("yazılmaz") || camNote.toLowerCase().includes("diske"),
+        "kamera",
+        `kamera notu gizlilik güvencesi vermiyor: "${camNote}"`,
+      );
+      // Satır "Durum" karosunda yaşıyor; 251px genişlikte iki satıra taşarsa
+      // kartın alt satırı kırpılır (bento 1040×740'ta yaşandı). Tek satır şart.
+      const camBox = await page.locator("#cam-note").boundingBox();
+      check(
+        !!camBox && camBox.height <= 20,
+        "kamera",
+        `kamera notu tek satıra sığmıyor (${camBox ? Math.round(camBox.height) : "?"}px) — "Durum" karosunda kırpılır`,
+      );
+      const camTitle = await page.locator("#cam-note").getAttribute("title");
+      check(
+        !!camTitle && camTitle.toLowerCase().includes("diske yazılmaz"),
+        "kamera",
+        `kamera notunun tam cümlesi (title) yok: "${camTitle}"`,
+      );
+
+      // ── Gece özeti: sarma ve "kapalı" doğru ──
+      await openTab("settings");
+      const setSleep = async (start, end) => {
+        await page.locator("#sleep-start").fill(String(start));
+        await page.locator("#sleep-start").dispatchEvent("change");
+        await page.locator("#sleep-end").fill(String(end));
+        await page.locator("#sleep-end").dispatchEvent("change");
+        await page.waitForTimeout(250);
+        return (await text(page, "#sleep-summary")).trim();
+      };
+      const wrapped = await setSleep(23, 6);
+      check(wrapped.includes("23:00") && wrapped.includes("06:00"), "gece", `özet saatleri yanlış: "${wrapped}"`);
+      check(wrapped.includes("7 saat"), "gece", `sarma süresi yanlış: "${wrapped}"`);
+      const same = await setSleep(22, 22);
+      check(same.toLowerCase().includes("kapalı"), "gece", `start=end kapalı demedi: "${same}"`);
+
+      // ── Kısayol: Ctrl+Alt+P duraklatmayı çevirir ──
+      // Duraklatma localStorage'a YAZILMAZ (bilinçli: yeniden başlatmada
+      // sıfırlanır), o yüzden kalıcı depo değil ARAYÜZ durumu okunur.
+      await openTab("panel");
+      const pauseState = () => page.evaluate(() => {
+        const b = document.getElementById("pause-btn");
+        return {
+          pressed: b?.getAttribute("aria-pressed"),
+          active: b?.classList.contains("active") ?? false,
+          why: document.getElementById("why-line")?.textContent ?? "",
+        };
+      });
+      const beforePause = await pauseState();
+      await page.keyboard.press("Control+Alt+KeyP");
+      await page.waitForTimeout(600);
+      const afterPause = await pauseState();
+      check(
+        afterPause.pressed !== beforePause.pressed || afterPause.active !== beforePause.active,
+        "kisayol",
+        `Ctrl+Alt+P duraklatmayı değiştirmedi (${JSON.stringify(beforePause)} → ${JSON.stringify(afterPause)})`,
+      );
+      check(
+        afterPause.why.toLowerCase().includes("duraklat"),
+        "kisayol",
+        `duraklatma nedeni satıra yansımadı: "${afterPause.why}"`,
+      );
+      await page.keyboard.press("Control+Alt+KeyP");
+      await page.waitForTimeout(500);
+
+      // ── Yedek alma: tüm ss:* anahtarları tek JSON'da ──
+      // Önce bir anahtarın GERÇEKTEN var olduğundan emin ol: varsayılanlar
+      // diske yazılmaz, yalnız kullanıcı değiştirince `ss:` anahtarı doğar.
+      await openTab("settings");
+      await page.locator("#break-switch").click();
+      await page.waitForTimeout(300);
+      await dismissToasts(page);
+      const wroteBreak = await page.evaluate(() => localStorage.getItem("ss:breakEnabled"));
+      check(wroteBreak !== null, "yedek", "break anahtarı diske yazılmadı (test kurulumu bozuk)");
+      await openAdvanced();
+      await page.locator("#settings-export").click();
+      await page.waitForTimeout(600);
+      const exported = await page.evaluate(() => window.__exported);
+      check(typeof exported === "string" && exported.length > 20, "yedek", "dışa aktarma JSON üretmedi");
+      let parsed = null;
+      try {
+        parsed = JSON.parse(exported);
+      } catch {
+        check(false, "yedek", "dışa aktarılan içerik geçerli JSON değil");
+      }
+      check(parsed && parsed.app === "smart-screen", "yedek", "yedekte app alanı yok");
+      check(parsed && parsed.version === 1, "yedek", `yedek sürümü yanlış: ${parsed && parsed.version}`);
+      check(
+        parsed && parsed.settings && parsed.settings["ss:breakEnabled"] !== undefined,
+        "yedek",
+        `yedekte ayar anahtarları yok: ${parsed && JSON.stringify(Object.keys(parsed.settings ?? {})).slice(0, 120)}`,
+      );
+      await dismissToasts(page);
+
+      // ── Geri yükleme: geçersiz dosya HİÇBİR ŞEY yazmaz ──
+      await page.evaluate(() => {
+        window.__importPayload = JSON.stringify({ app: "baska-uygulama", version: 1, settings: { "ss:mode": "fixed" } });
+      });
+      const modeBefore = await page.evaluate(() => localStorage.getItem("ss:mode"));
+      await page.locator("#settings-import").click();
+      await page.waitForTimeout(700);
+      const modeAfterBad = await page.evaluate(() => localStorage.getItem("ss:mode"));
+      check(
+        modeAfterBad === modeBefore,
+        "yedek",
+        `geçersiz yedek yine de yazdı: ${modeBefore} → ${modeAfterBad}`,
+      );
+      await dismissToasts(page);
+    },
+    undefined,
+    { onboard: false },
+  );
 
   // 22. Şablon × palet matrisi (v2.6): 4 şablon × 12 palet.
   //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu

@@ -119,6 +119,7 @@ async function open(disableWebgl = false, reducedMotion = "no-preference") {
     reducedMotion,
   });
   const page = await ctx.newPage();
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(STUB(disableWebgl));
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(900);

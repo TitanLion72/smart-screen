@@ -22,7 +22,16 @@ import {
   THEMES,
 } from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
-import { FREE_MAX_PROFILES, MAX_PROFILES, getSetting, setSetting } from "./store";
+import { invoke } from "@tauri-apps/api/core";
+import {
+  FREE_MAX_PROFILES,
+  MAX_PROFILES,
+  applySettings,
+  clearSettings,
+  collectSettings,
+  getSetting,
+  setSetting,
+} from "./store";
 import { toast } from "./toast";
 import { bindSwitch, buildSeg, buildTagEditor } from "./widgets";
 import type { SwitchHandle, TagHandle } from "./widgets";
@@ -1024,6 +1033,15 @@ function renderCards(): void {
   el("st-light").title = S.light.title;
   el("sub-light").textContent = S.light.sub === "-" ? "kamera ilk turda okur" : S.light.sub;
   setDot("dot-light", S.light.dot);
+  // Kamera ifşası (v3.2, C1): uygulama ortam ışığını webcam'den okuyor —
+  // kullanıcı bunu bilmeli. Metin KISA tutulur: "Durum" karosu 1040×740'ta
+  // 251px geniş; iki satıra taşınca kartın alt satırı kırpılıyordu. Uzun
+  // cümle `title`da durur (fare ile tam okunur).
+  const camEvery = S.lowPower ? "15 dk'da bir" : "5 dk'da bir";
+  el("cam-note").textContent = `ışık: kamera, ${camEvery} tek kare · diske yazılmaz`;
+  el("cam-note").title = `Işık ölçümü kameradan yapılır: ${
+    S.lowPower ? "15 dakikada" : "5 dakikada"
+  } bir tek kare okunur, görüntü diske yazılmaz.`;
 
   const [themeName, themeMode] = splitKey(S.appliedKey);
   const noTheme = !themeName || themeName === "-";
@@ -1058,6 +1076,22 @@ function splitKey(key: string | null): [string, string | null] {
   if (!key) return ["-", null];
   const [name, mode] = key.split("|");
   return [name, mode || null];
+}
+
+/**
+ * Gece penceresi özeti (v3.2, C6): iki çıplak sayı kutusu yerine tek cümle.
+ * Sarma (22 → 6) doğru hesaplanır; başlangıç = bitiş ise pencere kapalıdır.
+ */
+function sleepSummaryText(): string {
+  const start = S.sleepStart;
+  const end = S.sleepEnd;
+  if (start === end) return "kapalı";
+  const hours = end > start ? end - start : 24 - start + end;
+  return `${pad2(start)}:00–${pad2(end)}:00 · ${hours} saat`;
+}
+
+function renderSleepSummary(): void {
+  el("sleep-summary").textContent = sleepSummaryText();
 }
 
 function renderHeader(): void {
@@ -1423,6 +1457,7 @@ export function renderAll(): void {
   renderHero();
   renderCards();
   renderQuickbar();
+  renderSleepSummary();
   renderBreak();
   renderWarm();
   renderMonitors();
@@ -1519,6 +1554,90 @@ export function readDraftName(): string {
   return inputEl("pf-name").value;
 }
 
+// ---------- ayar yedeği (v3.2, C2) ----------
+
+/**
+ * Diyalogdan vazgeçmek hata değil: Rust `Err("iptal edildi")` döner.
+ * Bunu kırmızı toast yapmak, "Yedek al"a basıp vazgeçen kullanıcıya hata
+ * göstermek olurdu — sessiz geç.
+ */
+function userCancelled(e: unknown): boolean {
+  const msg = typeof e === "string" ? e : e instanceof Error ? e.message : String(e ?? "");
+  return msg.toLocaleLowerCase("tr").includes("iptal");
+}
+
+/** Tüm `ss:` anahtarları tek JSON dosyasına. Yol Rust diyaloğundan gelir. */
+async function exportSettings(): Promise<void> {
+  const payload = {
+    app: "smart-screen",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    settings: collectSettings(),
+  };
+  try {
+    const path = await invoke<string>("settings_export", { json: JSON.stringify(payload, null, 2) });
+    toast.ok("Yedek alındı", { detail: path });
+  } catch (e) {
+    if (userCancelled(e)) return;
+    toast.err("Yedek alınamadı", { detail: String(e) });
+  }
+}
+
+/**
+ * Yedeği geri yükler. Doğrulama yazmadan ÖNCE: yanlış dosya seçildiğinde
+ * ayarların yarısı bozulmuş kalmasın.
+ */
+async function importSettings(): Promise<void> {
+  let raw: string;
+  try {
+    raw = await invoke<string>("settings_import");
+  } catch (e) {
+    if (!userCancelled(e)) toast.err("Yedek açılamadı", { detail: String(e) });
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    toast.err("Bu dosya smart-screen yedeği değil");
+    return;
+  }
+  const obj = parsed as { app?: unknown; version?: unknown; settings?: unknown } | null;
+  const settings = obj?.settings;
+  if (obj?.app !== "smart-screen" || obj?.version !== 1 || !settings || typeof settings !== "object" || Array.isArray(settings)) {
+    toast.err("Bu dosya smart-screen yedeği değil");
+    return;
+  }
+  applySettings(settings as Record<string, unknown>);
+  toast.ok("Yedek geri yüklendi", { detail: "Ayarlar birazdan yeniden yüklenecek" });
+  window.setTimeout(() => location.reload(), 800);
+}
+
+/** Sıfırlama: geri alınamaz, bu yüzden iki aşamalı (pf-delete ile aynı desen). */
+function wireSettingsReset(): void {
+  const btn = btnEl("settings-reset");
+  const label = "Ayarları sıfırla";
+  let armed = false;
+  let timer = 0;
+  btn.addEventListener("click", () => {
+    if (!armed) {
+      armed = true;
+      btn.textContent = "Emin misin? Sıfırla";
+      timer = window.setTimeout(() => {
+        armed = false;
+        btn.textContent = label;
+      }, 3000);
+      return;
+    }
+    if (timer) window.clearTimeout(timer);
+    armed = false;
+    btn.textContent = label;
+    clearSettings();
+    toast.ok("Ayarlar sıfırlandı", { detail: "Profiller varsayılana döndü" });
+    window.setTimeout(() => location.reload(), 400);
+  });
+}
+
 // ---------- düğme eylemleri (main'in çağırdığı kısa yollar) ----------
 
 export function wireButtons(): void {
@@ -1529,6 +1648,9 @@ export function wireButtons(): void {
   btnEl("diag-run").addEventListener("click", () => void runDiagnostics());
   btnEl("diag-copy").addEventListener("click", () => void copyDiagReport());
   btnEl("diag-log").addEventListener("click", () => void openLogFile());
+  btnEl("settings-export").addEventListener("click", () => void exportSettings());
+  btnEl("settings-import").addEventListener("click", () => void importSettings());
+  wireSettingsReset();
   btnEl("lic-activate").addEventListener("click", () => {
     void activateLicense(inputEl("lic-key").value).then(() => {
       if (S.licensePro) inputEl("lic-key").value = "";

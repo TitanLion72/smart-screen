@@ -42,7 +42,13 @@ kullanabilirsin.
 | **Durum** | Merkezdeki büyük rakam gerçek parlaklık; altında ulaşılmak istenen değer ve sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi (canlı); monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
 | **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
-| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması (Windows gece ışığı dâhil); **Gelişmiş** altında okunabilirlik denetimi, Windows açılışında başlat, lisans ve Hakkında |
+| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması (Windows gece ışığı dâhil); **Gelişmiş** altında okunabilirlik denetimi, **yedekleme** (ayarları dışa/içe aktar, sıfırla), Windows açılışında başlat, lisans ve Hakkında |
+
+İlk açılışta üç maddelik kısa bir tanıtım çıkar (kamera, otomatiğin sınırları,
+verinin cihazda kaldığı); "Anladım" deyince bir daha görünmez.
+
+Kısayollar (pencere odaklıyken): **Ctrl+Alt+M** ölç · **Ctrl+Alt+P** duraklat ·
+**Ctrl+Alt+L** kilit.
 
 Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
 silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen
@@ -62,6 +68,8 @@ tıklayınca veya ESC ile kapanır.
 Otomatik kurallar:
 
 - Dakikada bir bakar, kamerayı en fazla 5 dk bir açar (pil %20 altıysa 15 dk).
+- Kameradan yalnız **tek kare** okur; görüntü **diske yazılmaz**, hiçbir yere
+  gönderilmez. Bu satır Durum kartında da yazar.
 - Aynı kararı 2 kez onaylamadan değiştirmez (titreşim olmaz).
 - Gece 00:00–01:30 dışında parlaklığı %0'a çekmez.
 - Kilitliyse / "Sabit" moddaysa / oyun-video-PDF açıkken hiçbir şeye dokunmaz.
@@ -278,6 +286,8 @@ dosyasında. Bu, yazılımı özgürce çalıştırma, inceleme, değiştirme ve
 hakkını garanti eder; değiştirilmiş sürümler de aynı lisansla paylaşılmalıdır
 (copyleft). v2.0.0 ve öncesi sürümler MIT lisansıyla yayınlanmıştı; bu değişiklik
 sonraki sürümler için geçerlidir.
+
+Üçüncü taraf bileşenler ve lisansları: [`THIRD-PARTY.md`](THIRD-PARTY.md).
 
 Uygulamanın kendisi freemium'dur: temel göz konforu özellikleri ücretsiz, Pro
 (harici monitör kontrolü, 6 profil, uygulama bağlı profiller) lisans anahtarıyla

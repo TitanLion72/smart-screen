@@ -101,6 +101,9 @@
   #clock           | span.clock | canlı saat (header'da, dakikada bir)  | text ("21:04")
   #app-ver         | span       | sürüm numarası (üst şerit)            | text (örn "1.4.0")
   #toast-host      | div        | toast kapsayıcısı (BOŞ kap)           | toast.ts doldurur; elle dokunma
+  #onboard         | div.onboard | ilk açılış tanıtımı (yarı saydam overlay) | hidden = ss:onboarded "1"; Esc kapatır; açıkken kısayol çalışmaz
+  #onboard-done    | button.btn-primary | "Anladım, başlayalım"          | click → ss:onboarded=1 + overlay gizlenir
+  #onboard-title   | div.box-title | tanıtım başlığı ("smart-screen'e hoş geldin") | statik; overlay'in aria-labelledby hedefi
 
   ─────────────────────────── 1. DURUM (#page-panel) ───────────────────────────
   #risk-band       | div.band.danger | riskli tema uyarı bandı           | hidden (risk varsa göster)
@@ -138,6 +141,7 @@
   #dot-light       | span.dot   | ışık durum noktası                     | className "dot " + cls (setDot)
   #st-light        | span       | ışık seviyesi ("zaman + dim/neutral")  | text + title
   #sub-light       | div        | ışık alt satırı (saat • kaynak)        | text
+  #cam-note        | div.hint   | kamera ifşası ("ışık: kamera, 5 dk'da bir tek kare · diske yazılmaz") | text + title (JS; pil düşükse 15 dk)
   #dot-theme       | span.dot   | tema durum noktası                     | className "dot " + cls
   #st-theme        | span       | uygulanan tema adı                     | text + title
   #sub-theme       | div        | tema alt satırı ("mod: dark • bekliyor (1/2)") | text
@@ -164,6 +168,7 @@
   #undo-btn        | button.btn-toggle | "Geri al"                       | click → undo(); disabled = undoStack boş
   #break-countdown | span.hint  | 20-20-20 geri sayımı ("mola: 12:30" / "kapalı") | text
   #last-measure    | span       | son ölçüm saati                        | text
+  #shortcut-hint   | div.hint   | Durum altbilgisi: "Kısayol: Ctrl+Alt+M ölç · …" | statik metin
 
   #log             | div.log    | olay akışı (JS üretir, en fazla 100 satır) | role="log"
   #log-all-link    | button.linklike | "Tümü → Geçmiş"                   | click → switchTab("history")
@@ -228,6 +233,7 @@
   #sleep-start     | input number | gece koruması başlangıç saati (0-23) | change → prefs kaydet
   #sleep-end       | input number | gece koruması bitiş saati (0-23)     | change → prefs kaydet
   #sleep-cap       | input number | gece tavanı % (5-60)                 | change → prefs kaydet
+  #sleep-summary   | span.hint  | gece penceresi özeti ("22:00–06:00 · 8 saat") | text (JS; sarma doğru, start===end → "kapalı")
 
   #break-switch    | button.switch | 20-20-20 hatırlatıcı aç/kapa       | bindSwitch; .on + aria-checked
   #break-next      | div        | sonraki mola geri sayımı (normal boyut) | text ("sonraki mola: 12:30")
@@ -280,6 +286,10 @@
   #about-check-update | button.btn-toggle | "Güncellemeyi denetle"         | click → anında check(); sonuç #about-update-status'ta
   #about-update-status | span.hint | "son kontrol: 14:32" / "güncel"        | text (JS)
   #about-warranty  | div.hint   | garanti yok satırı                     | statik metin
+  #settings-export | button.btn-toggle | "Yedek al"                      | click → tüm ss: anahtarları settings_export({json}); toast yol
+  #settings-import | button.btn-toggle | "Yedekten geri yükle"           | click → settings_import(); app/version doğrulanır, 800 ms sonra reload
+  #settings-reset  | button.btn-danger | "Ayarları sıfırla" (iki aşamalı) | 1. click → "Emin misin? Sıfırla", 3 sn içinde 2. click → ss: anahtarları sil + reload
+  #settings-note   | span.hint  | yedek kapsamı notu                     | statik metin
 
   ETKİLEŞİM TÜRLERİ: button=click · input=change/input · div.seg=buildSeg ·
   button.switch=bindSwitch · div.tag-editor=buildTagEditor · input range=input ·
@@ -300,6 +310,20 @@
   <body>
     <!-- Toast kapsayıcısı: toast.ts doldurur, elle dokunulmaz -->
     <div id="toast-host"></div>
+
+    <!-- İlk açılış tanıtımı: uygulamanın kamerayı kullandığını AÇIKÇA söyler.
+         Kapatılınca ss:onboarded=1 yazılır ve bir daha çıkmaz. -->
+    <div class="onboard" id="onboard" role="dialog" aria-modal="true" aria-labelledby="onboard-title" hidden>
+      <div class="onboard-card">
+        <div class="box-title" id="onboard-title">smart-screen'e hoş geldin</div>
+        <ul class="onboard-list">
+          <li>Ortam ışığını kameradan okur — günde birkaç kez tek kare, görüntü diske yazılmaz.</li>
+          <li>Işığa ve saate göre temanı ve ekran parlaklığını ayarlar; video/oyun/tam ekranda dokunmaz.</li>
+          <li>Her şey bu cihazda kalır — hesap yok, bulut yok.</li>
+        </ul>
+        <button id="onboard-done" class="btn-primary" type="button">Anladım, başlayalım</button>
+      </div>
+    </div>
 
     <!-- SAHNE: tek perspektifli 3B dünya. Gezinme altta yüzen cam dock'ta. -->
     <div class="app">
@@ -457,6 +481,7 @@
                   <div class="st-label">Işık</div>
                   <div class="st-val" id="st-light">Ölçüm bekleniyor</div>
                   <div class="st-sub" id="sub-light">-</div>
+                  <div class="hint st-note" id="cam-note">-</div>
                 </div>
               </div>
               <div class="st-row">
@@ -477,6 +502,9 @@
               </div>
             </div>
           </div>
+
+          <!-- Kısayollar: pencere odaklıyken çalışır, onboarding açıkken susar. -->
+          <div class="hint page-foot" id="shortcut-hint">Kısayol: Ctrl+Alt+M ölç · Ctrl+Alt+P duraklat · Ctrl+Alt+L kilit</div>
         </section>
 
         <!-- ═══════════════ 2. PROFİLLER ═══════════════ -->
@@ -677,6 +705,7 @@
                   <span class="hint">gece bu değerin üstüne çıkmaz</span>
                 </label>
               </div>
+              <span class="hint sleep-sum" id="sleep-summary">kapalı</span>
               <div class="hint">Gece boyunca parlaklık bu tavanın üstüne çıkmaz; 00:00–01:30 dışında %0 yazılmaz.</div>
             </div>
           </div>
@@ -809,6 +838,16 @@
                 <button id="night-btn" class="btn-toggle" type="button">Windows gece ışığı</button>
                 <span class="spacer"></span>
                 <span class="hint">Windows gece ışığı ayar sayfasını açar</span>
+              </div>
+
+              <div class="panel-box inner">
+                <div class="box-title">Yedekleme</div>
+                <div class="toolbar">
+                  <button id="settings-export" class="btn-toggle" type="button">Yedek al</button>
+                  <button id="settings-import" class="btn-toggle" type="button">Yedekten geri yükle</button>
+                  <button id="settings-reset" class="btn-toggle btn-danger" type="button">Ayarları sıfırla</button>
+                </div>
+                <span class="hint" id="settings-note">Profiller, paletler, listeler ve tüm tercihler tek dosyada.</span>
               </div>
 
               <div class="panel-box inner" id="lic-box">

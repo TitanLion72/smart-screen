@@ -39,6 +39,69 @@ export function setSetting(key: string, value: string): void {
   }
 }
 
+/**
+ * Yedekleme (v3.2, C2). `ss:` öneki localStorage'daki TÜM kalıcı durumdur:
+ * profiller, palet/şablon seçimi, listeler, gece saatleri, öğrenilen tercih.
+ *
+ * Neden anahtar listesi tutmuyoruz: yeni bir ayar eklendiğinde liste elle
+ * güncellenmeyi unutur ve "yedeğimde eksik var" sessiz bir veri kaybına
+ * dönüşür. Tek doğru kaynak localStorage'ın kendisi.
+ */
+const SETTINGS_PREFIX = "ss:";
+/** Lisans Rust deposunda; yine de bu önek varsa yedek/sıfırlama dokunmaz. */
+const LICENSE_PREFIX = "ss:licence";
+
+export function collectSettings(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(SETTINGS_PREFIX)) continue;
+      out[key] = localStorage.getItem(key) ?? "";
+    }
+  } catch {
+    /* storage yoksa boş yedek: çağıran fark eder */
+  }
+  return out;
+}
+
+/**
+ * Yedeği yazar. Anahtar `ss:` ile başlamıyorsa atlanır — dışarıdan gelen bir
+ * dosya localStorage'a yabancı anahtar bırakmasın.
+ */
+export function applySettings(settings: Record<string, unknown>): number {
+  let written = 0;
+  for (const [key, value] of Object.entries(settings)) {
+    if (!key.startsWith(SETTINGS_PREFIX)) continue;
+    try {
+      localStorage.setItem(key, typeof value === "string" ? value : JSON.stringify(value));
+      written += 1;
+    } catch {
+      /* kota dolu: kalanlar yazılmaz, çağıran sayıdan anlar */
+    }
+  }
+  return written;
+}
+
+/** "Ayarları sıfırla": `ss:` anahtarlarını siler, lisans benzeri anahtarları bırakır. */
+export function clearSettings(): number {
+  let removed = 0;
+  try {
+    const keys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith(SETTINGS_PREFIX) && !key.startsWith(LICENSE_PREFIX)) keys.push(key);
+    }
+    for (const key of keys) {
+      localStorage.removeItem(key);
+      removed += 1;
+    }
+  } catch {
+    /* storage yoksa silinecek bir şey de yok */
+  }
+  return removed;
+}
+
 function readJson<T>(key: string, fallback: T): T {
   try {
     const raw = localStorage.getItem(key);

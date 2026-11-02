@@ -169,6 +169,30 @@ pub fn gamma_readonly_check(cur: &Result<(u8, u8), String>) -> Check {
     }
 }
 
+// ── kamera ───────────────────────────────────────────────────────────
+
+/// Ortam ışığı kameradan gelir (bu makinede ALS yok). Kamera açılamıyorsa
+/// uygulama **çalışmaya devam eder** — karar motoru zaman moduna düşer. Bu
+/// yüzden `bad` değil `warn`: kullanıcıya "bozuk" değil "ölçemiyorum" denmeli.
+pub fn camera_check(res: &Result<(), String>) -> Check {
+    match res {
+        Ok(()) => check(
+            "camera",
+            "Ortam ışığı (kamera)",
+            "ok",
+            "kamera tek kare okuyabiliyor",
+            "",
+        ),
+        Err(e) => check(
+            "camera",
+            "Ortam ışığı (kamera)",
+            "warn",
+            format!("kamera okunamadı: {e} — zaman moduna düşülür"),
+            "Kamerayı başka bir uygulama kullanıyor olabilir; ışık ölçümü zaman moduna düşer.",
+        ),
+    }
+}
+
 // ── HDR ──────────────────────────────────────────────────────────────
 
 pub fn hdr_check(infos: &[hdr::HdrInfo]) -> Check {
@@ -377,7 +401,7 @@ pub fn log_check(last: Option<&str>) -> Check {
 /// Tüm kontrolleri koşar. `warmth`: uygulamanın **şu an** kullandığı sıcak ton
 /// şiddeti; `0` ise rampa **yazılmaz** (yalnız okunur).
 pub fn run(warmth: u8) -> Report {
-    let mut checks = Vec::with_capacity(9);
+    let mut checks = Vec::with_capacity(11);
 
     // 1-2) Parlaklık: oku, aynı değeri yaz, geri oku.
     let read = brightness::get_brightness();
@@ -387,6 +411,11 @@ pub fn run(warmth: u8) -> Report {
         Err(_) => Err("okuma başarısız".to_string()),
     };
     checks.push(brightness_write_check(&read, &written));
+
+    // 2b) Kamera: ışık hattının gerçekten tek kare okuyabildiğini doğrular.
+    // Burada renk analizi yapılmaz; amaç ölçüm değil erişim. Kamera meşgulse
+    // uygulama yine çalışır (zaman modu) — bu yüzden satır `warn`.
+    checks.push(camera_check(&crate::light::probe()));
 
     // 3) Sıcak ton. Kapalıyken yazma yok (kalibrasyonu ezmemek için).
     if warmth == 0 {
@@ -543,10 +572,32 @@ mod tests {
     }
 
     #[test]
+    fn camera_ok_says_single_frame() {
+        let c = camera_check(&Ok(()));
+        assert_eq!(c.id, "camera");
+        assert_eq!(c.label, "Ortam ışığı (kamera)");
+        assert_eq!(c.status, "ok");
+        assert_eq!(c.detail, "kamera tek kare okuyabiliyor");
+        assert!(c.hint.is_empty());
+    }
+
+    #[test]
+    fn camera_failure_is_warning_not_bad() {
+        // Kamera bozuk olsa da uygulama çalışır (zaman modu) — "bad" demek
+        // kullanıcıyı gereksiz yere "uygulama bozuk" sanmaya iter.
+        let c = camera_check(&Err("kamera açılamadı".into()));
+        assert_eq!(c.status, "warn");
+        assert!(c.detail.contains("kamera okunamadı"));
+        assert!(c.detail.contains("zaman moduna"));
+        assert!(!c.hint.is_empty());
+    }
+
+    #[test]
     fn every_check_has_stable_id_and_label() {
         let report_checks = [
             brightness_read_check(&ok_read(1)),
             brightness_write_check(&ok_read(1), &Ok(1)),
+            camera_check(&Ok(())),
             gamma_write_check(50, &Ok((50, 50))),
             gamma_readonly_check(&Ok((100, 100))),
             hdr_check(&[]),

@@ -356,6 +356,9 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
+  /* v3.2: altbilgi ipucu (`#shortcut-hint`) mutlak konumla bu kabın alt
+     nefes payına yerleşir; referans kutu gerekli. */
+  position: relative;
   /* v2.4.2: dock'un hemen üstünde içerik sıfıra dayanıyordu; son satır
      kesilmiş gibi görünüyordu. Kaydırma sonunda nefes payı bırak. */
   padding-bottom: var(--sp-5);
@@ -2618,6 +2621,85 @@ button.swatch[aria-pressed="true"] {
     --text-3: #a89d8d;
     --text-4: #978d7d;
   }
+}
+
+/* ═══════════════ İlk açılış tanıtımı (v3.2, C4) ═══════════════ */
+
+/* Yarı saydam perde: arkadaki arayüz görünür kalır, "bu bir katman" hissi
+   kaybolmaz. Toast (z-index 1000) üstte kalır — tanıtım açıkken bildirim
+   gelirse okunabilsin. */
+.onboard {
+  position: fixed;
+  inset: 0;
+  z-index: 900;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: color-mix(in srgb, var(--bg-0) 74%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* `display:flex` [hidden]'ı ezer — açıkça kapat. */
+.onboard[hidden] {
+  display: none;
+}
+
+.onboard-card {
+  width: min(560px, 100%);
+  /* Küçük pencerede (760×600) taşmaz: kart kaydırılır, düğme kaybolmaz. */
+  max-height: 80vh;
+  overflow-y: auto;
+  background: var(--surface-1);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-2);
+  padding: var(--sp-6);
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+}
+
+.onboard-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: var(--sp-3);
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--text-2);
+}
+
+.onboard-list li::marker {
+  color: var(--accent);
+}
+
+.onboard-card .btn-primary {
+  align-self: flex-start;
+}
+
+/* Durum kartı: kamera notu alt satırın hemen altında, aynı ailede. */
+.st-note {
+  margin-top: 2px;
+}
+
+/* Gece penceresi özeti: iki sayı kutusunun altında tek cümle. */
+.sleep-sum {
+  color: var(--text-3);
+}
+
+/* Durum sayfası altbilgisi (kısayol ipucu).
+   Izgaraya KATILMAZ: `#page-panel` bir grid kabı; akışta kalsaydı 4. bir
+   satır açıp hero'yu 42px kısaltıyordu (bento 1040×740'da hero içeriği
+   kırpılıyordu). Sayfanın alt nefes payının (`padding-bottom`) içine
+   mutlak konumla yerleşir — yer kaplamaz, içeriği örtmez. */
+.page-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0 2px;
 }
 
 /* ═══════════════ Duyarlı davranış (min 720×560) ═══════════════ */

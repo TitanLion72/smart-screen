@@ -58,6 +58,27 @@ pub fn sample_light() -> Result<LightSample, String> {
     ))
 }
 
+/// Tanilama icin: kamera gercekten tek kare okuyabiliyor mu?
+///
+/// Renk analizi **yapilmaz** — buradaki soru "isik ne" degil "kamera aciliyor
+/// mu". Kare diske yazilmaz (AGENTS.md). Hata metinleri kisa tutulur: ayrinti
+/// (surucu hatasi vb.) kullaniciya bir sey anlatmiyor, tanilama satirinda
+/// `kamera okunamadi: ...` olarak zaten cerceveleniyor.
+pub fn probe() -> Result<(), String> {
+    let format = RequestedFormat::new::<RgbFormat>(RequestedFormatType::AbsoluteHighestFrameRate);
+    let mut camera =
+        Camera::new(CameraIndex::Index(0), format).map_err(|_| "kamera açılamadı".to_string())?;
+    camera
+        .open_stream()
+        .map_err(|_| "kamera akışı açılamadı".to_string())?;
+    let frame = camera.frame().map_err(|_| "kare okunamadı".to_string())?;
+    // Cozme, karenin gercekten kullanilabilir oldugunu dogrular; sonuc atilir.
+    frame
+        .decode_image::<RgbFormat>()
+        .map_err(|_| "kare çözülemedi".to_string())?;
+    Ok(())
+}
+
 /// Piksellerden isik ornegi uretir (test edilebilir saf fonksiyon).
 fn analyze(pixels: impl Iterator<Item = (u8, u8, u8)>) -> LightSample {
     let mut sum_lum = 0.0f32;
@@ -131,5 +152,13 @@ mod tests {
             "kamera: luminance={:.1} warm_ratio={:.2} level={level} tone={tone}",
             s.luminance, s.warm_ratio
         );
+    }
+
+    /// Donanim yolu: `probe` gercekten tek kare okuyabiliyor mu? Varsayilan
+    /// kosuda atlanir (CI'da kamera yok).
+    #[test]
+    #[ignore]
+    fn live_camera_probe_only_frame() {
+        probe().expect("kamera tek kare okuyamadi");
     }
 }

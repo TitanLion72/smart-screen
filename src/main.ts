@@ -20,6 +20,7 @@ import type { Update } from "@tauri-apps/plugin-updater";
 import * as O from "./orchestr";
 import * as P from "./panels";
 import { initScene } from "./scene";
+import { getSetting, setSetting } from "./store";
 import { toast } from "./toast";
 import { PURCHASE_URL } from "./catalog";
 
@@ -209,6 +210,67 @@ function wireUpdater(): void {
   window.setTimeout(() => void runUpdateCheck(), UPDATE_FIRST_MS);
 }
 
+// ---------- ilk açılış tanıtımı (v3.2, C4) ----------
+
+/**
+ * Kamerayı kullandığımız ilk açılışta AÇIKÇA söylenir — kullanıcı "Akıllı ·
+ * %42" görüp uygulamanın ne yaptığını tahmin etmek zorunda kalmasın.
+ * Bir kez kapatılır (`ss:onboarded`), Esc de kapatır: `aria-modal` bir katmanın
+ * klavyeyle kaçış yolu olmalı.
+ */
+function onboardOpen(): boolean {
+  const node = document.getElementById("onboard");
+  return node instanceof HTMLElement && !node.hidden;
+}
+
+function setupOnboarding(): void {
+  const overlay = el("onboard");
+  const close = (): void => {
+    setSetting("onboarded", "1");
+    overlay.hidden = true;
+  };
+  if (getSetting("onboarded", "0") === "1") {
+    overlay.hidden = true;
+    return;
+  }
+  overlay.hidden = false;
+  btnEl("onboard-done").addEventListener("click", close);
+  document.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || overlay.hidden) return;
+    e.preventDefault();
+    close();
+  });
+}
+
+// ---------- klavye kısayolları (v3.2, C5) ----------
+
+/**
+ * Ctrl+Alt+M ölç · Ctrl+Alt+P duraklat · Ctrl+Alt+L kilit.
+ *
+ * Form alanında yazarken susar (kısayol metni bozmasın) ve tanıtım açıkken
+ * de susar: kullanıcı henüz "başlayalım" demeden arka planda ölçüm başlatmak
+ * şaşırtıcı olurdu.
+ */
+function wireShortcuts(): void {
+  document.addEventListener("keydown", (e) => {
+    if (!e.altKey || !e.ctrlKey) return;
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    const tag = target?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || target?.isContentEditable) return;
+    if (onboardOpen()) return;
+    if (e.code === "KeyM") {
+      e.preventDefault();
+      void O.tick("manuel");
+    } else if (e.code === "KeyP") {
+      e.preventDefault();
+      O.togglePauseHour();
+    } else if (e.code === "KeyL") {
+      e.preventDefault();
+      O.toggleLock();
+    }
+  });
+}
+
 // ---------- flyout olay köprüsü ----------
 
 function wireFlyoutBridge(): void {
@@ -250,6 +312,11 @@ window.addEventListener("DOMContentLoaded", () => {
 
   P.bootWidgets();
   P.wireButtons();
+  // v3.2: tanıtım ve kısayollar ERKEN bağlanır. Boot'un ileriki adımları
+  // (flyout köprüsü, güncelleme) hata verirse ilk açılış tanıtımı ve klavye
+  // sessizce ölmüş olmasın — aynı ders v2.9'da autoPalette için alınmıştı.
+  setupOnboarding();
+  wireShortcuts();
 
   // v2.9: "Günün rengi" bağlaması ERKEN yapılır. Boot'un ileriki adımları
   // (güncelleme/flyout köprüsü) hata verirse bağlama ölmesin — bir kez

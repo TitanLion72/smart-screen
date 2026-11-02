@@ -217,6 +217,7 @@ const browser = await chromium.launch();
 // 1) Şablon × boyut: Durum sayfası, her şablon.
 for (const s of sizes) {
   const page = await browser.newPage({ viewport: { width: s.w, height: s.h } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(700);
@@ -258,6 +259,7 @@ for (const s of sizes) {
 // 2) Palet matrisi: yalnız 1040×740, bento (her paletin gerçek görünümü).
 {
   const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(700);
@@ -278,6 +280,7 @@ for (const s of sizes) {
 //    rakamının dolduğunu doğruluyoruz: düzen ölçümü buna dayanıyor.
 {
   const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(1200);
@@ -302,7 +305,8 @@ for (const s of sizes) {
     [1512, 730],
   ]) {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
-    await page.addInitScript(stub);
+    await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
+  await page.addInitScript(stub);
     await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
     await page.waitForTimeout(900);
     // Mola bandı gerçek kullanımda sık açılır ve yer yüksekliği yer; onunla ölç.
@@ -388,6 +392,7 @@ for (const s of sizes) {
 //    taşma ve kırpılma aranır; dikey taşma yalnız raporlanır.
 {
   const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(900);

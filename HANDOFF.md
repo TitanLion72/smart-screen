@@ -1,4 +1,4 @@
-# HANDOFF — smart-screen (güncel: v3.1.0, 2026-11-01)
+# HANDOFF - smart-screen (güncel: v3.2.0, 2026-11-03)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -22,7 +22,45 @@ geliştirici notu duruyordu.
    (`body.scrollHeight` işe yaramaz).
 
 
-## Güncel durum: v3.1.0 — gerçekten geçerli sınırlar
+## v3.2.0 turu - dersler (2026-11-03)
+
+Yedi iş üç ajana dağıtıldı (Rust / frontend / doküman); dosya sahiplikleri
+ayrıktı, çakışma çıkmadı. Ama **şefin birleştirmesinde üç gerçek hata** çıktı —
+hepsi "ajan PASS dedi" ile yayına gidecekti:
+
+1. **Onboarding modal her şeyi örtüyor.** İlk senaryo dışında 23/24 QA senaryosu
+   `TimeoutError: locator.click` verdi. Modallar için QA başlangıç durumu şart:
+   `addInitScript` ile `ss:onboarded=1`. Kural: **kapatılmadıkça tıklanan her yeni
+   overlay = tüm QA setini kırar**, önce onu düşün.
+   Ayrıca `addInitScript` her yönlenmede çalışır → reload'da `localStorage.clear()`
+   "kapatınca bir daha çıkmaz" testini yalancı yapar; `sessionStorage` işaretiyle
+   senaryo başına bir kez çalıştırıldı.
+2. **Akıştaki altbilgi ızgarayı bozdu.** `#page-panel` bento'da `display:grid`;
+   sonuna eklenen ipucu 4. satırı açtı, hero 349→265px'e indi ve içerik kırpıldı
+   (`audit-templates` §3b: "hero içeriği kabından 23px taşıyor"). Çözüm: ipucu
+   sayfanın `padding-bottom` payında `position:absolute`. Kural: **bir grid kabına
+   çocuk eklerken "hangi satıra düşer" sorusunu sor.**
+3. **Metin uzunluğu yerleşim hatası.** "Durum" karosu 1040×740'ta 251px; iki
+   satırlık kamera notu kartın son satırını kırptı. Kısa metin + tam cümle
+   `title`da; QA satır yüksekliğini (≤20px) ölçüyor.
+
+Yan bulgu: `qa/audit-accent.mjs` v3.1'de `paletteForHour`'u `engine.ts`e taşındığı
+için 0 dilim okuyordu, ayrıca "Günün rengi" varsayılanı açık olduğu için testin
+kendi başlangıç durumunu kurması gerekiyordu. **Taşınan fonksiyonun kaynağını
+okuyan denetimler sessizce 0 bulur — regex tabanlı denetimleri taşımayla birlikte
+güncelle.**
+
+Canlı doğrulama (dev + CDP, `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`): tanıtım bir
+kez çıkıp kapandı (`ss:onboarded=1`), `Ctrl+Alt+P/L` duraklatma ve kilidi çevirdi,
+gece özeti 23→06 için "7 saat", tanılama kamera satırı `ok` ("kamera tek kare
+okuyabiliyor"), **gerçek Windows diyaloğuyla** yedek alındı → bir anahtar bozuldu →
+geri yükleme değeri döndürdü → sıfırlama anahtarları temizledi.
+
+**Elle doğrulanacak:** tepsi simgesine fareyle gelince ipucu (`smart-screen ·
+%42 · tema · durum`). Win32 tooltip'i makineden okunamıyor; biçim birim testi
+(`tray_tooltip_*`) ve `let _ = tray.set_tooltip(...)` yolu derlemede doğrulandı.
+
+## Güncel durum: v3.1.0 - gerçekten geçerli sınırlar
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

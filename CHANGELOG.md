@@ -15,6 +15,54 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.2.0] - 2026-11-03
+
+"Güven ve dayanıklılık" - uygulamanın ne yaptığını söylemesi (kamera, tanıtım,
+kısayollar), ayarların kaybolmaması (yedek/sıfırla) ve durumun tepsi simgesinden
+okunması.
+
+### Added
+- **Kamera ifşası.** "Durum" karosunda tek satır: *"ışık: kamera, 5 dk'da bir
+  tek kare · diske yazılmaz"* (pil düşükken 15 dk). Tam cümle `title`da. Uygulama
+  yıllardır 5 dakikada bir webcam'den tek kare okuyordu ama arayüzde "kamera"
+  kelimesi **hiç** geçmiyordu.
+- **Tanılamada kamera kontrolü.** "Sistemi kontrol et" artık kamerayı açar, tek
+  kare alır, kapatır. Okunamıyorsa satır **uyarı** (kırmızı değil): ışık ölçümü
+  zaman moduna düşer, uygulama çalışmaya devam eder.
+- **Ayar yedeği** (Ayarlar → Gelişmiş → Yedekleme): *Yedek al* tüm `ss:` 
+  anahtarlarını sürüm alanlı tek JSON'a yazar; *Yedekten geri yükle* dosyayı
+  doğrular (`app`/`version` uymazsa **hiçbir şey yazılmaz**); *Ayarları sıfırla*
+  iki aşamalı onayla temizler. Lisans Rust deposunda olduğu için silinmez.
+- **İlk açılış tanıtımı**: üç maddede ne yaptığı, kamerayı nasıl kullandığı ve
+  verinin cihazda kaldığı. `ss:onboarded` ile bir kez gösterilir, Esc kapatır.
+- **Klavye kısayolları** (pencere odaklıyken): `Ctrl+Alt+M` ölç ·
+  `Ctrl+Alt+P` duraklat · `Ctrl+Alt+L` kilit. Durum sayfası altbilgisinde ipucu;
+  form alanında yazarken ve tanıtım açıkken susar.
+- **Gece penceresi özeti**: iki sayı kutusunun yanında *"22:00–06:00 · 8 saat"*;
+  gece yarısını saran aralık doğru hesaplanır, başlangıç = bitiş ise "kapalı".
+- **Tepsi ipucu (tooltip)** artık durumu söylüyor: `smart-screen · %42 · ss-dusk
+  · duraklatıldı` (ya da "bugün kapalı" / "kilitli" / "otomatik").
+- `THIRD-PARTY.md`: 14 Rust + 5 npm doğrudan bağımlılığın lisansı ve kaynağı
+  (sürümler `cargo metadata` / `npm ls` çıktısından; uydurma yok).
+
+### Fixed
+- **Kısayol ipucu ızgarayı bozuyordu.** `#page-panel` bento'da grid kabı; akışta
+  duran altbilgi 4. satırı açıp hero'yu 42px kısaltıyordu (1040×740'da hero
+  içeriği kırpılıyordu). Altbilgi artık sayfanın alt nefes payına mutlak konumla
+  yerleşiyor: yer kaplamıyor, içeriği örtmüyor.
+- **Kamera notu iki satıra taşıyordu** ve "Durum" karosunun alt satırını
+  kırpıyordu (251px genişlik). Metin tek satıra indirildi; QA bunu ölçüyor.
+- `qa/audit-accent.mjs` palet dilimlerini artık `engine.ts`ten okuyor (v3.1'de
+  `orchestr.ts`ten taşınmıştı) ve "Günün rengi" varsayılanı AÇIK olduğu için
+  testin başlangıç durumunu kendisi kuruyor.
+
+### Changed
+- `qa/audit-*.mjs` senaryoları "dönen kullanıcı" kuruyor (`ss:onboarded=1`);
+  tanıtım modal olduğu için kapatılmazsa bütün tıklamaları örtüyordu. Tanıtımın
+  kendisi ayrı senaryoda (`onboard: false`) test ediliyor.
+- Yeni komut `settings_export` / `settings_import` + `tauri-plugin-dialog`.
+  Diyalog `spawn_blocking` içinde açılır (ana thread beklemez), iptal hata değil.
+
 ## [3.1.0] - 2026-11-01
 
 "Satışa hazır" — elle güncelleme denetimi, kendi kendine akan tema, Pro

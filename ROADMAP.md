@@ -276,6 +276,46 @@ doldurulunca uygulama tarafı hazır; anahtar dağıtımı hâlâ elle/CSV.
 
 ---
 
+## 15. `[x]` v3.2.0 "güven ve dayanıklılık" - söyle, yedekle, göster
+
+Yedi iş, üç ayrı dosya sahipliğiyle paralel yürütüldü (Rust · frontend ·
+doküman); şef yalnız QA stub'larını ve denetim araçlarını yazdı.
+
+- **Kamera ifşası + tanılama kontrolü**: uygulama 5 dakikada bir webcam'den tek
+  kare okuyordu, arayüzde "kamera" kelimesi hiç geçmiyordu. Artık "Durum"
+  karosunda tek satır, tanılamada 11. satır (`light::probe` gerçek kare okur).
+  Kamera yoksa satır **uyarı**: uygulama zaman moduna düşer, çalışmaya devam eder.
+- **Ayar yedeği**: 19 ayar + profiller yalnız localStorage'daydı. Yedek al /
+  geri yükle / sıfırla; dosya biçimi sürüm alanlı, uymayan dosya **hiçbir şey
+  yazmaz**.
+- **İlk açılış tanıtımı**: üç madde (kamera, otomatiğin sınırları, veri cihazda).
+- **Kısayollar**: Ctrl+Alt+M/P/L + altbilgi ipucu.
+- **Gece penceresi özeti**: "22:00–06:00 · 8 saat", sarma ve "kapalı" doğru.
+- **Tepsi tooltip'i** durumu söylüyor (duraklatıldı / bugün kapalı / kilitli).
+- **`THIRD-PARTY.md`**: 14 Rust + 5 npm doğrudan bağımlılık, `cargo metadata` /
+  `npm ls` çıktısından.
+
+**İki yerleşim dersi (ikisi de şefin birleştirmesinde yakalandı):**
+1) Altbilgi `#page-panel` grid'inin akışındaydı → 4. satırı açıp hero'yu 42px
+   kısaltıyordu (bento 1040×740, `audit-templates` §3b FAIL). Çözüm: altbilgi
+   sayfanın `padding-bottom` payına mutlak konum.
+2) Kamera notu 251px'lik "Durum" karosunda iki satıra taşıp alt satırı
+   kırpıyordu; tek satıra indirildi, QA satır yüksekliğini ölçüyor.
+3) Onboarding modal olduğu için 23/24 QA senaryosu kırıldı (tıklamaları örtüyor).
+   Varsayılan senaryo artık `ss:onboarded=1` kuruyor; tanıtım kendi senaryosunda.
+
+**Kabul:** 25 frontend + 223 Rust testi, `qa/run.mjs` senaryoları, 6 denetim
+aracı, clippy/fmt temiz. Canlı doğrulama (dev + CDP): tanıtım bir kez çıkıp
+kapanıyor, kısayollar duraklatma/kilit çeviriyor, gece özeti 23→06 için "7 saat",
+kamera satırı `ok`, gerçek diyalogla yedek alındı → ayar bozuldu → geri yüklendi
+(değer döndü), sıfırlama anahtarları temizledi. Geri alma: `git revert`
+(ayar şeması değişmedi, yalnız `ss:onboarded` eklendi).
+
+**Elle doğrulanacak:** tepsi simgesine fareyle gelince ipucunun görünmesi
+(makine okunamıyor; biçim birim testiyle doğrulandı).
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

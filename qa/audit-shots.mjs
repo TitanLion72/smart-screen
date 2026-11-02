@@ -110,6 +110,7 @@ const tabs = ["panel", "profiles", "history", "settings"];
 const browser = await chromium.launch();
 for (const s of sizes) {
   const page = await browser.newPage({ viewport: { width: s.w, height: s.h } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/`, { waitUntil: "networkidle" });
   await page.waitForTimeout(900);
@@ -157,6 +158,7 @@ for (const s of sizes) {
 // flyout
 {
   const page = await browser.newPage({ viewport: { width: 340, height: 420 } });
+  await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
   await page.addInitScript(stub);
   await page.goto(`http://localhost:${port}/flyout.html`, { waitUntil: "networkidle" });
   await page.waitForTimeout(700);

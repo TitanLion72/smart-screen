@@ -59,7 +59,8 @@ const PALS = ["obsidyen", ...[...PAL_CSS.matchAll(/\[data-theme="([a-z0-9-]+)"\]
 
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1040, height: 740 } });
-await page.addInitScript(() => {
+await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1'); } catch {} });
+  await page.addInitScript(() => {
   window.__TAURI_INTERNALS__ = {
     transformCallback: () => 1,
     invoke: async (cmd) => {
@@ -155,9 +156,15 @@ await page.evaluate(() => {
   window.__autoBefore = before;
   window.__autoExpected = expected;
 });
-// Dilim eşlemesini kaynaktan oku (tek kaynak: orchestr.paletteForHour).
-const ORCH = await readFile(join(here, "..", "src", "orchestr.ts"), "utf8");
-const hourMap = [...ORCH.matchAll(/if \(hour >= (\d+) && hour < (\d+)\) return "([a-z0-9-]+)"/g)].map((m) => ({
+// Dilim eşlemesini kaynaktan oku (tek kaynak: engine.paletteForHour).
+// v3.1: fonksiyon orchestr.ts'ten engine.ts'e taşındı (saf, test edilebilir);
+// burada yalnız gövdesi okunur, palettePhaseLabel'ın metinleri palet sanılmasın.
+const ENGINE = await readFile(join(here, "..", "src", "engine.ts"), "utf8");
+const PALETTE_FN = ENGINE.slice(
+  ENGINE.indexOf("export function paletteForHour"),
+  ENGINE.indexOf("export function palettePhaseLabel"),
+);
+const hourMap = [...PALETTE_FN.matchAll(/if \(h >= (\d+) && h < (\d+)\) return "([a-z0-9-]+)"/g)].map((m) => ({
   from: Number(m[1]),
   to: Number(m[2]),
   id: m[3],
@@ -172,6 +179,15 @@ console.log(`   ${hourMap.length} saat dilimi → hepsi tanımlı palet ✓`);
 await page.evaluate(() => document.getElementById("tab-settings")?.click());
 await page.waitForTimeout(250);
 await page.locator("#auto-palette").scrollIntoViewIfNeeded();
+// v3.1: varsayılan artık AÇIK, üstelik varsayılan değer diske yazılmaz.
+// Test önce kapalı duruma getirir; yoksa ilk tık "kapatma" olur ve ölçüm ters döner.
+const initialAuto = await page.evaluate(() => localStorage.getItem("ss:autoPalette"));
+if (initialAuto !== "0") {
+  await page.locator("#auto-palette").click();
+  await page.waitForTimeout(500);
+}
+const offFirst = await page.evaluate(() => localStorage.getItem("ss:autoPalette"));
+if (offFirst !== "0") fail(`günün rengi kapatılamadı (ss:autoPalette=${offFirst})`);
 await page.locator("#auto-palette").click();
 await page.waitForTimeout(600);
 const autoState = await page.evaluate(() => ({
