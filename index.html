@@ -260,6 +260,15 @@
                    |            | v2.9: ilk nokta "palette" = paletin KENDİ rengi (varsayılan); diğer seçimler PALET BAŞINA saklanır (ss:accents) — başka palette sızmaz
   #game-bright     | button.switch | "Oyun/video öndeyken parlaklık %100" | bindSwitch; varsayılan açık; kilit ekranında uygulanmaz
   #auto-palette    | button.switch | "Günün rengi — saate göre kendisi seçsin" | bindSwitch; açılınca palet saat dilimine döner, elle seçim 10 dk korunur
+  #app-theme-system| button.switch | "Windows teması" (Explorer/Başlat) | bindSwitch; açınca ss:appThemeSystem="1" + appearance_apply(mode,["system"]); kapatınca "0" (geri yazma yok)
+  #app-theme-system-note | div.hint | Windows teması açıklaması      | statik metin
+  #app-list        | div.app-list | algılanan uygulama satırları (JS üretir) | role="group" aria-live="polite"; .app-row satırları; boşken .hint "Algılanan uygulama yok"
+  #app-row-<id>    | div.app-row | tek uygulama satırı                | JS üretir; id = uygulama kimliği (system/windows-terminal/vscode/…)
+  #app-sw-<id>     | button.switch | uygulama anahtarı                | bindSwitch; Pro değilse disabled + satırda "Pro"; değişince ss:appThemeTargets + appearance_apply
+  #app-state-<id>  | span.app-state | satır durumu ("koyu"/"açık"/"sistemi takip ediyor"/"ayar dosyası yok"/hata) | text + title (JS); .warn/.ok
+  #app-restore     | button.btn-toggle | "Geri al" (iki aşamalı)       | 1. click → "Emin misin? Geri al", 3 sn içinde 2. click → appearance_restore(); yedek yoksa disabled
+  #app-pro-lock    | div.pro-lock | Pro kilidi (kilit ikonu + "Pro" rozeti) | hidden = licensePro
+  #app-theme-note  | div.hint   | uygulama tema ipucu (sistemi takip edenler) | text (JS; mod bilinmiyorsa "şu anki mod bilinmiyor")
   #diag-box        | div.panel-box | Ayarlar > Kontrol (tanılama)        | v2.10; destek yolu, Gelişmiş dışında
   #diag-list       | div.diag-list | kontrol satırları (JS üretir)       | .diag-row[data-status=ok|warn|bad]; boşken .diag-empty
   #diag-run        | button.btn-primary | "Sistemi kontrol et"           | click → runDiagnostics(); toast + satırlar
@@ -773,6 +782,26 @@
               <button id="auto-palette" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
             </div>
             <div class="hint" id="auto-palette-note">Kapalıyken renk seçimin sabit kalır. Açıkken sabah aydınlık, akşam sıcak, gece derin palet kullanılır; elle seçtiğin renk 10 dk korunur.</div>
+
+            <!-- v3.3: uygulama temaları — Windows teması ücretsiz, adaptörler Pro.
+                 Varsayılan kapalı: kullanıcı istemeden hiçbir uygulamaya yazılmaz. -->
+            <div class="box-title sub">Uygulama temaları</div>
+            <div class="switch-line">
+              <span>Windows teması</span>
+              <button id="app-theme-system" class="switch" type="button" role="switch" aria-checked="false"><span class="knob"></span></button>
+            </div>
+            <div class="hint" id="app-theme-system-note">Explorer, Başlat ve sistemi takip eden uygulamalar. Varsayılan kapalı.</div>
+            <div id="app-list" class="app-list" role="group" aria-label="Uygulama temaları" aria-live="polite"></div>
+            <div class="toolbar">
+              <button id="app-restore" class="btn-toggle" type="button" disabled>Geri al</button>
+            </div>
+            <div class="pro-lock" id="app-pro-lock" hidden>
+              <svg class="pro-lock-ic" viewBox="0 0 16 16" aria-hidden="true"><rect x="3.5" y="7" width="9" height="6.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+              <span class="badge pro">Pro</span>
+              <span class="hint">Uygulama temalarını değiştirmek Pro sürümde. Windows teması ücretsiz.</span>
+            </div>
+            <div class="hint" id="app-theme-note">Chrome, Firefox, Discord, Slack ve JetBrains sistemi takip eder — Windows teması açıkken kendiliğinden uyarlar.</div>
+
             <div class="field">
               <span class="field-label">Vurgu rengi</span>
               <div class="accent-picker" id="accent-picker" role="group" aria-label="Vurgu rengi"></div>

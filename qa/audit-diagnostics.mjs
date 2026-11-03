@@ -110,6 +110,13 @@ await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1');
       if (cmd === "battery_status") return [80, true];
       // v3.0: gece ışığı okunamıyor (bu makinede blob boş).
       if (cmd === "nightlight_status") return null;
+      // v3.3: uygulama temalari (kart bos kalmasin).
+      if (cmd === "appearance_apps") return [
+        { id: "windows-terminal", name: "Windows Terminal", group: "terminal", installed: true, live: true, path: "C:/qa/wt.json", current: "dark", error: null },
+        { id: "vscode", name: "VS Code", group: "editor", installed: true, live: true, path: "C:/qa/code.json", current: "light", error: null },
+      ];
+      if (cmd === "appearance_apply") return ((args && args.targets) || []).map((id) => ({ id, ok: true, changed: true, error: null }));
+      if (cmd === "appearance_restore") return [];
       if (cmd === "pref_get") return null;
       if (cmd === "pref_list") return [];
       if (cmd === "stats_summary") return null;

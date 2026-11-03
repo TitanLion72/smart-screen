@@ -140,6 +140,7 @@ export function switchTab(name: string): void {
     el(`page-${page}`).hidden = page !== name;
   }
   if (name === "history") void loadHistory();
+  if (name === "settings") void loadAppThemes();
 }
 
 // ---------- olay akışı ----------
@@ -319,6 +320,303 @@ function renderAutoPaletteNote(): void {
     note.textContent =
       "Kapalıyken renk seçimin sabit kalır. Açıksa palet saat dilimine göre değişir; elle seçtiğin renk 10 dk korunur.";
   }
+}
+
+// ---------- uygulama temaları (v3.3, C5) ----------
+
+/** Rust `AppInfo` — okuma her zaman serbest (Pro kapısı yalnız yazmada). */
+interface AppInfo {
+  id: string;
+  name: string;
+  group: string;
+  installed: boolean;
+  live: boolean;
+  path: string | null;
+  current: "dark" | "light" | "system" | "unknown" | null;
+  error: string | null;
+}
+
+interface AppApplyResult {
+  id: string;
+  ok: boolean;
+  changed: boolean;
+  error: string | null;
+}
+
+type AppMode = "dark" | "light";
+
+const APP_SYSTEM_KEY = "appThemeSystem";
+const APP_TARGETS_KEY = "appThemeTargets";
+
+let appItems: AppInfo[] = [];
+let appListError: string | null = null;
+let appRowsSig = "";
+const appSwitches = new Map<string, SwitchHandle>();
+let appSystemSwitch: SwitchHandle | null = null;
+/** Son uygulanan tema modu: yalnız DEĞİŞTİĞİNDE uygulama yapılır. */
+let lastAppMode: AppMode | null = null;
+
+function errText(e: unknown): string {
+  if (typeof e === "string") return e;
+  if (e instanceof Error) return e.message;
+  return String(e ?? "bilinmeyen hata");
+}
+
+/**
+ * Uygulanan OpenCode temasının modu — kaynak `orchestr` state'i:
+ * `S.appliedKey = "<tema>|<mod>"` (orchestr.ts:996,1456). Karar yoksa
+ * `<html>` üzerindeki açık ipuçlarına bakılır; bulunamazsa null döner,
+ * mod UYDURULMAZ (anahtarlar kapalı kalır).
+ */
+export function appliedThemeMode(): AppMode | null {
+  const fromKey = (S.appliedKey ?? "").split("|")[1] ?? "";
+  if (fromKey === "dark" || fromKey === "light") return fromKey;
+  for (const hint of [document.documentElement.dataset.mode, document.documentElement.dataset.themeMode]) {
+    if (hint === "dark" || hint === "light") return hint;
+  }
+  return null;
+}
+
+function appTargets(): string[] {
+  return getSetting(APP_TARGETS_KEY, "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+function setAppTargets(list: string[]): void {
+  setSetting(APP_TARGETS_KEY, list.join(","));
+}
+
+function systemThemeOn(): boolean {
+  return getSetting(APP_SYSTEM_KEY, "0") === "1";
+}
+
+/** O an yönetilen hedefler: sistem (ücretsiz) + seçili uygulamalar (Pro). */
+function activeTargets(): string[] {
+  return [...(systemThemeOn() ? ["system"] : []), ...appTargets()];
+}
+
+function appStateText(a: AppInfo): { text: string; warn: boolean } {
+  if (a.error) return { text: a.error, warn: true };
+  switch (a.current) {
+    case "dark":
+      return { text: "koyu", warn: false };
+    case "light":
+      return { text: "açık", warn: false };
+    case "system":
+      return { text: "sistemi takip ediyor", warn: false };
+    case "unknown":
+      return { text: "bilinmiyor", warn: true };
+    default:
+      // `current` null = dosya var ama değer çözülemedi; ya da dosya hiç yok.
+      // İkisini ayırmak kullanıcıya "neden yazmıyor" sorusunun cevabını verir.
+      return a.installed
+        ? { text: a.path ? "değer okunamadı" : "ayar dosyası yok", warn: true }
+        : { text: "kurulu değil", warn: true };
+  }
+}
+
+/** Satır içi durum rozetini (ve yeniden başlat rozetini) tazeler. */
+function paintAppRow(a: AppInfo, mode: AppMode | null, targets: string[]): void {
+  const state = document.getElementById(`app-state-${a.id}`);
+  if (state) {
+    const info = appStateText(a);
+    state.textContent = info.text;
+    state.title = a.error ?? `${a.name}: ${info.text}`;
+    state.className = "app-state" + (info.warn ? " warn" : " ok");
+  }
+  const restart = document.getElementById(`app-restart-${a.id}`);
+  if (restart) restart.hidden = a.live;
+  const sw = appSwitches.get(a.id);
+  if (sw) sw.set(targets.includes(a.id));
+  const btn = document.getElementById(`app-sw-${a.id}`);
+  if (btn instanceof HTMLButtonElement) btn.disabled = !S.licensePro || mode === null;
+}
+
+function rebuildAppRows(): void {
+  const host = el("app-list");
+  host.replaceChildren();
+  appSwitches.clear();
+  if (appListError) {
+    const err = document.createElement("div");
+    err.className = "hint";
+    err.textContent = `Uygulamalar okunamadı: ${appListError}`;
+    err.title = appListError;
+    host.append(err);
+    return;
+  }
+  if (appItems.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "hint";
+    empty.textContent = "Algılanan uygulama yok";
+    host.append(empty);
+    return;
+  }
+  for (const a of appItems) {
+    const row = document.createElement("div");
+    row.className = "app-row";
+    row.id = `app-row-${a.id}`;
+
+    const main = document.createElement("div");
+    main.className = "app-row-main";
+    const sw = document.createElement("button");
+    sw.type = "button";
+    sw.className = "switch";
+    sw.id = `app-sw-${a.id}`;
+    sw.setAttribute("role", "switch");
+    sw.setAttribute("aria-checked", "false");
+    sw.setAttribute("aria-label", `${a.name} uygulama teması`);
+    const knob = document.createElement("span");
+    knob.className = "knob";
+    sw.append(knob);
+
+    const name = document.createElement("span");
+    name.className = "app-name";
+    name.textContent = a.name;
+    name.title = a.path ?? a.name;
+
+    if (!S.licensePro) {
+      const pro = document.createElement("span");
+      pro.className = "badge pro";
+      pro.textContent = "Pro";
+      main.append(sw, name, pro);
+    } else {
+      main.append(sw, name);
+    }
+
+    const state = document.createElement("span");
+    state.className = "app-state";
+    state.id = `app-state-${a.id}`;
+
+    const restart = document.createElement("span");
+    restart.className = "app-restart";
+    restart.id = `app-restart-${a.id}`;
+    restart.textContent = "yeniden başlat";
+    restart.title = "Değişiklik uygulamanın yeniden açılmasıyla görünür";
+
+    row.append(main, state, restart);
+    host.append(row);
+
+    const handle = bindSwitch(sw, false, (v) => toggleAppTarget(a.id, v));
+    appSwitches.set(a.id, handle);
+  }
+}
+
+/** Mod değişimine göre uygula — `main.ts` zamanlayıcısı çağırır. */
+export function syncAppThemes(): void {
+  const mode = appliedThemeMode();
+  if (!mode) return;
+  if (lastAppMode === mode) return;
+  const first = lastAppMode === null;
+  lastAppMode = mode;
+  // İlk gözlem "değişim" değildir: açılışta kimse istemeden yazılmasın.
+  if (first) return;
+  const targets = activeTargets();
+  if (targets.length > 0) void applyAppTheme(mode, targets);
+}
+
+async function applyAppTheme(mode: AppMode, targets: string[]): Promise<void> {
+  if (targets.length === 0) return;
+  try {
+    const results = await invoke<AppApplyResult[]>("appearance_apply", { mode, targets });
+    paintApplyResults(results, mode);
+    void loadAppThemes();
+  } catch (e) {
+    const msg = errText(e);
+    toast.err("Uygulama teması uygulanamadı", { detail: msg });
+    if (msg.toLocaleLowerCase("tr").includes("pro")) el("app-pro-lock").hidden = false;
+  }
+}
+
+/** "Geri al": adaptör yedeklerinden dosyaları eski hâline döndürür (Pro). */
+async function restoreAppThemes(): Promise<void> {
+  try {
+    await invoke<AppApplyResult[]>("appearance_restore");
+  } catch (e) {
+    const msg = errText(e);
+    toast.err("Geri alınamadı", { detail: msg });
+    if (msg.toLocaleLowerCase("tr").includes("pro")) el("app-pro-lock").hidden = false;
+    return;
+  }
+  // Geri al = "yönetmeyi bırak". Hedefleri açık bıraksaydık döngü bir sonraki
+  // mod değişiminde dosyaları yeniden yazardı ve kullanıcı "geri aldım ama geri
+  // geldi" derdi. Bu yüzden anahtarlar da kapanır.
+  setSetting("appThemeTargets", "");
+  setSetting("appThemeSystem", "0");
+  lastAppMode = appliedThemeMode();
+  toast.ok("Geri alındı", { detail: "Uygulama temaları kapatıldı; dosyalar eski hâlinde." });
+  await loadAppThemes();
+}
+
+function paintApplyResults(results: AppApplyResult[], mode: AppMode): void {
+  for (const r of results) {
+    const item = appItems.find((a) => a.id === r.id);
+    if (!item) continue;
+    if (r.ok) {
+      item.current = mode;
+      item.error = null;
+    } else {
+      item.error = r.error ?? "yazılamadı";
+    }
+    paintAppRow(item, mode, activeTargets());
+  }
+}
+
+function toggleAppTarget(id: string, on: boolean): void {
+  const list = appTargets();
+  const next = on ? (list.includes(id) ? list : [...list, id]) : list.filter((x) => x !== id);
+  setAppTargets(next);
+  const mode = appliedThemeMode();
+  if (!mode) {
+    toast.info("Şu anki mod bilinmiyor — tema uygulanamadı");
+    return;
+  }
+  lastAppMode = mode;
+  const targets = activeTargets();
+  if (targets.length > 0) void applyAppTheme(mode, targets);
+}
+
+/** Ayarlar → Görünüm kartı: listede yalnız durum/anahtar tazelenir. */
+function renderAppThemes(): void {
+  const mode = appliedThemeMode();
+  const base =
+    "Chrome, Firefox, Discord, Slack ve JetBrains sistemi takip eder — Windows teması açıkken kendiliğinden uyarlar.";
+  el("app-theme-note").textContent = mode
+    ? base
+    : `${base} Şu anki mod bilinmiyor; anahtarlar kapalı.`;
+  el("app-pro-lock").hidden = S.licensePro;
+
+  const sig = appItems.map((a) => a.id).join("|") + "#" + String(appListError ?? "") + (S.licensePro ? "#pro" : "#free");
+  if (sig !== appRowsSig) {
+    appRowsSig = sig;
+    rebuildAppRows();
+  }
+
+  const targets = appTargets();
+  appSystemSwitch?.set(systemThemeOn());
+  const sysBtn = document.getElementById("app-theme-system");
+  if (sysBtn instanceof HTMLButtonElement) sysBtn.disabled = mode === null;
+  for (const a of appItems) paintAppRow(a, mode, targets);
+
+  // Yedek yalnız bir adaptör dosyaya yazdıysa oluşur; dosyası olan uygulama
+  // varsa "Geri al" anlamlıdır (kesin bilgi backend'de; burada kapı muhafazakâr).
+  // Pro kapısı YOK: geri alma kullanıcının kendi dosyasını kurtarmasıdır.
+  btnEl("app-restore").disabled = !appItems.some((a) => a.installed && a.path !== null);
+}
+
+/** `appearance_apps()` — hata karta yazılır, kart çökmez. */
+export async function loadAppThemes(): Promise<void> {
+  try {
+    const list = await invoke<AppInfo[]>("appearance_apps");
+    appItems = Array.isArray(list) ? list : [];
+    appListError = null;
+  } catch (e) {
+    appItems = [];
+    appListError = errText(e);
+  }
+  appRowsSig = "";
+  renderAppThemes();
 }
 
 function renderDesignThemes(): void {
@@ -1467,6 +1765,7 @@ export function renderAll(): void {
   renderHistory();
   syncThemeChips();
   renderAutoPaletteNote();
+  renderAppThemes();
   renderAudit();
   renderDiagnostics();
   // Editörün yalnız metin etiketleri güncellenir; input değeri çizilmez.
@@ -1525,11 +1824,24 @@ export function bootWidgets(): void {
   bindSwitch(btnEl("gate-switch"), S.auditGate, (v) => setGate(v));
   bindSwitch(btnEl("game-bright"), S.gameBright, (v) => setGameBright(v));
   bindSwitch(btnEl("auto-palette"), S.autoPalette, (v) => setAutoPalette(v));
+  appSystemSwitch = bindSwitch(btnEl("app-theme-system"), systemThemeOn(), (on) => {
+    setSetting(APP_SYSTEM_KEY, on ? "1" : "0");
+    // Kapatmak yalnız "biz yönetmeyi bırakırız": Windows teması geri yazılmaz.
+    if (!on) return;
+    const mode = appliedThemeMode();
+    if (!mode) {
+      toast.info("Şu anki mod bilinmiyor — Windows teması uygulanamadı");
+      return;
+    }
+    lastAppMode = mode;
+    void applyAppTheme(mode, ["system"]);
+  });
   void autostartEnabled().then((on) => {
     bindSwitch(btnEl("auto-switch"), on, (v) => void setAutostart(v));
   });
 
   paintEditor();
+  void loadAppThemes();
   renderAll();
 }
 
@@ -1695,6 +2007,28 @@ export function wireButtons(): void {
     deleteArmed = false;
     btn.textContent = "Sil";
     deleteDraft();
+  });
+
+  // Geri alma iki aşamalı: yedeklerden dosya döndürmek de geri alınamaz bir
+  // işlem sayılır (pf-delete ile aynı desen — tek tıkla olmasın).
+  let restoreArmed = false;
+  let restoreTimer = 0;
+  btnEl("app-restore").addEventListener("click", () => {
+    const btn = btnEl("app-restore");
+    if (btn.disabled) return;
+    if (!restoreArmed) {
+      restoreArmed = true;
+      btn.textContent = "Emin misin? Geri al";
+      restoreTimer = window.setTimeout(() => {
+        restoreArmed = false;
+        btn.textContent = "Geri al";
+      }, 3000);
+      return;
+    }
+    if (restoreTimer) window.clearTimeout(restoreTimer);
+    restoreArmed = false;
+    btn.textContent = "Geri al";
+    void restoreAppThemes();
   });
 
   btnEl("pf-off-minus").addEventListener("click", () => {

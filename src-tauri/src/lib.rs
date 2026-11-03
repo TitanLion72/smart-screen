@@ -8,6 +8,7 @@
 //! tutulmaz (kilidin al-birak'i tamamen senkron yardimcilarin icindedir).
 
 mod activity;
+mod appearance;
 mod autostart;
 mod battery;
 mod brightness;
@@ -36,6 +37,7 @@ use std::time::Instant;
 use activity::{
     foreground_exe as query_foreground_exe, is_blocked, is_fullscreen as query_fullscreen,
 };
+use appearance::{AppInfo, ApplyResult, Mode};
 use autostart::{autostart_status, set_autostart};
 use battery::battery_status as query_battery_status;
 use brightness::{get_brightness, set_brightness};
@@ -683,6 +685,29 @@ async fn nightlight_status() -> Option<bool> {
     run_blocking(nightlight::status).await.unwrap_or(None)
 }
 
+/// Uygulama temasi: algilanan uygulamalar + Windows sistem temasi. Okuma
+/// Pro'suz serbesttir (kart ne oldugunu gostersin), yazma kapilidir.
+#[tauri::command]
+async fn appearance_apps() -> Vec<AppInfo> {
+    run_blocking(appearance::list_apps)
+        .await
+        .unwrap_or_default()
+}
+
+/// Hedeflere modu uygular. `"system"` Pro'suz; baska hedef varsa Pro gerekir
+/// ve kapi **once** calisir (bkz. `appearance::apply`).
+#[tauri::command]
+async fn appearance_apply(mode: String, targets: Vec<String>) -> Result<Vec<ApplyResult>, String> {
+    let mode = Mode::parse(&mode).ok_or_else(|| "geçersiz mod: dark|light".to_string())?;
+    run_blocking(move || appearance::apply(mode, &targets, license::is_pro())).await?
+}
+
+/// Uygulama ayar dosyalarini `.ss-backup` yedeklerine dondurur.
+#[tauri::command]
+async fn appearance_restore() -> Result<Vec<ApplyResult>, String> {
+    run_blocking(|| appearance::restore(license::is_pro())).await?
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Kimlik göçü (v3.0) EN ÖNCE: pencere durumu ve WebView2 profili yeni
@@ -919,7 +944,10 @@ pub fn run() {
             monitor_set_color_temp,
             nightlight_status,
             settings_export,
-            settings_import
+            settings_import,
+            appearance_apps,
+            appearance_apply,
+            appearance_restore
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -298,6 +298,58 @@ pub fn theme_check(res: &Result<(String, Option<String>), String>) -> Check {
     }
 }
 
+/// Uygulama teması adaptörleri: kaç uygulama algılandı, hangisi okunamıyor.
+///
+/// Bu satır **yazma denemez** — kullanıcının dosyalarına tanılama sırasında
+/// dokunmak sürpriz olurdu. Yalnız "hangi uygulama var, durumu ne" der.
+/// Hiçbiri yoksa `warn` değil `ok`: pek çok makinede bu uygulamalar kurulu
+/// değildir, bu bir arıza değil.
+pub fn apps_check(apps: &[crate::appearance::AppInfo]) -> Check {
+    let installed: Vec<&crate::appearance::AppInfo> = apps.iter().filter(|a| a.installed).collect();
+    if installed.is_empty() {
+        return check(
+            "apps",
+            "Uygulama temaları",
+            "ok",
+            "algılanan uygulama yok",
+            "",
+        );
+    }
+    let broken: Vec<&crate::appearance::AppInfo> = installed
+        .iter()
+        .copied()
+        .filter(|a| a.error.is_some())
+        .collect();
+    let live = installed.iter().filter(|a| a.live).count();
+    if broken.is_empty() {
+        let names: Vec<&str> = installed.iter().map(|a| a.name.as_str()).collect();
+        return check(
+            "apps",
+            "Uygulama temaları",
+            "ok",
+            format!(
+                "{} uygulama · {live} canlı · {}",
+                installed.len(),
+                names.join(", ")
+            ),
+            "",
+        );
+    }
+    let names: Vec<&str> = broken.iter().map(|a| a.name.as_str()).collect();
+    check(
+        "apps",
+        "Uygulama temaları",
+        "warn",
+        format!(
+            "{} uygulamadan {} okunamadı: {}",
+            installed.len(),
+            broken.len(),
+            names.join(", ")
+        ),
+        "Ayar dosyası bozuk olabilir; smart-screen o dosyaya yazmaz. Uygulamayı açıp ayarı bir kez kaydet.",
+    )
+}
+
 pub fn autostart_check(res: &Result<bool, String>) -> Check {
     match res {
         Ok(true) => check("autostart", "Açılışta başlat", "ok", "açık", ""),
@@ -434,6 +486,8 @@ pub fn run(warmth: u8) -> Report {
     checks.push(nightlight_check(crate::nightlight::status()));
     // 6-7) Tema ve otomatik başlatma.
     checks.push(theme_check(&theme::get_theme()));
+    // 6b) Uygulama temaları: hangi uygulama algılandı, biri bozuk mu.
+    checks.push(apps_check(&crate::appearance::list_apps()));
     checks.push(autostart_check(&autostart::autostart_status()));
 
     // 8) Lisans.
@@ -593,6 +647,39 @@ mod tests {
     }
 
     #[test]
+    fn apps_check_counts_installed_and_flags_broken() {
+        use crate::appearance::AppInfo;
+        let mk = |id: &str, installed: bool, error: Option<&str>| AppInfo {
+            id: id.into(),
+            name: id.into(),
+            group: "editor".into(),
+            installed,
+            live: true,
+            path: None,
+            current: None,
+            error: error.map(str::to_string),
+        };
+        // Hiçbiri kurulu değil: arıza değil, bilgi.
+        let none = apps_check(&[mk("zed", false, None)]);
+        assert_eq!(none.status, "ok");
+        assert!(none.detail.contains("algılanan uygulama yok"));
+
+        // Kurulu ve sağlıklı: kaç tane olduğunu söyler.
+        let ok = apps_check(&[mk("vscode", true, None), mk("zed", true, None)]);
+        assert_eq!(ok.status, "ok");
+        assert!(ok.detail.contains("2 uygulama"));
+
+        // Biri okunamıyor: warn + adı geçer + ipucu var (dosya bozulabilir).
+        let bad = apps_check(&[
+            mk("vscode", true, Some("bozuk json")),
+            mk("zed", true, None),
+        ]);
+        assert_eq!(bad.status, "warn");
+        assert!(bad.detail.contains("vscode"));
+        assert!(!bad.hint.is_empty());
+    }
+
+    #[test]
     fn every_check_has_stable_id_and_label() {
         let report_checks = [
             brightness_read_check(&ok_read(1)),
@@ -603,6 +690,7 @@ mod tests {
             hdr_check(&[]),
             monitor_check(&Ok(Vec::new())),
             theme_check(&Ok(("x".into(), None))),
+            apps_check(&[]),
             autostart_check(&Ok(true)),
             license_check(&license::no_license()),
             log_check(None),

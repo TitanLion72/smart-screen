@@ -517,6 +517,9 @@ window.addEventListener("DOMContentLoaded", () => {
   window.setInterval(() => {
     O.applyAutoPalette();
   }, CLOCK_MS);
+  // v3.3: uygulama temaları yalnız karar modu DEĞİŞTİĞİNDE uygulanır
+  // (her turda değil) — döngü `orchestr`'de değil, bu hafif nabızda.
+  window.setInterval(() => P.syncAppThemes(), CLOCK_MS);
   window.setInterval(() => {
     O.tickBreak();
     void O.refreshMonitorList();

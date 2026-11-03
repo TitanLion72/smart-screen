@@ -21,6 +21,7 @@ Doğrudan bağımlılıklar `src-tauri/Cargo.toml`'dan gelir.
 | serde_json | 1.0.151 | MIT OR Apache-2.0 | https://crates.io/crates/serde_json |
 | tauri | 2.12.1 | Apache-2.0 OR MIT | https://crates.io/crates/tauri |
 | tauri-build | 2.7.1 | Apache-2.0 OR MIT | https://crates.io/crates/tauri-build |
+| tauri-plugin-dialog | 2.8.4 | Apache-2.0 OR MIT | https://crates.io/crates/tauri-plugin-dialog |
 | tauri-plugin-notification | 2.5.1 | Apache-2.0 OR MIT | https://crates.io/crates/tauri-plugin-notification |
 | tauri-plugin-opener | 2.7.0 | Apache-2.0 OR MIT | https://crates.io/crates/tauri-plugin-opener |
 | tauri-plugin-process | 2.4.0 | Apache-2.0 OR MIT | https://crates.io/crates/tauri-plugin-process |
@@ -30,7 +31,7 @@ Doğrudan bağımlılıklar `src-tauri/Cargo.toml`'dan gelir.
 | windows | 0.62.2 | MIT OR Apache-2.0 | https://crates.io/crates/windows |
 
 Geçişli: 560 paket (`cargo metadata` toplam 575 paket çözümlüyor; biri bu
-uygulama, 14'ü doğrudan). Bunların hepsi MIT / Apache-2.0 / BSD / ISC / Zlib /
+uygulama, 15'i doğrudan). Bunların hepsi MIT / Apache-2.0 / BSD / ISC / Zlib /
 Unicode-3.0 gibi izin verici lisanslardadır; GPL-3.0 ile uyumludur.
 
 ## JavaScript (npm)

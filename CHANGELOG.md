@@ -15,6 +15,51 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.3.0] - 2026-11-03
+
+"Uygulama temaları" - smart-screen artık yalnız OpenCode'u değil, kurulu diğer
+uygulamaları da açık/koyu moda geçiriyor. Varsayılan **kapalı**.
+
+### Added
+- **Windows sistem teması** (ücretsiz): `AppsUseLightTheme` +
+  `SystemUsesLightTheme` yazılır ve `WM_SETTINGCHANGE` yayınlanır — Explorer,
+  Başlat, Ayarlar ve sistemi takip eden uygulamalar **anında** döner.
+- **Uygulama adaptörleri** (Pro): Windows Terminal, VS Code (Code / Insiders /
+  VSCodium / Cursor / Windsurf), Sublime Text, Zed, Obsidian. Kart her
+  uygulamanın şu anki modunu, canlı olup olmadığını ve varsa hatasını gösterir.
+- **Geri al**: her yazmadan önce `<dosya>.ss-backup` alınır; "Geri al" dosyaları
+  bayt bayt eski hâline döndürür. **Pro kapısı yok** — lisans bitse de çalışır.
+- Tanılamaya "Uygulama temaları" kontrolü: kaç uygulama algılandı, biri bozuk mu
+  (tanılama **yazmaz**, yalnız okur).
+- `qa/run.mjs` senaryosu: varsayılan kapalı, Pro kapısı, seçimin backend'e
+  gittiği (`__appThemeCalls`).
+
+### Fixed (birleştirmede yakalanan gerçek hatalar)
+- **VS Code kullanıcının kendi temasını eziyordu.** `One Dark Pro Darker` gibi
+  mağaza temaları `Default Dark Modern` ile değiştiriliyor, geri dönüş yoktu.
+  Artık ilk yazmada o anki tema `preferredDarkColorTheme` olarak saklanıyor ve
+  koyu tura dönünce kullanıcının kendi teması geri geliyor.
+- **Windows Terminal "ayar dosyası yok" diyordu** — dosya vardı, `theme` anahtarı
+  yoktu (WT'nin varsayılanı `system`). `Adapter::peek` eklendi: arayüz artık
+  "sistemi takip ediyor" diyor, "bilinmiyor" değil.
+- **"Geri al" hedefleri açık bırakıyordu.** Döngü bir sonraki mod değişiminde
+  dosyaları yeniden yazıyor, kullanıcı "geri aldım ama geri geldi" diyordu.
+  Geri alma artık anahtarları da kapatır (yönetmeyi bırakır).
+- **"Geri al" Pro kapısına takılıyordu.** Kullanıcı lisansı bitince kendi
+  dosyasını kurtaramıyordu; yedeği de biz oluşturmuştuk. Kapı kaldırıldı.
+
+### Changed
+- `THIRD-PARTY.md`: `tauri-plugin-dialog` eklendi (v3.2'de girmişti, listede
+  yoktu), Rust doğrudan bağımlılık sayısı 14 → 15.
+
+### Notes
+- Tema için dosya/API sunmayan uygulamalara (Chrome, Firefox, Discord, Slack,
+  JetBrains) **yazılmaz**; onlar Windows teması açıkken kendiliğinden uyarlar.
+  Bu sınır kartta yazıyor.
+- Ayar dosyası olmayan uygulama için dosya **yaratılmaz** (sürpriz yok).
+- Yorumlar korunur: `settings.json` cerrahi metin düzenlemesiyle değişir;
+  parse edilemeyen dosyaya hiç yazılmaz.
+
 ## [3.2.0] - 2026-11-03
 
 "Güven ve dayanıklılık" - uygulamanın ne yaptığını söylemesi (kamera, tanıtım,

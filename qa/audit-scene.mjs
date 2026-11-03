@@ -100,6 +100,13 @@ const STUB = (disableWebgl) => `
       if (cmd === "decide_level") return "normal";
       if (cmd === "light_sample") return [120, 0.5, "normal", "neutral"];
       if (cmd === "pref_learn") return null;
+      // v3.3: uygulama temalari (kart bos kalmasin).
+      if (cmd === "appearance_apps") return [
+        { id: "windows-terminal", name: "Windows Terminal", group: "terminal", installed: true, live: true, path: "C:/qa/wt.json", current: "dark", error: null },
+        { id: "vscode", name: "VS Code", group: "editor", installed: true, live: true, path: "C:/qa/code.json", current: "light", error: null },
+      ];
+      if (cmd === "appearance_apply") return ((args && args.targets) || []).map((id) => ({ id, ok: true, changed: true, error: null }));
+      if (cmd === "appearance_restore") return [];
       if (cmd === "pref_learn_bright") return null;
       if (cmd === "pref_get_bright") return null;
       if (cmd === "plugin:app|version") return "3.0.0-qa";

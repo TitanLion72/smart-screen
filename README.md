@@ -42,7 +42,7 @@ kullanabilirsin.
 | **Durum** | Merkezdeki büyük rakam gerçek parlaklık; altında ulaşılmak istenen değer ve sonraki değişim saati, **neden böyle** satırı, ışık→parlaklık→sarılık eğrisi (canlı); monitör satırları; otomatik ayar seçici (**Açık / 1 saat / Bugün / Kilitli**); son olaylar; güncelleme varsa band |
 | **Profiller** | İş/Film gibi paketler; kart tıklayınca yalnız düzenlenir, uygulamak için ayrı **Uygula**; kaydedilmemiş değişiklik "Kaydedilmedi" ile gösterilir; bir profili uygulama listesine bağlayabilirsin (`code.exe` gibi) |
 | **Geçmiş** | Bugünün özeti + 12 saatlik grafik + **insan dilinde** zaman çizelgesi ("18:40 · akşam temasına geçildi · %42") |
-| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet ve "Günün rengi"; **Kontrol**'de tek tıkla sistem tanılaması (Windows gece ışığı dâhil); **Gelişmiş** altında okunabilirlik denetimi, **yedekleme** (ayarları dışa/içe aktar, sıfırla), Windows açılışında başlat, lisans ve Hakkında |
+| **Ayarlar** | Çalışma biçimi, **ekran rengi sıcaklığı (Kelvin)**, ekranı sarılaştırma, gece koruması, 20-20-20 mola, okuma profili, uygulama listeleri; **Görünüm**'de 4 şablon × 12 palet, "Günün rengi" ve **uygulama temaları** (Windows sistemi + Windows Terminal / VS Code / Sublime / Zed / Obsidian); **Kontrol**'de tek tıkla sistem tanılaması (Windows gece ışığı dâhil); **Gelişmiş** altında okunabilirlik denetimi, **yedekleme** (ayarları dışa/içe aktar, sıfırla), Windows açılışında başlat, lisans ve Hakkında |
 
 İlk açılışta üç maddelik kısa bir tanıtım çıkar (kamera, otomatiğin sınırları,
 verinin cihazda kaldığı); "Anladım" deyince bir daha görünmez.
@@ -73,6 +73,29 @@ Otomatik kurallar:
 - Aynı kararı 2 kez onaylamadan değiştirmez (titreşim olmaz).
 - Gece 00:00–01:30 dışında parlaklığı %0'a çekmez.
 - Kilitliyse / "Sabit" moddaysa / oyun-video-PDF açıkken hiçbir şeye dokunmaz.
+
+## Uygulama temaları
+
+OpenCode dışındaki uygulamaları da açık/koyu moda geçirebilir. **Varsayılan
+kapalı**; Ayarlar → Görünüm → "Uygulama temaları"ndan açılır.
+
+| Hedef | Ne yapar | Sürüm |
+|---|---|---|
+| **Windows teması** | Explorer, Başlat, Ayarlar ve sistemi takip eden uygulamalar anında döner | ücretsiz |
+| **Windows Terminal** | `settings.json` → `theme`; açık sekmeler yeniden başlatmadan döner | Pro |
+| **VS Code** (Code/Insiders/VSCodium/Cursor/Windsurf) | Tema yazar; **kendi seçtiğin tema hatırlanır**, koyu tura dönünce geri gelir | Pro |
+| **Sublime Text**, **Zed**, **Obsidian** | Tema yazar (Obsidian'da tüm kasalar) | Pro |
+
+Güvenlik sınırları:
+
+- Her yazmadan önce `<dosya>.ss-backup` alınır; **Geri al** dosyaları bayt bayt
+  eski hâline döndürür (Pro kapısı yok — lisans bitse de çalışır).
+- `settings.json` yorumları korunur (cerrahi düzenleme). Parse edilemeyen dosyaya
+  **hiç** yazılmaz; satırda hata görünür, diğerleri etkilenmez.
+- Ayar dosyası olmayan uygulama için dosya **yaratılmaz**.
+- Değer değişmiyorsa yazılmaz (dosya mtime'ı bile değişmez).
+- **Chrome, Firefox, Discord, Slack, JetBrains** için yazılmaz — tema API'si yok;
+  Windows teması açıkken kendileri uyarlar.
 
 ## Monitörler
 

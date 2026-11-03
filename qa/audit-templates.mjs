@@ -182,6 +182,16 @@ const stub = () => {
           return null;
         case "theme_gate_get":
           return true;
+        // v3.3: uygulama temalari (kart bos kalmasin).
+        case "appearance_apps":
+          return [
+            { id: "windows-terminal", name: "Windows Terminal", group: "terminal", installed: true, live: true, path: "C:/qa/wt.json", current: "dark", error: null },
+            { id: "vscode", name: "VS Code", group: "editor", installed: true, live: true, path: "C:/qa/code.json", current: "light", error: null },
+          ];
+        case "appearance_apply":
+          return ((args && args.targets) || []).map((id) => ({ id, ok: true, changed: true, error: null }));
+        case "appearance_restore":
+          return [];
         case "plugin:updater|check":
           return null;
         case "plugin:updater|download_and_install":

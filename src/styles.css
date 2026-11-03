@@ -1384,6 +1384,80 @@ button:disabled:active {
   flex: none;
 }
 
+/* ═══════════════ Uygulama temaları (v3.3) ═══════════════ */
+
+.app-list {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--sp-2);
+  border: 1px solid var(--border-standard);
+  border-radius: var(--r-sm);
+  background: var(--surface-1);
+  overflow: hidden;
+}
+
+.app-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 220px) auto;
+  align-items: center;
+  gap: var(--sp-2);
+  /* Sabit satır yüksekliği: liste 5 satırda taşmaz, hata metni kırpılır. */
+  min-height: 40px;
+  padding: 4px 10px;
+  border-top: 1px solid var(--border-subtle);
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.app-row:first-child {
+  border-top: 0;
+}
+
+.app-row-main {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.app-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-1);
+}
+
+.app-state {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-3);
+}
+
+.app-state.ok {
+  color: var(--text-2);
+}
+
+.app-state.warn {
+  color: var(--warning);
+}
+
+.app-restart {
+  flex: none;
+  padding: 0 7px;
+  border: 1px dashed var(--border-standard);
+  border-radius: var(--r-pill);
+  font-size: 11px;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+
+.app-restart[hidden] {
+  display: none;
+}
+
 /* ═══════════════ Olay akışı ═══════════════ */
 
 .log {

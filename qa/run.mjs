@@ -198,6 +198,20 @@ window.__TAURI_INTERNALS__ = {
         return { pro: false, email: null, issued: null };
       case "battery_status": return [85, true];
       case "nightlight_status": return null;
+      // v3.3: uygulama temalari. Sabit liste: 2 kurulu + 1 kurulu degil.
+      // appearance_apply cagrilarini window.__appThemeCalls'a alir; senaryo
+      // "gercekten hangi hedefler gitti" sorusunu boyle dogrular.
+      case "appearance_apps": return [
+        { id: "windows-terminal", name: "Windows Terminal", group: "terminal", installed: true, live: true, path: "C:/qa/wt.json", current: "dark", error: null },
+        { id: "vscode", name: "VS Code", group: "editor", installed: true, live: true, path: "C:/qa/code.json", current: "light", error: null },
+        { id: "zed", name: "Zed", group: "editor", installed: false, live: true, path: null, current: null, error: null },
+      ];
+      case "appearance_apply":
+        window.__appThemeCalls = (window.__appThemeCalls || []).concat([
+          { mode: args && args.mode, targets: (args && args.targets) || [] },
+        ]);
+        return ((args && args.targets) || []).map((id) => ({ id, ok: true, changed: true, error: null }));
+      case "appearance_restore": return [{ id: "windows-terminal", ok: true, changed: true, error: null }];
       // v3.2: ayar yedegi. Kaydet diyalogu QA'da dosya yazmaz; sabit bir yol
       // dondurur ve icerigi window.__exported'a alir (icerik assert edilebilsin).
       case "settings_export":
@@ -1842,6 +1856,65 @@ async function run() {
     undefined,
     { onboard: false },
   );
+
+  // 21f. v3.3: uygulama temalari karti.
+  //      Uc sey olculur: (1) varsayilan KAPALI, (2) serbest/Pro kapisi,
+  //      (3) secim gercekten backend'e gidiyor (stub __appThemeCalls).
+  await scenario("catppuccin-macchiato", "dark", async ({ page, openTab, openAdvanced, shot }) => {
+    await openTab("settings");
+    check(await page.locator("#appearance-box").isVisible(), "app", "uygulama temalari karti gorunmuyor");
+    check((await page.locator("#app-row-windows-terminal").count()) === 1, "app", "Windows Terminal satiri yok");
+    check((await page.locator("#app-row-vscode").count()) === 1, "app", "VS Code satiri yok");
+
+    // Ucretsiz: uygulama anahtarlari kilitli, sistem temasi serbest.
+    check(await page.locator("#app-sw-vscode").isDisabled(), "app", "ucretsiz surumde uygulama anahtari acik");
+    check(await page.locator("#app-pro-lock").isVisible(), "app", "Pro kilidi gorunmuyor");
+    // Geri alma Pro'ya takilmaz (lisans bitse de kullanici kendi dosyasini
+    // geri alabilmeli). Stub'da dosyasi olan uygulama var -> dugme etkin.
+    check(!(await page.locator("#app-restore").isDisabled()), "app", "ucretsiz surumde Geri al kapali (olmamali)");
+
+    // Varsayilan KAPALI: kullanici istemeden hicbir seye yazilmaz.
+    const sysOff = await page.evaluate(() => localStorage.getItem("ss:appThemeSystem"));
+    check(sysOff === null || sysOff === "0", "app", `Windows temasi varsayilan acik: ${sysOff}`);
+
+    await page.locator("#app-theme-system").scrollIntoViewIfNeeded();
+    await page.locator("#app-theme-system").click();
+    await page.waitForTimeout(700);
+    const sysOn = await page.evaluate(() => localStorage.getItem("ss:appThemeSystem"));
+    check(sysOn === "1", "app", `Windows temasi acilmadi: ${sysOn}`);
+    let calls = await page.evaluate(() => window.__appThemeCalls || []);
+    check(
+      calls.some((c) => (c.targets || []).includes("system")),
+      "app",
+      `sistem hedefi backend'e gitmedi: ${JSON.stringify(calls)}`,
+    );
+    await dismissToasts(page);
+    await page.locator("#app-theme-system").click();
+    await page.waitForTimeout(500);
+    const sysBack = await page.evaluate(() => localStorage.getItem("ss:appThemeSystem"));
+    check(sysBack === "0", "app", `Windows temasi kapanmadi: ${sysBack}`);
+    await dismissToasts(page);
+
+    // Pro: uygulama anahtari acilir ve hedef listesine yazilir.
+    await openAdvanced();
+    await page.locator("#lic-key").fill("SS-QA-TEST-KEY-1234567890");
+    await page.locator("#lic-activate").click();
+    await page.waitForTimeout(700);
+    check(!(await page.locator("#app-pro-lock").isVisible()), "app", "Pro'da kilit satiri hala gorunur");
+    check(!(await page.locator("#app-sw-vscode").isDisabled()), "app", "Pro'da uygulama anahtari hala kapali");
+    await page.locator("#app-sw-vscode").click();
+    await page.waitForTimeout(800);
+    const targets = await page.evaluate(() => localStorage.getItem("ss:appThemeTargets"));
+    check((targets || "").includes("vscode"), "app", `hedef listesine yazilmadi: ${targets}`);
+    calls = await page.evaluate(() => window.__appThemeCalls || []);
+    check(
+      calls.some((c) => (c.targets || []).includes("vscode")),
+      "app",
+      "VS Code hedefi backend'e gitmedi",
+    );
+    await shot("23-uygulama-temalari.png");
+    await dismissToasts(page);
+  });
 
   // 22. Şablon × palet matrisi (v2.6): 4 şablon × 12 palet.
   //     - seçici gerçekten data-* yazıyor ve kalıcılaşıyor mu

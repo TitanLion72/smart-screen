@@ -316,6 +316,49 @@ kamera satırı `ok`, gerçek diyalogla yedek alındı → ayar bozuldu → geri
 
 ---
 
+## 16. `[x]` v3.3.0 "uygulama temaları" - OpenCode'un ötesi
+
+Tek istek: "OpenCode değil, çok daha fazla uygulamanın temasını ayarlayabilsin."
+Araştırma önce yapıldı, sınırlar yazıldı, sonra kod.
+
+**Yazılan (kanıtlı yol):**
+- **Windows sistem teması** (ücretsiz): `AppsUseLightTheme`/`SystemUsesLightTheme`
+  + `WM_SETTINGCHANGE`. Tek yazmayla Explorer, Başlat, Ayarlar ve *sistemi takip
+  eden her uygulama*.
+- **Adaptörler** (Pro): Windows Terminal (`theme`), VS Code ailesi 5 sürüm
+  (`workbench.colorTheme` + `autoDetectColorScheme:false` + kullanıcının kendi
+  temasını `preferredDark/LightColorTheme` olarak hatırlama), Sublime Text, Zed,
+  Obsidian (tüm kasalar).
+- `jsonc.rs`: yorum koruyan cerrahi düzenleyici — `settings.json` JSONC'dir,
+  `serde_json` yorumları siler. 14 test.
+- Yedek (`.ss-backup`, bir kez, üzerine yazılmaz) + atomik doğrulanmış yazma.
+
+**Yazılmayan (dürüst sınır):** Chrome, Firefox, Discord, Slack, JetBrains —
+tema API'si yok; Windows teması açıkken kendileri uyarlıyor. Kartta yazıyor.
+
+**Birleştirmede yakalanan 4 gerçek hata** (hepsi test geçtikten sonra çıktı):
+1. VS Code kullanıcının mağaza temasını `Default Dark Modern` ile eziyordu,
+   geri dönüş yoktu → ilk yazmada tema "tercih edilen koyu" olarak saklanıyor.
+2. Windows Terminal "ayar dosyası yok" diyordu; dosya vardı, `theme` anahtarı
+   yoktu (varsayılanı `system`) → `Adapter::peek` eklendi.
+3. "Geri al" hedefleri açık bırakıyordu; döngü dosyaları yeniden yazıyordu
+   ("geri aldım ama geri geldi") → geri alma anahtarları da kapatıyor.
+4. "Geri al" Pro kapısına takılıydı; lisans biten kullanıcı kendi dosyasını
+   kurtaramıyordu → kapı kaldırıldı (yedeği biz oluşturduk).
+
+**Kabul:** 278 Rust + 25 frontend testi, `qa/run.mjs` (yeni senaryo dahil),
+6 denetim aracı, clippy/fmt temiz. **Canlı, gerçek dosyalarla:** VS Code ve
+Windows Terminal'e koyu→açık→koyu yazıldı (kullanıcının kendi teması geri geldi),
+ikinci yazma `changed:false` (idempotent), "Geri al" iki dosyayı **bayt bayt**
+orijinal hâline döndürdü (157B / 2124B), kayıt defteri 1/1 → 0/0 gidip döndü,
+Pro'suz `vscode` hedefi **yazmadan** reddedildi. Geri alma: `git revert`
+(yeni anahtarlar: `ss:appThemeSystem`, `ss:appThemeTargets`).
+
+**Not:** Bu turda C: diski yine doldu (0 bayt) — `target/debug/incremental`
+temizlendi.
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

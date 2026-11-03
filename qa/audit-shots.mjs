@@ -61,6 +61,16 @@ const stub = () => {
         case "license_activate": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
         case "battery_status": return [85, true];
       case "nightlight_status": return null;
+        // v3.3: uygulama temalari (kart bos kalmasin).
+        case "appearance_apps":
+          return [
+            { id: "windows-terminal", name: "Windows Terminal", group: "terminal", installed: true, live: true, path: "C:/qa/wt.json", current: "dark", error: null },
+            { id: "vscode", name: "VS Code", group: "editor", installed: true, live: true, path: "C:/qa/code.json", current: "light", error: null },
+          ];
+        case "appearance_apply":
+          return ((args && args.targets) || []).map((id) => ({ id, ok: true, changed: true, error: null }));
+        case "appearance_restore":
+          return [];
         case "hdr_status": return false;
         case "hdr_status_all": return monitors.map((m) => ({ device: m.id, hdr: false }));
         case "monitor_color_temp_info": return monitors.map((m) => ({ device: m.id, supported: m.is_internal ? true : false, increment: 50 }));
