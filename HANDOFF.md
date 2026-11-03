@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.2.0, 2026-11-03)
+# HANDOFF - smart-screen (güncel: v3.3.0, 2026-11-03)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -63,7 +63,60 @@ Yöntem: `Shell_TrayWnd` → "Gizli Simgeleri Göster" → `TopLevelWindowForOve
 altındaki `SystemTray.NormalButton` adları. (Ekran kilitliyken de okunur; ekran
 görüntüsü almak gerekmez.)
 
-## Güncel durum: v3.1.0 - gerçekten geçerli sınırlar
+## v3.3.0 turu - dersler (2026-11-03)
+
+İstek: "OpenCode değil, çok daha fazla uygulamanın temasını ayarlayabilsin."
+Önce **araştırma**, sonra plan, sonra iki dalga orkestrasyon.
+
+**Araştırmanın değeri:** Windows Terminal'in `theme` alanının `"system"` de
+kabul ettiğini ve **canlı** yenilendiğini MS Learn'den doğruladım; VS Code'un
+`window.autoDetectColorScheme` ile işletim sistemini takip edebildiğini resmi
+dokümandan. Bu iki gerçek, "hangi uygulamaya nasıl yazılır" sorusunun yarısını
+cevapladı. **Tahminle yazsaydım** WT'de `"system"` yerine geçersiz bir değer
+deneyecektim.
+
+**Dalga 1 (paralel):** A1 çekirdek (`jsonc.rs` + `system_theme.rs` +
+`appearance/mod.rs`), B frontend, C doküman. Dosya sahiplikleri ayrıktı, çakışma
+yok. **Dalga 2:** A2 adaptörler (A1'in trait'ine bağlı, o yüzden sıralı).
+
+**En kritik teknik karar — `jsonc.rs`.** VS Code ve Windows Terminal
+`settings.json` **JSONC**'dir (yorum + trailing comma). `serde_json` ile
+parse edip yeniden yazmak kullanıcının yorumlarını **siler**. Bu yüzden cerrahi
+metin düzenlemesi yazıldı: yalnız anahtarın değer aralığı değişir, dosyanın
+kalanı bayt bayt aynı kalır. 14 test bunu doğruluyor.
+
+**Birleştirmede yakalanan 4 gerçek hata** — dördü de "ajan PASS dedi, 278 test
+yeşil" durumundan SONRA çıktı, canlı gerçek dosyalarla:
+
+1. **VS Code kullanıcının kendi temasını eziyordu.** Makinede
+   `workbench.colorTheme: "One Dark Pro Darker"` var (mağaza teması). Adaptör
+   `Default Dark Modern` yazıyordu; kullanıcının seçimi **geri dönüşsüz**
+   kaybolurdu. Düzeltme: ilk yazmada o anki tema `preferredDarkColorTheme`
+   olarak saklanır, koyu tura dönünce kullanıcınınki geri gelir.
+   **Ders: "hangi değeri yazacağım" kadar "kullanıcının mevcut değeri neydi"
+   sorusunu sor.**
+2. **WT "ayar dosyası yok" diyordu** — dosya vardı, `theme` anahtarı yoktu.
+   `Adapter::peek` eklendi: arayüz "sistemi takip ediyor" der, "bilinmiyor"
+   değil. `read` (yazılacak mod) ile `peek` (kullanıcıya gösterilecek durum)
+   ayrı sorulardır.
+3. **"Geri al" hedefleri açık bırakıyordu.** Döngü sonraki mod değişiminde
+   dosyaları yeniden yazdı — canlıda bizzat oldu. Geri alma artık anahtarları
+   da kapatır (yönetmeyi bırakmak = geri almak).
+4. **"Geri al" Pro kapısına takılıydı.** Lisansı biten kullanıcı kendi dosyasını
+   kurtaramıyordu; üstelik yedeği biz oluşturmuştuk. Kapı kaldırıldı.
+   **Ders: geri alma bir özellik değil, güvenlik ağıdır — asla kilitlenmez.**
+
+**Canlı doğrulama (gerçek dosyalar):** VS Code koyu→açık→koyu (kullanıcının
+teması geri geldi), ikinci yazma `changed:false`, "Geri al" iki dosyayı bayt
+bayt orijinale döndürdü (157B / 2124B doğrulandı), kayıt defteri 1/1 → 0/0,
+Pro'suz `vscode` hedefi **yazmadan** reddedildi (`Pro gerekli: uygulama
+temaları`).
+
+**Bu turda yaptığım hata:** test sırasında yedek dosyalarını sildim ve geri
+alma Pro kapısına takılınca kullanıcının VS Code ayarı yarım kaldı. Elle
+onardım (içerik birebir). **Ders: geri alma yolunu test etmeden yedek silme.**
+
+## Güncel durum: v3.3.0
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
