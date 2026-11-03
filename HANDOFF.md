@@ -56,9 +56,12 @@ gece özeti 23→06 için "7 saat", tanılama kamera satırı `ok` ("kamera tek 
 okuyabiliyor"), **gerçek Windows diyaloğuyla** yedek alındı → bir anahtar bozuldu →
 geri yükleme değeri döndürdü → sıfırlama anahtarları temizledi.
 
-**Elle doğrulanacak:** tepsi simgesine fareyle gelince ipucu (`smart-screen ·
-%42 · tema · durum`). Win32 tooltip'i makineden okunamıyor; biçim birim testi
-(`tray_tooltip_*`) ve `let _ = tray.set_tooltip(...)` yolu derlemede doğrulandı.
+**Tepsi ipucu canlıda doğrulandı (2026-11-03, kurulu v3.2.0):** UI Automation ile
+tepsi taşma penceresi okundu; simge adı `smart-screen · %80 ·
+catppuccin-macchiato · bugün kapalı` döndü — hem biçim hem durum metni gerçek.
+Yöntem: `Shell_TrayWnd` → "Gizli Simgeleri Göster" → `TopLevelWindowForOverflowXamlIsland`
+altındaki `SystemTray.NormalButton` adları. (Ekran kilitliyken de okunur; ekran
+görüntüsü almak gerekmez.)
 
 ## Güncel durum: v3.1.0 - gerçekten geçerli sınırlar
 
