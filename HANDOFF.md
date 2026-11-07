@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.3.0, 2026-11-03)
+# HANDOFF - smart-screen (güncel: v3.4.0, 2026-11-08)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -116,7 +116,39 @@ temaları`).
 alma Pro kapısına takılınca kullanıcının VS Code ayarı yarım kaldı. Elle
 onardım (içerik birebir). **Ders: geri alma yolunu test etmeden yedek silme.**
 
-## Güncel durum: v3.3.0
+## v3.4.0 turu - dersler (2026-11-08)
+
+Üç istek: sarılık otomasyonu, genel otomasyon gözden geçirme, uygulama desteği
++ menüler.
+
+**Neden 7 zayıflık buldum:** kullanıcı "biraz daha düzgün olmalı" dedi; ben
+koda baktım ve **ölçülebilir** kusurlar çıktı (doğrusal eğri, kullanılmayan ton
+ölçümü, hız sınırı yokluğu, yanlış etiket, görünmez "şu an", 5 öğeli menü,
+JetBrains yokluğu). "Biraz düzgün" değil, "ölçülebilir" hedef koydum.
+
+**Model kararı (en önemlisi):** toplamsal (`base + shift`) → ağırlıklı
+(`0.55*base + 0.45*measured`). Toplamsal model 21:00'de `dark` ölçümde 100'e
+dayanıyordu ve "gün ortasında loş oda" durumunu ifade edemiyordu. Ton düzeltmesi
+(`warm −14 / cool +12`) kameranın zaten ölçtüğü ama kullanmadığı veriyi işe
+koştu.
+
+**Orkestrasyon:** 3 birim paralel (Rust/frontend/adaptör), tepsi sıralı (aynı
+dosya: `lib.rs`). Toplam 20 adaptör + 17 sarılık testi eklendi.
+
+**Şefin yakaladığı 3 gerçek hata:**
+1. **Pro etkinleştirilince harici monitör ayarlanmıyordu** — 6 aydır. QA testi
+   "bir sonraki turda yazar" varsayımıyla yazıldığı için bunu gizliyordu.
+   Düzeltme: `activateLicense` içinde `applyAutoMonitors`.
+2. QA metin assert'i eski cümleyi koruyordu ("Hızlı sarılık"); ürün metni
+   düzelince test düştü — assert güncellendi, metin doğruydu.
+3. Pro etkinleştirmede DDC hata toast'ı artık erken çıkıyor (doğru davranış);
+   QA iki yolu da kabul ediyor.
+
+**Ders:** "Testler yeşil" ≠ "ürün doğru". Bu turda yeşil testler, ürünün aylardır
+yanlış davrandığı bir noktayı gizliyordu. Yeni bir yan etki (erken toast) ekleyen
+her değişiklikten sonra QA'yı çalıştırmak zorunlu.
+
+## Güncel durum: v3.4.0
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

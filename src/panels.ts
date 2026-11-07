@@ -23,6 +23,7 @@ import {
 } from "./catalog";
 import type { Mode, Source, ThemeEntry } from "./catalog";
 import { invoke } from "@tauri-apps/api/core";
+import { warmthToKelvin } from "./engine";
 import {
   FREE_MAX_PROFILES,
   MAX_PROFILES,
@@ -453,54 +454,79 @@ function rebuildAppRows(): void {
     host.append(empty);
     return;
   }
-  for (const a of appItems) {
-    const row = document.createElement("div");
-    row.className = "app-row";
-    row.id = `app-row-${a.id}`;
-
-    const main = document.createElement("div");
-    main.className = "app-row-main";
-    const sw = document.createElement("button");
-    sw.type = "button";
-    sw.className = "switch";
-    sw.id = `app-sw-${a.id}`;
-    sw.setAttribute("role", "switch");
-    sw.setAttribute("aria-checked", "false");
-    sw.setAttribute("aria-label", `${a.name} uygulama teması`);
-    const knob = document.createElement("span");
-    knob.className = "knob";
-    sw.append(knob);
-
-    const name = document.createElement("span");
-    name.className = "app-name";
-    name.textContent = a.name;
-    name.title = a.path ?? a.name;
-
-    if (!S.licensePro) {
-      const pro = document.createElement("span");
-      pro.className = "badge pro";
-      pro.textContent = "Pro";
-      main.append(sw, name, pro);
-    } else {
-      main.append(sw, name);
-    }
-
-    const state = document.createElement("span");
-    state.className = "app-state";
-    state.id = `app-state-${a.id}`;
-
-    const restart = document.createElement("span");
-    restart.className = "app-restart";
-    restart.id = `app-restart-${a.id}`;
-    restart.textContent = "yeniden başlat";
-    restart.title = "Değişiklik uygulamanın yeniden açılmasıyla görünür";
-
-    row.append(main, state, restart);
-    host.append(row);
-
-    const handle = bindSwitch(sw, false, (v) => toggleAppTarget(a.id, v));
-    appSwitches.set(a.id, handle);
+  // PLAN-v3.4/C2: düz liste yerine grup başlıkları. Sıra sabit (terminal →
+  // editörler → notlar → diğer); grup içi sıra backend'den geldiği gibi kalır.
+  // Neden: 10+ uygulama tek blokta taranamıyordu.
+  const groups: Array<[string, string]> = [
+    ["terminal", "Terminaller"],
+    ["editor", "Editörler"],
+    ["notes", "Notlar"],
+  ];
+  const known = new Set(groups.map(([key]) => key));
+  for (const [key, label] of groups) {
+    appendAppGroup(host, label, appItems.filter((a) => a.group === key));
   }
+  appendAppGroup(host, "Diğer", appItems.filter((a) => !known.has(a.group)));
+}
+
+/** Boş grup çizilmez; doluysa başlık + satırlar eklenir. */
+function appendAppGroup(host: HTMLElement, label: string, items: AppInfo[]): void {
+  if (items.length === 0) return;
+  const head = document.createElement("div");
+  head.className = "app-group";
+  head.textContent = label;
+  host.append(head);
+  for (const a of items) host.append(createAppRow(a));
+}
+
+/** Tek uygulama satırı üretir; gruplama `rebuildAppRows`'ta yapılır. */
+function createAppRow(a: AppInfo): HTMLDivElement {
+  const row = document.createElement("div");
+  row.className = "app-row";
+  row.id = `app-row-${a.id}`;
+
+  const main = document.createElement("div");
+  main.className = "app-row-main";
+  const sw = document.createElement("button");
+  sw.type = "button";
+  sw.className = "switch";
+  sw.id = `app-sw-${a.id}`;
+  sw.setAttribute("role", "switch");
+  sw.setAttribute("aria-checked", "false");
+  sw.setAttribute("aria-label", `${a.name} uygulama teması`);
+  const knob = document.createElement("span");
+  knob.className = "knob";
+  sw.append(knob);
+
+  const name = document.createElement("span");
+  name.className = "app-name";
+  name.textContent = a.name;
+  name.title = a.path ?? a.name;
+
+  if (!S.licensePro) {
+    const pro = document.createElement("span");
+    pro.className = "badge pro";
+    pro.textContent = "Pro";
+    main.append(sw, name, pro);
+  } else {
+    main.append(sw, name);
+  }
+
+  const state = document.createElement("span");
+  state.className = "app-state";
+  state.id = `app-state-${a.id}`;
+
+  const restart = document.createElement("span");
+  restart.className = "app-restart";
+  restart.id = `app-restart-${a.id}`;
+  restart.textContent = "yeniden başlat";
+  restart.title = "Değişiklik uygulamanın yeniden açılmasıyla görünür";
+
+  row.append(main, state, restart);
+
+  const handle = bindSwitch(sw, false, (v) => toggleAppTarget(a.id, v));
+  appSwitches.set(a.id, handle);
+  return row;
 }
 
 /** Mod değişimine göre uygula — `main.ts` zamanlayıcısı çağırır. */
@@ -587,7 +613,7 @@ function renderAppThemes(): void {
     : `${base} Şu anki mod bilinmiyor; anahtarlar kapalı.`;
   el("app-pro-lock").hidden = S.licensePro;
 
-  const sig = appItems.map((a) => a.id).join("|") + "#" + String(appListError ?? "") + (S.licensePro ? "#pro" : "#free");
+  const sig = appItems.map((a) => `${a.id}:${a.group}`).join("|") + "#" + String(appListError ?? "") + (S.licensePro ? "#pro" : "#free");
   if (sig !== appRowsSig) {
     appRowsSig = sig;
     rebuildAppRows();
@@ -1479,13 +1505,117 @@ function renderQuickbar(): void {
 
 const segSigs: Record<string, string> = { mode: "", source: "", warm: "" };
 
+// v3.4: eğri TEK kaynaktan (`warmth_curve`) gelir — TS'te kopya yok. Bir kez
+// çekilir: eğri saatin fonksiyonu, kullanıcı şiddeti yalnız tavanı ölçekler.
+// Bu yüzden `warmPercent` değişince sadece tavan çizgisi yeniden çizilir.
+let warmCurve: number[] | null = null;
+let warmCurveFailed = false;
+let warmCurveLoading = false;
+let warmCurveDrawn = false;
+let warmCapSig = -1;
+
+function loadWarmCurve(): void {
+  if (warmCurve !== null || warmCurveFailed || warmCurveLoading) return;
+  warmCurveLoading = true;
+  void invoke<number[]>("warmth_curve", { step: 15 })
+    .then((list) => {
+      if (Array.isArray(list) && list.length > 1) warmCurve = list;
+      else warmCurveFailed = true;
+    })
+    .catch(() => {
+      // Eğri süslemedir: hata kartı çökertmesin, yalnız SVG gizlenir.
+      warmCurveFailed = true;
+    })
+    .finally(() => {
+      warmCurveLoading = false;
+      renderWarm();
+    });
+}
+
+/** 0..100 değer → SVG y (üst 2, alt 26). */
+function warmCurveY(v: number): number {
+  const c = Math.max(0, Math.min(100, v));
+  return 26 - (c / 100) * 24;
+}
+
+function paintWarmCap(): void {
+  const cap = Math.round((88 * S.warmPercent) / 100);
+  const y = warmCurveY(cap).toFixed(2);
+  const line = el("wc-cap");
+  line.setAttribute("y1", y);
+  line.setAttribute("y2", y);
+}
+
+function syncWarmCurve(): void {
+  const svg = el("warm-curve");
+  if (warmCurve === null) {
+    svg.hidden = warmCurveFailed;
+    return;
+  }
+  svg.hidden = false;
+  if (!warmCurveDrawn) {
+    const last = warmCurve.length - 1;
+    let d = "";
+    warmCurve.forEach((v, i) => {
+      const x = (i / last) * 96;
+      d += `${i === 0 ? "M" : "L"}${x.toFixed(2)} ${warmCurveY(v).toFixed(2)}`;
+    });
+    el("wc-path").setAttribute("d", d);
+    warmCurveDrawn = true;
+  }
+  if (warmCapSig !== S.warmPercent) {
+    warmCapSig = S.warmPercent;
+    paintWarmCap();
+  }
+  // "Şu an" noktası her render'da tazelenir: değer turda değişebilir, saat de.
+  const now = new Date();
+  const frac = (now.getHours() * 60 + now.getMinutes()) / 1440;
+  const dot = el("wc-now");
+  dot.setAttribute("cx", (frac * 96).toFixed(2));
+  dot.setAttribute("cy", warmCurveY(S.lastWarmApplied ?? 0).toFixed(2));
+}
+
+/** Şu an ekranda ne var? Uydurma yok: uygulanmadıysa sıfır yazılmaz. */
+function renderWarmNow(): void {
+  const node = el("warm-now");
+  if (S.hdrOn) {
+    node.textContent = "HDR açık — uygulanamıyor";
+    return;
+  }
+  if (S.warmMode === "off") {
+    node.textContent = "kapalı — ekran normal";
+    return;
+  }
+  if (S.lastWarmApplied === null) {
+    node.textContent = "henüz uygulanmadı";
+    return;
+  }
+  const pct = Math.round(S.lastWarmApplied);
+  const mode = S.warmMode === "auto" ? "otomatik" : "sabit";
+  node.textContent = `şu an %${pct} · ${warmthToKelvin(pct)} K · ${mode}`;
+}
+
+/** "%70"nin gerçek karşılığı: gece tepesi (88) bu oranla ölçeklenir. */
+function renderWarmCeiling(): void {
+  const cap = Math.round((88 * S.warmPercent) / 100);
+  el("warm-ceiling").textContent =
+    S.warmPercent === 100
+      ? "tam şiddet · gece %88"
+      : `gece en fazla %${cap} · şiddet %${S.warmPercent}`;
+}
+
 function renderWarm(): void {
   el("warm-val").textContent = String(S.warmPercent);
   const range = inputEl("warm-range");
   if (document.activeElement !== range) range.value = String(S.warmPercent);
-  // v2.5: yüzde artık tavan değil ŞİDDET — otomatik eğri bununla çarpılır.
+  // v3.4: yüzde tavan DEĞİL çarpan — cümle bunu açıkça söyler (eski metin
+  // "gün ışığında üst sınır" diyordu ve kullanıcı gerçek tavanı göremiyordu).
   el("warm-preview-note").textContent =
-    `Hızlı sarılık şiddeti: %${S.warmPercent} — otomatik kipte saat/ışık eğrisiyle çarpılır, sabit kipte doğrudan uygulanır; kapalı kipte etkisizdir.`;
+    `Sarılık şiddeti: %${S.warmPercent} — otomatik kipte saat ve ışık eğrisiyle çarpılır, sabit kipte doğrudan uygulanır, kapalı kipte etkisizdir.`;
+  renderWarmNow();
+  renderWarmCeiling();
+  loadWarmCurve();
+  syncWarmCurve();
   el("calib-hint").textContent = S.calibHint;
   // HDR açık monitörde sıcak ton etkisiz: not görünür, kontrol soluk kalır.
   const hdr = S.hdrOn;

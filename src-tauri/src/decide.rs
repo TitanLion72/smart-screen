@@ -132,15 +132,29 @@ const BASE_ANCHORS: [(u16, f32); 9] = [
     (1440, 30.0), // 24:00 = 00:00
 ];
 
-/// Egrinin `minute` dakikasindaki degeri (dogrusal ara deger, SAF).
+/// 0..1 arası yumuşak geçiş (3t²−2t³). Uçlarda türev 0 → eğri köşesiz.
+///
+/// Doğrusal ara değer her çapada türevi aniden değiştiriyordu; sonuç
+/// "tak" diye düşen bir parlaklık. Smoothstep uçlarda türevi sıfıra çekip
+/// çapa geçişlerini görünmez yapar. Girdi 0..1 dışındaysa kelepçelenir.
+pub fn smoothstep(t: f64) -> f64 {
+    let t = t.clamp(0.0, 1.0);
+    t * t * (3.0 - 2.0 * t)
+}
+
+/// Egrinin `minute` dakikasindaki degeri (yumusak ara deger, SAF).
+///
+/// v3.4: `ratio` yerine `smoothstep(ratio)`. Gerekce: dogrusal ara deger
+/// her capada turev sicramasi yapiyordu; 07:00-08:00 arasinda parlaklik
+/// "tak" diye dusuyordu (PLAN-v3.4 bulgu #1). Capalar degismedi.
 pub fn base_brightness(minute: u16) -> f32 {
     let t = minute.min(1440);
     for w in BASE_ANCHORS.windows(2) {
         let (m0, v0) = w[0];
         let (m1, v1) = w[1];
         if t >= m0 && t <= m1 {
-            let ratio = (t - m0) as f32 / (m1 - m0) as f32;
-            return v0 + ratio * (v1 - v0);
+            let ratio = (t - m0) as f64 / (m1 - m0) as f64;
+            return v0 + smoothstep(ratio) as f32 * (v1 - v0);
         }
     }
     30.0
@@ -188,13 +202,17 @@ pub fn scene_target(
 }
 
 /// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=100).
-/// Gunduz sifir, aksam yavasca artar, gece tepe yapar; kamera isik
-/// seviyesi bunu kaydirir ama siniri asmaz.
 ///
-/// v2.5: olcek 0-45'ten 0-100'e tasindi. Eski tavan (45) kalibre edilmis
-/// `gamma` egrisiyle "islevsiz" kaliyordu (PLAN-v3 §3/§4.2).
-pub fn warmth_auto(hour: u8, minute: u8, light_level: &str) -> u8 {
-    // Capa noktalari (dakika, siddet): aralarinda dogrusal ara deger.
+/// v3.4 (PLAN-v3.4 sozlesme C1):
+/// - Capalar arasi **smoothstep**; capalar ayni, gecis organik.
+/// - Kamera olcumu artik toplamsal kaydirma degil, **agirlikli ortak**:
+///   los oda gunduz de sarilik ister, aydinlik oda gece de istemez.
+///   Toplamsal model bunu ifade edemiyordu (bulgu #2).
+/// - Kameranin **tonu** de kullanilir: sicak ortamda ekrani daha da
+///   sarartmak "portakal corbasi" yapar; soguk/floresan ortamda isitmak
+///   melatonin icin dogru.
+pub fn warmth_auto(hour: u8, minute: u8, light_level: &str, tone: &str) -> u8 {
+    // Capa noktalari (dakika, siddet): aralarinda smoothstep ara deger.
     // 24:00 capa degeri 00:00 ile ayni (88) oldugu icin gece yarisi
     // cevrimsinde egride kesinti olmaz.
     const ANCHORS: [(u16, f64); 11] = [
@@ -211,7 +229,7 @@ pub fn warmth_auto(hour: u8, minute: u8, light_level: &str) -> u8 {
         (1440, 88.0), // 24:00
     ];
     // Saat + dakika tek egriye dokunur; bozuk girdi 24:00'e kelepcelenir.
-    let t = ((hour as u16) * 60 + (minute as u16 % 60)).min(1440);
+    let t = ((hour % 24) as u16 * 60 + (minute % 60) as u16).min(1440);
     let base = ANCHORS
         .windows(2)
         .find_map(|w| {
@@ -219,18 +237,63 @@ pub fn warmth_auto(hour: u8, minute: u8, light_level: &str) -> u8 {
             let (m1, v1) = w[1];
             (m0..=m1).contains(&t).then(|| {
                 let ratio = (t - m0) as f64 / (m1 - m0) as f64;
-                v0 + ratio * (v1 - v0)
+                v0 + smoothstep(ratio) * (v1 - v0)
             })
         })
         .unwrap_or(0.0);
-    // Isik kaydirmasi: los ortam sicakligi artirir, aydinlik keser.
-    let shift: i16 = match light_level {
-        "dark" => 22,
-        "dim" => 11,
-        "bright" => -11,
-        _ => 0,
+    // Olculen isik seviyesinin "istedigi" sarilik. Bu degerler 0..88
+    // egrisinin uc noktalariyla uyumlu secildi: karanlik gece tepesine
+    // (88) yakin, tam aydinlik sifira yakin. Taninmayan seviye (kamera
+    // yok/mesgul) `None` → eski davranis korunur.
+    let measured: Option<f64> = match light_level {
+        "dark" => Some(80.0),
+        "dim" => Some(52.0),
+        "normal" => Some(18.0),
+        "bright" => Some(0.0),
+        _ => None,
     };
-    (base.round() as i16 + shift).clamp(0, 100) as u8
+    // 55/45: saat egrisi ana omurga, olcum onu dengeler. 50/50 olsaydi
+    // bulutlu bir ogleden sonra gece yarisi kadar sararirdi.
+    let core = match measured {
+        Some(m) => 0.55 * base + 0.45 * m,
+        None => base,
+    };
+    // Sicak ortamda ekstra sarilik gereksiz (-14), soguk ortamda ise
+    // isitmak dogru (+12). Simetrik degil: sismis sariyi geri almak
+    // goze daha agir geliyor, o yuzden duzeltme biraz daha guclu.
+    let tone_adj = match tone {
+        "warm" => -14.0,
+        "cool" => 12.0,
+        _ => 0.0,
+    };
+    (core + tone_adj).round().clamp(0.0, 100.0) as u8
+}
+
+/// Onizleme icin egri ornekleri: 0..=1440 dakika, `step` aralikla.
+/// Kamera yok varsayimiyla (`unknown`, `neutral`) hesaplanir — cunku
+/// onizleme gunun TAMAMINI gosterir, su anki olcumu degil.
+/// `step` 0 ise 15; 1..=240 disina cikan deger kelepcelenir.
+pub fn warmth_curve(step_minutes: u8) -> Vec<u8> {
+    let step = match step_minutes {
+        0 => 15u16,
+        s => u16::from(s).clamp(1, 240),
+    };
+    let mut out = Vec::with_capacity((1440 / step) as usize + 1);
+    let mut m = 0u16;
+    loop {
+        out.push(warmth_auto(
+            (m / 60) as u8,
+            (m % 60) as u8,
+            "unknown",
+            "neutral",
+        ));
+        if m >= 1440 {
+            break;
+        }
+        // Son ornek her zaman 24:00 (gun kapanisi) olsun.
+        m = (m + step).min(1440);
+    }
+    out
 }
 
 /// Izin verilen alt parlaklik siniri.
@@ -307,10 +370,11 @@ mod tests {
     }
     #[test]
     fn evening_is_dusk_dark() {
-        // 18:00 egrinin inis bolgesinde: 62 (eski sabit 55 idi, basamak yok).
+        // 18:00 egrinin inis bolgesinde: 60 (v3.4 smoothstep; eski dogrusal
+        // 62, eski sabit 55 idi). Basamak yok.
         assert_eq!(
             scene_target(Source::Auto, 18, 0, Level::Normal),
-            ("ss-dusk", "dark", 62)
+            ("ss-dusk", "dark", 60)
         );
         assert_eq!(
             scene_target(Source::Auto, 21, 0, Level::Normal),
@@ -358,9 +422,10 @@ mod tests {
     #[test]
     fn night_is_ss_night() {
         // Gece temasi 22:30'da baslar; eğri 23:00'te 30'a iner.
+        // 22:30 smoothstep ile 34 (eski dogrusal 36 idi).
         assert_eq!(
             scene_target(Source::Auto, 22, 30, Level::Normal),
-            ("ss-night", "dark", 36)
+            ("ss-night", "dark", 34)
         );
         assert_eq!(
             scene_target(Source::Auto, 23, 0, Level::Normal),
@@ -408,8 +473,10 @@ mod tests {
         let mut prev = base_brightness(0);
         for m in 1..=1440u16 {
             let v = base_brightness(m);
+            // Smoothstep turevi uclarda 0, ortada 1.5. En dik capa cifti
+            // 07:00-08:00 (18 puan / 60 dk) → en fazla 0.45 puan/dk.
             assert!(
-                (v - prev).abs() <= 0.35,
+                (v - prev).abs() <= 0.5,
                 "dakika {m} basamak yapti: {prev} -> {v}"
             );
             prev = v;
@@ -481,36 +548,93 @@ mod tests {
     }
 
     #[test]
-    fn warmth_anchor_points_exact() {
-        assert_eq!(warmth_auto(0, 0, "unknown"), 88);
-        assert_eq!(warmth_auto(5, 0, "unknown"), 88);
-        assert_eq!(warmth_auto(6, 0, "unknown"), 56);
-        assert_eq!(warmth_auto(7, 0, "unknown"), 22);
-        assert_eq!(warmth_auto(8, 0, "unknown"), 0);
-        assert_eq!(warmth_auto(12, 0, "unknown"), 0);
-        assert_eq!(warmth_auto(15, 0, "unknown"), 0);
-        assert_eq!(warmth_auto(17, 0, "unknown"), 22);
-        assert_eq!(warmth_auto(19, 0, "unknown"), 56);
-        assert_eq!(warmth_auto(21, 0, "unknown"), 78);
-        assert_eq!(warmth_auto(23, 0, "unknown"), 88);
+    fn smoothstep_clamps_and_hits_ends() {
+        // Uc degerler ve kelepce: 0..1 disi girdi uclara oturur.
+        assert!((smoothstep(0.0) - 0.0).abs() < 0.001);
+        assert!((smoothstep(1.0) - 1.0).abs() < 0.001);
+        assert!((smoothstep(0.5) - 0.5).abs() < 0.001);
+        assert!((smoothstep(-3.0) - 0.0).abs() < 0.001);
+        assert!((smoothstep(7.0) - 1.0).abs() < 0.001);
     }
 
     #[test]
-    fn warmth_linear_between_anchors() {
-        // 19:00=56 ile 21:00=78 arasi tam orta nokta: 67.
-        assert_eq!(warmth_auto(20, 0, "unknown"), 67);
-        // 17:00=22 ile 19:00=56 yarim yol: 39.
-        assert_eq!(warmth_auto(18, 0, "unknown"), 39);
-        // 15:00=0 ile 17:00=22 yarim yol: 11.
-        assert_eq!(warmth_auto(16, 0, "unknown"), 11);
-        // 21:00=78 ile 23:00=88 yarim yol: 83.
-        assert_eq!(warmth_auto(22, 0, "unknown"), 83);
+    fn smoothstep_is_monotonic() {
+        let mut prev = smoothstep(0.0);
+        for i in 0..=1000 {
+            let t = f64::from(i) / 1000.0;
+            let v = smoothstep(t);
+            assert!(v + 0.001 >= prev, "t={t} azaldi: {prev} -> {v}");
+            prev = v;
+        }
+        // Uclarda turev ~0: ilk %1'lik dilimde degisim cok kucuk.
+        assert!(smoothstep(0.01) < 0.001);
+        assert!(smoothstep(0.99) > 0.999);
+    }
+
+    #[test]
+    fn warmth_anchor_points_exact() {
+        // Capalar degismedi (v3.4 sozlesme C1); kamera yok + notr ton.
+        assert_eq!(warmth_auto(0, 0, "unknown", "neutral"), 88);
+        assert_eq!(warmth_auto(5, 0, "unknown", "neutral"), 88);
+        assert_eq!(warmth_auto(6, 0, "unknown", "neutral"), 56);
+        assert_eq!(warmth_auto(7, 0, "unknown", "neutral"), 22);
+        assert_eq!(warmth_auto(8, 0, "unknown", "neutral"), 0);
+        assert_eq!(warmth_auto(12, 0, "unknown", "neutral"), 0);
+        assert_eq!(warmth_auto(15, 0, "unknown", "neutral"), 0);
+        assert_eq!(warmth_auto(17, 0, "unknown", "neutral"), 22);
+        assert_eq!(warmth_auto(19, 0, "unknown", "neutral"), 56);
+        assert_eq!(warmth_auto(21, 0, "unknown", "neutral"), 78);
+        assert_eq!(warmth_auto(23, 0, "unknown", "neutral"), 88);
+    }
+
+    /// Regresyon korumasi: kamera yok + notr ton eski davranisin ta kendisi.
+    /// Eski (v3.3 dogrusal) degerler: capalar 88/88/56/22/0/0/0/22/56/78/88,
+    /// yarim noktalar 16:00=11, 18:00=39, 20:00=67, 22:00=83.
+    /// Yeni egri yarim noktalarda ayni (smoothstep(0.5)=0.5), capalarda ayni.
+    #[test]
+    fn unknown_neutral_matches_old_curve() {
+        let old = [
+            (0, 0, 88),
+            (5, 0, 88),
+            (6, 0, 56),
+            (7, 0, 22),
+            (8, 0, 0),
+            (15, 0, 0),
+            (16, 0, 11),
+            (17, 0, 22),
+            (18, 0, 39),
+            (19, 0, 56),
+            (20, 0, 67),
+            (21, 0, 78),
+            (22, 0, 83),
+            (23, 0, 88),
+        ];
+        for (h, m, want) in old {
+            assert_eq!(
+                warmth_auto(h, m, "unknown", "neutral"),
+                want,
+                "{h}:{m:02} eski degerden sapti"
+            );
+        }
+    }
+
+    #[test]
+    fn warmth_smooth_between_anchors() {
+        // Yarim noktalar dogrusal ile ayni kaldi (simetri).
+        assert_eq!(warmth_auto(20, 0, "unknown", "neutral"), 67);
+        assert_eq!(warmth_auto(18, 0, "unknown", "neutral"), 39);
+        assert_eq!(warmth_auto(16, 0, "unknown", "neutral"), 11);
+        assert_eq!(warmth_auto(22, 0, "unknown", "neutral"), 83);
+        // Ceyrek nokta farki gosterir: 19:30 eski dogrusal 62 idi,
+        // smoothstep(0.25)=0.15625 → 56 + 22*0.15625 = 59.4 → 59.
+        assert_eq!(warmth_auto(19, 30, "unknown", "neutral"), 59);
+        assert_eq!(warmth_auto(17, 30, "unknown", "neutral"), 27);
     }
 
     #[test]
     fn warmth_midnight_wrap_is_continuous() {
-        let late = warmth_auto(23, 55, "unknown");
-        let early = warmth_auto(0, 5, "unknown");
+        let late = warmth_auto(23, 55, "unknown", "neutral");
+        let early = warmth_auto(0, 5, "unknown", "neutral");
         assert!(
             late.abs_diff(early) < 3,
             "gece yarisi cevrimsinde kesinti olmamali: {} vs {}",
@@ -520,36 +644,81 @@ mod tests {
     }
 
     #[test]
-    fn warmth_light_level_shifts() {
-        // 21:00 taban 78: dark +22, dim +11, bright -11, taninmayan 0.
-        assert_eq!(warmth_auto(21, 0, "dark"), 100);
-        assert_eq!(warmth_auto(21, 0, "dim"), 89);
-        assert_eq!(warmth_auto(21, 0, "bright"), 67);
-        assert_eq!(warmth_auto(21, 0, "unknown"), 78);
-        assert_eq!(warmth_auto(21, 0, "flas"), 78);
+    fn warmth_light_level_is_weighted_not_additive() {
+        // 21:00 taban 78; olcum artik 0.55*base + 0.45*measured.
+        // dark: 42.9+36 = 78.9 → 79 (eski toplamsal deger 100'dü).
+        assert_eq!(warmth_auto(21, 0, "dark", "neutral"), 79);
+        // dim: 42.9+23.4 = 66.3 → 66 (eski 89).
+        assert_eq!(warmth_auto(21, 0, "dim", "neutral"), 66);
+        // normal: 42.9+8.1 = 51 (eski 78; normal de artik hafif isitir).
+        assert_eq!(warmth_auto(21, 0, "normal", "neutral"), 51);
+        // bright: 42.9+0 = 42.9 → 43 (eski 67).
+        assert_eq!(warmth_auto(21, 0, "bright", "neutral"), 43);
+        // Taninmayan seviye kamera yok sayilir.
+        assert_eq!(warmth_auto(21, 0, "unknown", "neutral"), 78);
+        assert_eq!(warmth_auto(21, 0, "flas", "neutral"), 78);
+    }
+
+    #[test]
+    fn dark_daytime_raises_warmth() {
+        // Gunduz egri 0; los oda (dark→80) sariligi belirgin sekilde acar.
+        let none = warmth_auto(12, 0, "unknown", "neutral");
+        let dark = warmth_auto(12, 0, "dark", "neutral");
+        assert_eq!(none, 0);
+        assert_eq!(dark, 36, "0.45*80 = 36 beklenir");
+        assert!(dark > none, "los oda gunduz de sarilik istemeli");
+        // Ayni sey aksam ustu icin de gecerli.
+        assert!(warmth_auto(16, 0, "dark", "neutral") > warmth_auto(16, 0, "unknown", "neutral"));
+    }
+
+    #[test]
+    fn bright_night_lowers_warmth() {
+        // 23:00 egri 88; parlak oda gece sariligi keser.
+        let none = warmth_auto(23, 0, "unknown", "neutral");
+        let bright = warmth_auto(23, 0, "bright", "neutral");
+        assert_eq!(none, 88);
+        assert_eq!(bright, 48, "0.55*88 = 48.4 → 48");
+        assert!(bright < none, "parlak oda gece sariligi azaltmali");
+        // Gece yarisi da ayni yonde.
+        assert!(warmth_auto(0, 30, "bright", "neutral") < warmth_auto(0, 30, "unknown", "neutral"));
+    }
+
+    #[test]
+    fn tone_orders_warm_below_neutral_below_cool() {
+        // Ayni saat ve isik: tungsten oda daha az, floresan daha cok isitir.
+        let warm = warmth_auto(21, 0, "normal", "warm");
+        let neutral = warmth_auto(21, 0, "normal", "neutral");
+        let cool = warmth_auto(21, 0, "normal", "cool");
+        assert_eq!((warm, neutral, cool), (37, 51, 63));
+        assert!(warm < neutral && neutral < cool);
+        // Taninmayan ton notr sayilir.
+        assert_eq!(warmth_auto(21, 0, "normal", "bilinmeyen"), neutral);
     }
 
     #[test]
     fn warmth_respects_bounds() {
-        // Gece tepe 88 + dark 22 = 110 -> 100'de kesilir.
-        assert_eq!(warmth_auto(0, 0, "dark"), 100);
-        assert_eq!(warmth_auto(23, 30, "dark"), 100);
-        // Gunduz taban 0 + bright -11 = -11 -> 0'da kesilir.
-        assert_eq!(warmth_auto(8, 0, "bright"), 0);
-        assert_eq!(warmth_auto(12, 0, "bright"), 0);
-        // Tum egriden tarama: cikti hep 0..=100.
+        // Alt kelepce: 12:00 base 0 + bright 0 → -14 → 0.
+        assert_eq!(warmth_auto(12, 0, "bright", "warm"), 0);
+        // Ust sinir: modelin ulasabildigi en yuksek deger 00:00 dark cool:
+        // 0.55*88 + 0.45*80 = 84.4; +12 = 96.4 → 96. (100'e capalar
+        // izin vermiyor; kelepce yine de taranir.)
+        assert_eq!(warmth_auto(0, 0, "dark", "cool"), 96);
+        // Tum gun × tum girdiler: cikti hep 0..=100.
         for hour in 0..=23u8 {
-            for minute in [0u8, 15, 30, 45] {
-                for level in ["dark", "dim", "bright", "unknown"] {
-                    let v = warmth_auto(hour, minute, level);
-                    assert!(
-                        v <= 100,
-                        "{}:{} {} -> {} 100'u asmamali",
-                        hour,
-                        minute,
-                        level,
-                        v
-                    );
+            for minute in [0u8, 15, 30, 45, 59] {
+                for level in ["dark", "dim", "normal", "bright", "unknown"] {
+                    for tone in ["warm", "neutral", "cool", "yok"] {
+                        let v = warmth_auto(hour, minute, level, tone);
+                        assert!(
+                            v <= 100,
+                            "{}:{} {} {} -> {} 100'u asmamali",
+                            hour,
+                            minute,
+                            level,
+                            tone,
+                            v
+                        );
+                    }
                 }
             }
         }
@@ -562,7 +731,7 @@ mod tests {
         for hour in 8..=14u8 {
             for minute in [0u8, 20, 40, 59] {
                 assert_eq!(
-                    warmth_auto(hour, minute, "unknown"),
+                    warmth_auto(hour, minute, "unknown", "neutral"),
                     0,
                     "{}:{} sifir olmali",
                     hour,
@@ -570,14 +739,68 @@ mod tests {
                 );
             }
         }
-        assert_eq!(warmth_auto(15, 0, "unknown"), 0);
+        assert_eq!(warmth_auto(15, 0, "unknown", "neutral"), 0);
     }
 
     #[test]
     fn warmth_is_stronger_than_old_scale_at_same_clock() {
         // Eski olcek 21:00'de 35 (auto tavan 45) idi; yeni olcek 78.
-        assert!(warmth_auto(21, 0, "unknown") >= 70);
-        assert!(warmth_auto(0, 0, "unknown") >= 80);
+        assert!(warmth_auto(21, 0, "unknown", "neutral") >= 70);
+        assert!(warmth_auto(0, 0, "unknown", "neutral") >= 80);
+    }
+
+    #[test]
+    fn warmth_bad_clock_does_not_panic() {
+        // Bozuk girdi sarmalanir/kelepcelenir; panik yok.
+        assert_eq!(
+            warmth_auto(30, 99, "unknown", "neutral"),
+            warmth_auto(6, 39, "unknown", "neutral")
+        );
+        assert_eq!(
+            warmth_auto(255, 255, "dark", "warm"),
+            warmth_auto(255 % 24, 15, "dark", "warm")
+        );
+        let _ = warmth_auto(99, 200, "bright", "cool");
+    }
+
+    #[test]
+    fn warmth_curve_shape() {
+        // 0..=1440, 15 dk adim → (1440/15)+1 = 97 ornek.
+        let curve = warmth_curve(15);
+        assert_eq!(curve.len(), 97);
+        assert_eq!(curve[0], warmth_auto(0, 0, "unknown", "neutral"));
+        assert_eq!(curve[96], warmth_auto(0, 0, "unknown", "neutral"));
+        assert_eq!(*curve.iter().max().unwrap_or(&0), 88);
+        assert_eq!(*curve.iter().min().unwrap_or(&0), 0);
+        // Varsayilan adim 15; 0 da 15 demek.
+        assert_eq!(warmth_curve(0), curve);
+    }
+
+    /// Komsu fark siniri: capalar sabit oldugu icin 06:00→07:00 arasindaki
+    /// 34 puanlik dusus 4 araliga bolunur; hicbir egri 15 dk'da 8'in altina
+    /// inemez (dogrusal bile 8.5). Smoothstep'in en dik noktasi 12.75 → 12.
+    /// Yani 13, "egri kendi capalarindan daha hizli degil" garantisidir.
+    #[test]
+    fn warmth_curve_has_no_unexpected_step() {
+        let curve = warmth_curve(15);
+        for (i, w) in curve.windows(2).enumerate() {
+            assert!(
+                w[0].abs_diff(w[1]) <= 13,
+                "ornek {i}: {} -> {} capalarin zorladigindan hizli",
+                w[0],
+                w[1]
+            );
+        }
+    }
+
+    #[test]
+    fn warmth_curve_step_is_clamped() {
+        // step 240 → 6 aralik + kapanis = 7 ornek.
+        assert_eq!(warmth_curve(240).len(), 7);
+        // step 250 ust sinira kelepcelenir (240 ile ayni).
+        assert_eq!(warmth_curve(250), warmth_curve(240));
+        // step 1 → 1441 ornek, tam dakika cozunurlugu.
+        assert_eq!(warmth_curve(1).len(), 1441);
     }
 
     #[test]

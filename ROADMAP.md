@@ -359,6 +359,49 @@ temizlendi.
 
 ---
 
+## 17. `[x]` v3.4.0 "sarılık ve akıllı otomasyon"
+
+Üç istek: sarılık otomasyonu düzeltilsin, genel otomasyon gözden geçirilsin,
+uygulama desteği artsın + menüler güzelleşsin.
+
+**Koddan çıkan 7 zayıflık** (tahmin değil, satır kanıtlı):
+1. Eğri doğrusal → her çapada türev sıçraması.
+2. Kamera **tonu** ölçülüyor ama sarılıkta hiç kullanılmıyordu.
+3. Otomatik geçişlerde hız sınırı yok (22 puan birden zıplama).
+4. "%70"ün çarpan olduğu arayüzde yazmıyordu ("üst sınır" deniyordu — yanlış).
+5. Kullanıcı "şu an ne uygulanıyor" göremiyordu.
+6. Tepsi menüsü 5 düz öğe.
+7. JetBrains ailesi yok.
+
+**Model değişikliği (en önemlisi):** toplamsal kaydırma (`base + shift`) yerine
+**ağırlıklı birleşim** (`0.55*base + 0.45*measured`). Gerekçe: toplamsal model
+"loş oda gün ortasında da sarılık ister" ve "aydınlık oda gece de istemez"
+durumlarını ifade edemiyor; 21:00'de `dark` ölçüm 100'e dayanıyordu.
+Ton düzeltmesi de eklendi: tungsten oda −14 (zaten sıcak), floresan +12.
+
+**Orkestrasyon:** 3 birim paralel (Rust model · frontend · adaptörler), sonra
+tepsi (lib.rs çakışması yüzünden sıralı). 20 adaptör testi + 17 sarılık testi.
+
+**Şefin yakaladığı gerçek hatalar:**
+1. **Pro etkinleştirilince harici monitör ayarlanmıyordu.** Lisans girilince
+   ekran bir sonraki parlaklık değişimine kadar eski değerde kalıyordu; gece
+   tavanı hedefi sabitlediğinde hiç yazılmıyordu. QA bunu yakaladı (test
+   yeşilken ürün bozuktu). Düzeltme: etkinleştirmede `applyAutoMonitors`.
+2. **QA metin assert'i ürünü değil eski cümleyi koruyordu.** "Hızlı sarılık"
+   metni düzeltilince test düştü — doğru davranış; assert güncellendi.
+3. Yan etki: Pro etkinleştirmede DDC hata toast'ı artık **daha erken** çıkıyor.
+   Bu doğru davranış (kullanıcı ödeme yaptı, ekran hemen uymalı); QA iki yolu
+   da kabul edecek şekilde güncellendi.
+
+**Kabul:** 308 Rust + 25 frontend, `qa/run.mjs`, 6 denetim aracı, clippy/fmt.
+Canlı: dev + CDP ile sarılık değeri, eğri önizlemesi ve tepsi menüsü doğrulandı.
+
+**Ders:** "Testler yeşil" ile "ürün doğru" aynı şey değil. Bu turda QA, ürünün
+6 aydır sessizce yanlış davrandığı bir yeri (Pro aktivasyonu) ortaya çıkardı —
+çünkü assert'i "bir sonraki turda yazar" varsayımına göre yazılmıştı.
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

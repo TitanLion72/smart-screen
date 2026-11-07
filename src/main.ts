@@ -22,7 +22,7 @@ import * as P from "./panels";
 import { initScene } from "./scene";
 import { getSetting, setSetting } from "./store";
 import { toast } from "./toast";
-import { PURCHASE_URL } from "./catalog";
+import { PURCHASE_URL, DESIGN_THEMES } from "./catalog";
 
 const WATCH_MS = 60 * 1000;
 /** Canlı saat + gün şeridi imleci: tur dışında hafif tazeleme. */
@@ -275,16 +275,36 @@ function wireShortcuts(): void {
 
 function wireFlyoutBridge(): void {
   const mainWin = getCurrentWindow();
-  void listen<{ action: string; value?: number }>("ss:action", (ev) => {
+  void listen<{ action: string; value?: number; arg?: string }>("ss:action", (ev) => {
     const action = ev.payload?.action;
     if (action === "measure") {
       void O.tick("flyout");
     } else if (action === "pause-1h") {
       O.togglePauseHour();
+    } else if (action === "pause-30m") {
+      // PLAN-v3.4/C4: tepsinin süreli duraklatması; süre frontend'te uygulanır.
+      O.pauseFor(30);
+    } else if (action === "resume") {
+      O.resume();
     } else if (action === "day-off") {
       O.toggleDayOff();
     } else if (action === "lock") {
       O.toggleLock();
+    } else if (action === "lock-toggle") {
+      O.toggleLock();
+    } else if (action === "warm-mode") {
+      // Menü `arg` (string) gönderir: "auto" | "fixed" | "off".
+      const arg = ev.payload?.arg;
+      if (arg === "auto" || arg === "fixed" || arg === "off") O.setWarmMode(arg);
+    } else if (action === "warm-step") {
+      // value = +5 / −5; yoksa +5 varsayılır (menü "Artır").
+      O.setWarmPercent(O.S.warmPercent + (ev.payload?.value ?? 5));
+    } else if (action === "theme-cycle") {
+      // Mevcut akış `setDesignTheme`; döngü burada, palet listesi katalogdan.
+      const ids = DESIGN_THEMES.map((t) => t.id);
+      const cur = document.documentElement.dataset.theme ?? "";
+      const next = ids[(Math.max(0, ids.indexOf(cur)) + 1) % ids.length];
+      if (next) P.setDesignTheme(next);
     } else if (action === "brightness-set") {
       // duzeltme (md.9): flyout slider'ının yazdığı değer ana duruma işlenir;
       // bir sonraki ss:state/ini render slider'ı eski değere geri çekmesin.

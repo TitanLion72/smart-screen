@@ -4,13 +4,17 @@
 //!
 //! Dosya JSONC: yorum ve sonda virgul serbest.
 
-use super::{appdata, read_theme, write_theme};
+use super::{first_existing, read_theme, write_theme};
 use crate::appearance::{Adapter, Mode};
 use std::path::{Path, PathBuf};
 
 pub struct Sublime;
 
-const REL: &str = r"Sublime Text\Packages\User\Preferences.sublime-settings";
+/// Sublime Text 4 klasoru `Sublime Text`; 3 ise `Sublime Text 3`.
+const CANDIDATES: [&str; 2] = [
+    r"Sublime Text\Packages\User\Preferences.sublime-settings",
+    r"Sublime Text 3\Packages\User\Preferences.sublime-settings",
+];
 const DARK: &str = "Default Dark.sublime-theme";
 const LIGHT: &str = "Default Light.sublime-theme";
 
@@ -28,7 +32,7 @@ impl Adapter for Sublime {
     }
 
     fn locate(&self) -> Option<PathBuf> {
-        appdata(REL)
+        first_existing(&CANDIDATES)
     }
 
     fn read(&self, path: &Path) -> Result<Option<Mode>, String> {
@@ -55,6 +59,18 @@ mod tests {
         assert!(get(&path).contains("Default Light.sublime-theme"));
         assert_eq!(Sublime.write(&path, Mode::Light).ok(), Some(false));
         cleanup(&dir);
+    }
+
+    #[test]
+    fn candidate_list_includes_sublime_text_3() {
+        assert_eq!(
+            CANDIDATES[0],
+            r"Sublime Text\Packages\User\Preferences.sublime-settings"
+        );
+        assert!(
+            CANDIDATES[1].starts_with("Sublime Text 3\\"),
+            "Sublime Text 3 yolu da denenmeli"
+        );
     }
 
     #[test]

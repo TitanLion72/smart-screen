@@ -6,11 +6,18 @@
 //! (`appearance::apply`) tek yerde durur. Buradaki ortak yardimcilar da
 //! (UTF-8/BOM, JSONC dogrulama) tekrarlanmasin diye modul seviyesinde.
 
+pub mod jetbrains;
 pub mod obsidian;
 pub mod sublime;
 pub mod vscode;
 pub mod windows_terminal;
 pub mod zed;
+
+// Neden `#[path]`: `xmlopt` dosyasi `appearance/xmlopt.rs` altinda duruyor ama
+// `appearance/mod.rs` bu degisiklik kapsaminda degil. Modulu buradan baglayinca
+// dosya yerinde kalir, derleme agacina da dogru yerde girer.
+#[path = "../xmlopt.rs"]
+pub mod xmlopt;
 
 use super::jsonc;
 use super::{write_atomic_verified, Adapter, Mode};
@@ -22,6 +29,7 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
     vec![
         Box::new(windows_terminal::WindowsTerminal),
         Box::new(vscode::VsCode),
+        Box::new(jetbrains::JetBrains),
         Box::new(sublime::Sublime),
         Box::new(zed::Zed),
         Box::new(obsidian::Obsidian),
@@ -39,6 +47,33 @@ fn env_path(var: &str, sub: &str) -> Option<PathBuf> {
 /// `%APPDATA%\<alt>`. Test edilebilirlik icin ayri duruyor.
 fn appdata(sub: &str) -> Option<PathBuf> {
     env_path("APPDATA", sub)
+}
+
+/// Aday listesinden **ilk var olani** secer; hicbiri yoksa ilk aday doner.
+///
+/// Neden ilk aday: dosya henuz olusmamis olabilir (uygulama bir kez acilmamis)
+/// ve kartin yine de bir yol gostermesi gerekir ("kurulu degil" bilgisi).
+/// Ayni desen VS Code, Zed, Sublime ve Windows Terminal'de tekrar ediyordu.
+fn first_existing(candidates: &[&str]) -> Option<PathBuf> {
+    first_in("APPDATA", candidates)
+}
+
+/// `first_existing`'in ortam degiskeni secilebilir surumu: Windows Terminal
+/// `%LOCALAPPDATA%` altinda yasar, editorler `%APPDATA%` altinda.
+fn first_in(var: &str, candidates: &[&str]) -> Option<PathBuf> {
+    let mut fallback: Option<PathBuf> = None;
+    for rel in candidates {
+        let Some(path) = env_path(var, rel) else {
+            continue;
+        };
+        if path.exists() {
+            return Some(path);
+        }
+        if fallback.is_none() {
+            fallback = Some(path);
+        }
+    }
+    fallback
 }
 
 /// Ayar dosyasini UTF-8 okur; BOM'u ayirip bayragini dondurur.
@@ -195,18 +230,38 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_has_all_five_adapters_in_contract_order() {
+    fn registry_has_all_six_adapters_in_contract_order() {
         let ids: Vec<&str> = all().iter().map(|a| a.id()).collect();
         assert_eq!(
             ids,
-            vec!["windows-terminal", "vscode", "sublime", "zed", "obsidian"]
+            vec![
+                "windows-terminal",
+                "vscode",
+                "jetbrains",
+                "sublime",
+                "zed",
+                "obsidian"
+            ]
         );
         let groups: Vec<&str> = all().iter().map(|a| a.group()).collect();
         assert_eq!(
             groups,
-            vec!["terminal", "editor", "editor", "editor", "notes"]
+            vec!["terminal", "editor", "editor", "editor", "editor", "notes"]
         );
-        assert!(all().iter().all(|a| a.live()), "hepsi canli olmali");
+        // JetBrains temayi yalniz acilista okur: canli olmamali (dogru rozet).
+        assert!(
+            all()
+                .iter()
+                .filter(|a| a.id() != "jetbrains")
+                .all(|a| a.live()),
+            "JetBrains disindakiler canli olmali"
+        );
+        let jetbrains = all().into_iter().find(|a| a.id() == "jetbrains");
+        assert_eq!(
+            jetbrains.map(|a| a.live()),
+            Some(false),
+            "JetBrains canli olmamali"
+        );
     }
 
     #[test]

@@ -155,6 +155,7 @@ const stub = () => {
           return null;
         case "hdr_status_all":
           return window.__hdrAll;
+        case "warmth_curve": return [88,88,56,22,0,0,0,22,56,78,88];
         case "warmth_auto":
           return 35;
         case "gamma_set_warmth":

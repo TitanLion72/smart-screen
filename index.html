@@ -212,6 +212,13 @@
   #source-seg      | div.seg    | Işık varsayımı (Otomatik/Gün/Sarı/Beyaz/Gece) | buildSeg(SOURCE_OPTIONS)
 
   #warm-seg        | div.seg    | sarılaştırma biçimi (Otomatik/Sabit/Kapalı) | buildSeg(WARM_OPTIONS)
+  #warm-now        | div.warm-now | şu anki etkin sarılık ("%34 · 4300 K · otomatik") | text (her render; henüz yoksa "henüz uygulanmadı")
+  #warm-ceiling    | div.hint   | gerçek gece tavanı ("gece en fazla %62 · şiddet %70") | text (formül 88 × warmPercent/100) + title
+  #warm-curve      | svg        | YENİ: 24 saatlik sarılık eğrisi önizlemesi (viewBox 0 0 96 28, aria-hidden) | dekoratif; veri warmth_curve(15), hata → hidden
+  #wc-path         | path       | YENİ: eğri çizgisi ("d", render'da)   | stroke var(--accent), fill none
+  #wc-cap          | line       | YENİ: kesikli tavan çizgisi            | y1/y2 = 26 − (tavan/100)×24
+  #wc-now          | circle     | YENİ: şu anki nokta (r=2)              | cx/cy her render'da
+  #wc-ticks        | div        | YENİ: saat etiketleri 00/06/12/18/24 (SVG dışında) | statik
   #day-strip       | div        | 24 saat gün çizgisi (gradient şerit)    | dekoratif; aria-hidden
   #day-now         | div        | şeritte "şimdi" imleci                   | style.left = saat yüzdesi
   #warm-minus      | button     | sarılık düzeyi −5                       | click → warmPercent azalt (min 0)
@@ -645,6 +652,16 @@
             <div class="panel-box span-main">
               <div class="box-title">Ekranı sarılaştırma</div>
               <div class="seg" id="warm-seg" role="group" aria-label="Sarılaştırma biçimi"></div>
+              <div class="warm-now" id="warm-now">henüz uygulanmadı</div>
+              <div class="hint" id="warm-ceiling" title="Şiddet, otomatik eğrinin çarpanıdır; gece tepesini (88) bu oranla ölçekler.">gece en fazla %62 · şiddet %70</div>
+              <svg id="warm-curve" viewBox="0 0 96 28" preserveAspectRatio="none" aria-hidden="true">
+                <path id="wc-path" fill="none" d=""></path>
+                <line id="wc-cap" x1="0" y1="26" x2="96" y2="26" stroke-dasharray="2 2"></line>
+                <circle id="wc-now" cx="0" cy="26" r="2"></circle>
+              </svg>
+              <div class="warm-ticks" id="wc-ticks" aria-hidden="true">
+                <span>00</span><span>06</span><span>12</span><span>18</span><span>24</span>
+              </div>
               <div class="day-strip" id="day-strip" aria-hidden="true">
                 <div class="day-now" id="day-now"></div>
                 <div class="day-ticks">

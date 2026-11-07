@@ -5,15 +5,19 @@
 //! WT dosyayi izler; yazdigimiz anda acik sekmeler yeniden baslatmadan doner.
 //! `"system"` degeri "bilinmiyor" demektir, hata degil.
 
-use super::{env_path, jsonc, read_theme, read_utf8, write_theme};
+use super::{first_in, jsonc, read_theme, read_utf8, write_theme};
 use crate::appearance::{Adapter, Mode};
 use std::path::{Path, PathBuf};
 
 pub struct WindowsTerminal;
 
-/// Store (MSIX) kurulumunun ayar dosyasi. Yalniz bu yol; klasor kurulumu
-/// `%LOCALAPPDATA%\Microsoft\Windows Terminal` altinda ama Store surumu yaygin.
-const SETTINGS: &str = r"Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json";
+/// Aday yollar, sirayla: Store surumu → Store Preview → klasor (unpackaged)
+/// kurulumu. Ilk var olan kazanir; Preview kullananlar da dogru dosyayi bulur.
+const CANDIDATES: [&str; 3] = [
+    r"Packages\Microsoft.WindowsTerminal_8wekyb3d8bbwe\LocalState\settings.json",
+    r"Packages\Microsoft.WindowsTerminalPreview_8wekyb3d8bbwe\LocalState\settings.json",
+    r"Microsoft\Windows Terminal\settings.json",
+];
 
 impl Adapter for WindowsTerminal {
     fn id(&self) -> &'static str {
@@ -30,7 +34,7 @@ impl Adapter for WindowsTerminal {
 
     /// Dosya henuz olusmamis olabilir; yol yine de doner (kurulu mu bilgisi).
     fn locate(&self) -> Option<PathBuf> {
-        env_path("LOCALAPPDATA", SETTINGS)
+        first_in("LOCALAPPDATA", &CANDIDATES)
     }
 
     fn read(&self, path: &Path) -> Result<Option<Mode>, String> {
@@ -129,6 +133,22 @@ mod tests {
         assert!(WindowsTerminal.write(&path, Mode::Light).is_err());
         assert_eq!(get(&path), broken, "bozuk dosyaya yazilmamali");
         cleanup(&dir);
+    }
+
+    #[test]
+    fn candidate_list_covers_store_preview_and_unpackaged() {
+        // Store surumu once gelir; Preview ikinci aday olmali, yoksa Preview
+        // kullananlar hic bulunamazdi.
+        assert!(CANDIDATES[0].contains("Microsoft.WindowsTerminal_"));
+        assert!(
+            CANDIDATES[1].contains("WindowsTerminalPreview"),
+            "Preview adayı listede olmalı"
+        );
+        assert!(CANDIDATES[2].starts_with(r"Microsoft\Windows Terminal\"));
+        // Hicbiri %APPDATA% altinda degil: WT %LOCALAPPDATA%'de yasar.
+        assert!(CANDIDATES
+            .iter()
+            .all(|c| c.contains("LocalState") || c.starts_with(r"Microsoft\Windows Terminal\")));
     }
 
     #[test]

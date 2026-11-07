@@ -15,6 +15,59 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.4.0] - 2026-11-08
+
+"Sarılık ve akıllı otomasyon" - ekran sarılığı artık kameranın ölçtüğü ışığı
+*ve tonunu* kullanıyor, geçişler yumuşak, tepsi menüsü gerçek bir kontrol paneli.
+
+### Added
+- **Sarılık eğrisi yumuşatıldı.** Çapalar aynı, aralarındaki geçiş artık
+  `smoothstep` — her çapada oluşan "tak" sesi gibi parlaklık/sarılık sıçraması
+  bitti.
+- **Kameranın ölçtüğü ton kullanılıyor.** Loş oda sarılığı artırır, aydınlık oda
+  azaltır; **sıcak** ışıklı oda (tungsten) sarılığı düşürür (ekranı ayrıca
+  sarartmak "portakal çorbası" yapıyordu), **soğuk** ışık (floresan) artırır.
+  Kamera yoksa davranış eskisiyle aynı.
+- **Hız sınırı (otomatik kipte):** hedef tur başına en fazla 6 puan kayar.
+  Elle seçim (kaydırıcı, Kelvin, hazır çipler) anında uygulanır.
+- **"Şu an" satırı:** `şu an %34 · 4300 K · otomatik` — kullanıcı gerçekte ne
+  uygulandığını görüyor (önce yalnız ayarladığı sayıyı görüyordu).
+- **"Gece en fazla %62 · şiddet %70"** — şiddetin çarpan olduğu ve gece tepesini
+  nasıl ölçeklediği yazılı.
+- **24 saatlik sarılık eğrisi önizlemesi** (küçük grafik, kesikli tavan çizgisi,
+  "şu an" noktası). Veri backend'den gelir — TS'te ikinci bir eğri kopyası yok.
+- **JetBrains IDE desteği** (IntelliJ, PyCharm, WebStorm, GoLand, CLion, Rider,
+  RustRover…): tüm kurulu ürünlerin `laf.xml` dosyasına yazılır.
+- **Windows Terminal Preview** ve klasör kurulumu, VS Code türevleri
+  (VSCodium Insiders, Positron, Trae), Zed Preview, Sublime Text 3 desteği.
+- **Uygulama temaları kartı gruplandı**: Terminaller / Editörler / Notlar.
+- **Tepsi menüsü yenilendi:** durum başlığı, "Yeniden ölç", **Sarılık** alt
+  menüsü (Otomatik/Sabit/Kapalı + Artır/Azalt), **Duraklat** alt menüsü
+  (30 dk / 1 saat / Bugün kapat / Devam et), Kilitle.
+
+### Fixed
+- **VS Code kullanıcı teması iki yönde de korunuyor.** Önce yalnız koyu yönde
+  hatırlanıyordu; açık temaya geçerken kullanıcının açık teması kayboluyordu.
+  Artık "terk edilen" modun tercih alanına yazılıyor.
+- **Pro etkinleştirilince harici monitör beklemiyordu.** Lisans girildikten
+  sonra ekran, bir sonraki parlaklık değişimine kadar eski değerde kalıyordu
+  (gece tavanı hedefi sabitlediğinde hiç yazılmıyordu). Artık anında uygulanır.
+- **Tepsi menüsü yalan söylemiyor.** Eski kod tıklama anında işareti yerel
+  olarak çeviriyordu; frontend isteği reddederse işaret yanlış kalıyordu.
+  Artık işaretler yalnız gerçek durumdan (`ss:state`) geliyor.
+- XML düzenleyici: JetBrains `laf.xml` yalnız `theme` değerini değiştirir;
+  XML bozulursa **hiç yazılmaz**.
+
+### Changed
+- `warmth_auto` komutu `tone` argümanı alıyor (opsiyonel — eski çağrılar
+  bozulmaz). Yeni `warmth_curve` komutu önizleme verisini üretir.
+
+### Notes
+- Sarılık modeli ölçümle **ağırlıklı** birleşiyor (0.55 eğri + 0.45 ölçüm);
+  önceki toplamsal kaydırma (±22 puan) loş odada gün ortasında bile aşırı
+  sarartıyordu.
+- 308 Rust + 25 frontend testi, `qa/run.mjs`, 6 denetim aracı, clippy/fmt temiz.
+
 ## [3.3.0] - 2026-11-03
 
 "Uygulama temaları" - smart-screen artık yalnız OpenCode'u değil, kurulu diğer

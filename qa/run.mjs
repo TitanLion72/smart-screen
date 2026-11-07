@@ -223,6 +223,15 @@ window.__TAURI_INTERNALS__ = {
         if (typeof window.__importPayload === "string") return window.__importPayload;
         return Promise.reject("iptal edildi");
       case "warmth_auto": return 35;
+      // v3.4: egri onizlemesi. 97 ornek (15 dk adim), 0..=1440.
+      // Degerler backend'in sekliyle ayni: gece yuksek, gunduz sifir.
+      case "warmth_curve":
+        return Array.from({ length: 97 }, (_, i) => {
+          const m = i * 15;
+          if (m <= 300 || m >= 1380) return 88;
+          if (m >= 480 && m <= 900) return 0;
+          return Math.round(Math.abs(Math.cos(((m - 480) / 900) * Math.PI)) * 88);
+        });
       // Sicak ton durumu: yazinca rampa degisir, geri okuma da onu gorur.
       case "gamma_set_warmth":
         if (!window.__warmReject) window.__warm = Number(args.percent);
@@ -587,7 +596,10 @@ async function run() {
     await page.waitForTimeout(250);
     check((await text(page, "#warm-val")) === "20", "ritim", "warm-range input warm-val'i guncellemedi");
     const note = await text(page, "#warm-preview-note");
-    check(note.includes("Hızlı sarılık"), "ritim", `hizli sarilik notu yok: "${note}"`);
+    // v3.4: metin "Hızlı sarılık" değil "Sarılık şiddeti" diyor ve çarpan
+    // olduğunu açıklıyor ("tavan" yanlış terimdi).
+    check(note.includes("Sarılık şiddeti"), "ritim", `sarilik seridi notu yok: "${note}"`);
+    check(note.includes("çarpılır"), "ritim", `not carpan oldugunu soylemiyor: "${note}"`);
     const left = await page.locator("#day-now").evaluate((el2) => el2.style.left);
     check(left.endsWith("%"), "ritim", `day-now konumu yuzde degil: "${left}"`);
     const calib = await text(page, "#calib-hint");
@@ -1376,12 +1388,18 @@ async function run() {
     await openAdvanced();
     await page.locator("#lic-key").fill("SS-QA-TEST-KEY-1234567890");
     await page.locator("#lic-activate").click();
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(900);
     check((await host.locator(".toast-ok").count()) >= 1, "toast", "lisans busy→ok toast gorunmedi");
-    await dismissToasts(page);
-    await openTab("panel");
-    await snap(["ss-paper", "light", 60]);
-    const errToast = host.locator(".toast-err").first();
+    // v3.4: Pro açılınca harici monitöre HEMEN yazılır (bir sonraki parlaklık
+    // değişimini beklemez) — DDC hatası bu yüzden etkinleştirme anında çıkar.
+    // Hata toast'ı ya burada ya da snap sonrası görünür; ikisini de kabul et.
+    let errToast = host.locator(".toast-err").first();
+    if ((await errToast.count()) === 0) {
+      await dismissToasts(page);
+      await openTab("panel");
+      await snap(["ss-paper", "light", 60]);
+      errToast = host.locator(".toast-err").first();
+    }
     check((await errToast.count()) === 1, "toast", "DDC hatasi err toast cikarmadi");
     check((await errToast.getAttribute("role")) === "alert", "toast", "err toast role=alert degil");
     await dismissToasts(page);

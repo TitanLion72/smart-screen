@@ -4,13 +4,14 @@
 //!
 //! Zed de JSONC kabul eder; ortak yardimci ikisini birden kaldirir.
 
-use super::{appdata, read_theme, write_theme};
+use super::{first_existing, read_theme, write_theme};
 use crate::appearance::{Adapter, Mode};
 use std::path::{Path, PathBuf};
 
 pub struct Zed;
 
-const REL: &str = r"Zed\settings.json";
+/// Zed Preview ayri klasor kullaniyor; ilk var olan kazanir.
+const CANDIDATES: [&str; 2] = [r"Zed\settings.json", r"Zed Preview\settings.json"];
 const DARK: &str = "One Dark";
 const LIGHT: &str = "One Light";
 
@@ -28,7 +29,7 @@ impl Adapter for Zed {
     }
 
     fn locate(&self) -> Option<PathBuf> {
-        appdata(REL)
+        first_existing(&CANDIDATES)
     }
 
     fn read(&self, path: &Path) -> Result<Option<Mode>, String> {
@@ -62,6 +63,15 @@ mod tests {
         );
         assert_eq!(Zed.write(&path, Mode::Light).ok(), Some(false));
         cleanup(&dir);
+    }
+
+    #[test]
+    fn candidate_list_includes_zed_preview() {
+        assert_eq!(CANDIDATES[0], r"Zed\settings.json");
+        assert!(
+            CANDIDATES[1].contains("Zed Preview"),
+            "preview ayrı klasör kullanıyorsa o yol da denenmeli"
+        );
     }
 
     #[test]

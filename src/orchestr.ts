@@ -524,6 +524,10 @@ function scheduleStateEmit(): void {
       hdr: S.hdrOn,
       locked: S.locked,
       dayOff: S.pauseKind === "day" && S.pauseUntil !== null,
+      // v3.4/C2: tepsi menüsündeki sarılaştırma işaretleri bu alanlardan
+      // beslenir. Alan yoksa tepsi işarete dokunmaz — yalan söylemesin.
+      warmMode: S.warmMode,
+      warmPercent: S.warmPercent,
       // v2.7: flyout aynı şablonu/paleti giysin (disk de paylaşılıyor;
       // bu alanlar anlık senkron için — ayar değişince beklemeden gider).
       template: document.documentElement.dataset.template ?? null,
@@ -701,6 +705,35 @@ export function toggleDayOff(): void {
   render();
 }
 
+/**
+ * Tepsi menüsünden süreli duraklatma ("30 dk").
+ * Neden ayrı: `togglePauseHour` sabit 1 saate kilitli; menüde kullanıcının
+ * seçtiği süre (30 dk vb.) geçerli olsun diye bitiş anı dışarıdan gelir.
+ */
+export function pauseFor(minutes: number): void {
+  const mins = Math.max(1, Math.round(minutes));
+  S.pauseUntil = Date.now() + mins * 60_000;
+  S.pauseKind = "hour";
+  setSetting("pauseUntil", String(S.pauseUntil));
+  log(`${mins} dk duraklatıldı`, "warn");
+  toast.action(`Otomatik ayar ${mins} dk duraklatıldı`, {
+    action: { label: "Geri al", onAct: () => resume() },
+  });
+  // Kullanıcı duraklattı: hız sınırını atla, ekran hemen dursun.
+  void applyWarmth(true);
+  render();
+}
+
+/** Tepsi "Devam et": hem saatlik hem günlük duraklatmayı iptal eder. */
+export function resume(): void {
+  S.pauseKind = null;
+  S.pauseUntil = null;
+  setSetting("pauseUntil", "");
+  log("duraklatma iptal edildi — otomatik ayar devam ediyor", "ok");
+  void applyWarmth(true);
+  render();
+}
+
 export function clearPause(note: string): void {
   S.pauseUntil = null;
   S.pauseKind = null;
@@ -758,6 +791,10 @@ async function autoWarmth(): Promise<number | null> {
       hour: now.getHours(),
       minute: now.getMinutes(),
       lightLevel: S.lastCam ? S.lastCam.level : "unknown",
+      // PLAN-v3.4/C1: sıcak ışıklı odada ekranı ayrıca sarartmak "portakal
+      // çorbası" yapar; backend tonu denge için kullanır. Kamera yoksa
+      // S.camTone varsayılan "neutral" kalır (eski davranış).
+      tone: S.camTone,
     });
     warmWarned = "";
     return Math.max(0, Math.min(100, Number(raw) || 0));
@@ -836,7 +873,15 @@ export async function applyWarmth(force = false): Promise<void> {
       percent = auto === null ? null : (auto * S.warmPercent) / 100;
     }
     // stabilite (d): hesaplanamadıysa son uygulanan şiddet korunur.
-    const value = Math.round(percent === null ? (S.lastWarmApplied ?? S.warmPercent) : percent);
+    let value = Math.round(percent === null ? (S.lastWarmApplied ?? S.warmPercent) : percent);
+    // PLAN-v3.4/C2 hız sınırı: otomatik kipte hedef tur başına en fazla 6
+    // puan kayar. Neden: ton/ışık ölçümü değişince 20+ puanlık zıplama
+    // gözle "ekran aniden sarardı" diye görülüyordu. İlk yazmada (null) sınır
+    // yok; elle seçim yolları `force=true` ile anında uygular.
+    if (S.warmMode === "auto" && !force && S.lastWarmApplied !== null) {
+      const delta = Math.max(-6, Math.min(6, value - S.lastWarmApplied));
+      value = S.lastWarmApplied + delta;
+    }
     // Monitör katmanı gamma eşiğinden bağımsız: harici ekranın kendi ayarı
     // 3 puanlık yazılımsal farktan etkilenmesin (DDC yazması pahalı).
     await applyMonitorColorTemp(value);
@@ -2384,6 +2429,10 @@ export async function activateLicense(key: string): Promise<void> {
     if (S.licensePro) {
       busy.done("Lisans etkinleştirildi");
       log("Pro lisans etkinleştirildi", "ok");
+      // Pro açılınca harici monitörler BİR SONRAKİ parlaklık değişimini
+      // beklememeli: kullanıcı ödeme yaptı, ekranın o an uymasını bekler.
+      // (Gerçek hata: gece tavanı hedefi sabitlediğinde hiç yazılmıyordu.)
+      void applyAutoMonitors(S.lastAppliedBright ?? S.lastWarmApplied ?? 0);
     } else {
       closeTopToast();
       S.licenseError = "lisans geçerli değil";

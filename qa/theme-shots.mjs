@@ -50,7 +50,7 @@ const stub = () => {
   nightlight_status: null,
         hdr_status_all: monitors.map((m) => ({ device: m.id, hdr: false })),
         monitor_color_temp_info: monitors.map((m) => ({ device: m.id, supported: !m.is_internal, increment: 50 })),
-        monitor_set_color_temp: null, warmth_auto: 30, animations_set: null, flyout_hide: null,
+        monitor_set_color_temp: null, warmth_auto: 30, warmth_curve: [88,88,56,22,0,0,0,22,56,78,88], animations_set: null, flyout_hide: null,
         gamma_restore: null, gamma_set_warmth: null, log_tick: null, log_clear: null,
         log_lines: ["2026-10-26T12:00:00.000Z | source=auto/auto | level=bright | tone=neutral | desired=30 | applied=42 | theme=catppuccin-macchiato|dark | note=izle"],
         stats_summary: { buckets: Array.from({ length: 12 }, (_, i) => ({ hoursAgo: i, appliedAvg: 30 + i * 2, desiredAvg: 40, samples: 3 })), theme_changes_today: 2, avg_applied_today: 44, frozen_ticks_today: 1, ticks_today: 12 },

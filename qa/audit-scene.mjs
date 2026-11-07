@@ -91,6 +91,7 @@ const STUB = (disableWebgl) => `
       if (cmd === "hdr_status_all") return [];
       if (cmd === "monitor_color_temp_info") return [];
       if (cmd === "contrast_audit") return [];
+      if (cmd === "warmth_curve") return [88,88,56,22,0,0,0,22,56,78,88];
       if (cmd === "warmth_auto") return 30;
       if (cmd === "gamma_set_warmth") return null;
       if (cmd === "gamma_restore") return null;

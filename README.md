@@ -62,8 +62,10 @@ katmanları farklı düzlemlerde), imlece hafif tepki veren paralaks. Hareket az
 (`prefers-reduced-motion`) açıksa paralaks ve geçiş animasyonları kapanır.
 
 **Tepsi (tray):** sol tık **hızlı panel**i açar (parlaklık, hızlı eylemler, Ayarlar);
-sağ tık menüsünde Ayarlar · 1 saat duraklat · Bugün kapat · Çıkış. Hızlı panel dışına
-tıklayınca veya ESC ile kapanır.
+sağ tık menüsünde: durum başlığı (`smart-screen · %28 · ss-dusk · otomatik`),
+**Yeniden ölç**, **Sarılık** alt menüsü (Otomatik / Sabit / Kapalı · Artır / Azalt),
+**Duraklat** alt menüsü (30 dakika · 1 saat · Bugün kapat · Devam et), **Kilitle**,
+Ayarlar ve Çıkış. Hızlı panel dışına tıklayınca veya ESC ile kapanır.
 
 Otomatik kurallar:
 
@@ -73,6 +75,27 @@ Otomatik kurallar:
 - Aynı kararı 2 kez onaylamadan değiştirmez (titreşim olmaz).
 - Gece 00:00–01:30 dışında parlaklığı %0'a çekmez.
 - Kilitliyse / "Sabit" moddaysa / oyun-video-PDF açıkken hiçbir şeye dokunmaz.
+
+## Ekran sarılığı (otomatik)
+
+Sarılık iki sinyalle sürülür: **saat** ve **kameranın ölçtüğü ışık** (parlaklık +
+ton). Kamera yoksa yalnız saat eğrisi geçerlidir.
+
+| Sinyal | Etki |
+|---|---|
+| Saat | 08:00–15:00 arası %0, akşam yükselir, 23:00–05:00 tepede (%88) |
+| Loş oda | Sarılığı artırır (gece gibi davranır) |
+| Aydınlık oda | Azaltır |
+| **Sıcak** ışık (tungsten, sarı ampul) | **Azaltır** — oda zaten sıcak, ekranı ayrıca sarartmak renkleri bozar |
+| **Soğuk** ışık (floresan, kuzey) | **Artırır** — ısıtmak göz için doğru |
+
+- Eğri yumuşak (smoothstep): çapa saatlerinde ani sıçrama yok.
+- Otomatik kipte değişim **tur başına en fazla 6 puan** — ekran "aniden sarardı"
+  hissi yok. Elle seçim (kaydırıcı/Kelvin/çipler) anında uygulanır.
+- Ayar ekranında **"şu an %34 · 4300 K · otomatik"**, **"gece en fazla %62"** ve
+  24 saatlik sarılık eğrisi önizlemesi görünür. "%70" bir *çarpan*dır: gece
+  tepesini ölçekler, tavan değil.
+- Windows gece ışığı açıksa bizim rampa yazılmaz (çifte sararma olmasın).
 
 ## Uygulama temaları
 
@@ -84,7 +107,7 @@ kapalı**; Ayarlar → Görünüm → "Uygulama temaları"ndan açılır.
 | **Windows teması** | Explorer, Başlat, Ayarlar ve sistemi takip eden uygulamalar anında döner | ücretsiz |
 | **Windows Terminal** | `settings.json` → `theme`; açık sekmeler yeniden başlatmadan döner | Pro |
 | **VS Code** (Code/Insiders/VSCodium/Cursor/Windsurf) | Tema yazar; **kendi seçtiğin tema hatırlanır**, koyu tura dönünce geri gelir | Pro |
-| **Sublime Text**, **Zed**, **Obsidian** | Tema yazar (Obsidian'da tüm kasalar) | Pro |
+| **Sublime Text**, **Zed**, **Obsidian**, **JetBrains IDE** | Tema yazar (Obsidian'da tüm kasalar, JetBrains'te tüm kurulu ürünler) | Pro |
 
 Güvenlik sınırları:
 

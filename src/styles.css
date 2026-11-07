@@ -2018,6 +2018,64 @@ input[type="range"]:disabled {
   color: var(--text-1);
 }
 
+/* ═══════════════ Sarılık özeti + 24 saat eğrisi (v3.4) ═══════════════ */
+
+/* Şu anki etkin değer: hızlı bakışta okunur, genişlik zıplamasın diye
+   tabular-nums. */
+.warm-now {
+  padding-top: var(--sp-2);
+  font-size: 13.5px;
+  color: var(--text-1);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Eğri önizlemesi: 97 noktalı backend verisi gerilir; yükseklik sabit ki
+   kart yüksekliği oynamasın. */
+#warm-curve {
+  width: 100%;
+  height: 40px;
+  margin-block: var(--sp-2);
+}
+
+#wc-path {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  fill: none;
+}
+
+#wc-cap {
+  stroke: var(--text-4);
+  stroke-width: 1;
+}
+
+#wc-now {
+  fill: var(--accent);
+}
+
+.warm-ticks {
+  display: flex;
+  justify-content: space-between;
+  padding: 0 4px 0 6px;
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.06em;
+  color: var(--text-4);
+}
+
+/* Uygulama kartı grupları: küçük başlık, satırlardan önce nefes payı.
+   İlk grubun üst boşluğu yok — kart başlığıyla çift boşluk olmasın. */
+.app-group {
+  margin-top: var(--sp-3);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--text-3);
+}
+
+.app-group:first-child {
+  margin-top: 0;
+}
+
 /* ═══════════════ 24 saat gün çizgisi ═══════════════ */
 
 .day-strip {

@@ -75,6 +75,7 @@ const stub = () => {
         case "hdr_status_all": return monitors.map((m) => ({ device: m.id, hdr: false }));
         case "monitor_color_temp_info": return monitors.map((m) => ({ device: m.id, supported: m.is_internal ? true : false, increment: 50 }));
         case "monitor_set_color_temp": return null;
+        case "warmth_curve": return [88,88,56,22,0,0,0,22,56,78,88];
         case "warmth_auto": return 30;
         case "contrast_audit": return [{ name: "ss-night", mode: "dark", text_on_bg: 8.5, muted_on_bg: 4.9, syntax_min: 4.2, verdict: "AAA" }];
         case "stats_summary": return { ticksToday: 12, themeChangesToday: 2, avgAppliedToday: 44, frozenTicksToday: 1 };

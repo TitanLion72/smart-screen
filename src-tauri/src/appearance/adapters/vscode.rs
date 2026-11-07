@@ -6,19 +6,22 @@
 //! takip eder. O durumda yazmak onunla dovusmek olur — `Ok(false)` doneriz.
 
 use super::jsonc;
-use super::{appdata, ensure_sane, jsonc_ok, read_utf8, save};
+use super::{ensure_sane, first_existing, jsonc_ok, read_utf8, save};
 use crate::appearance::{Adapter, Mode};
 use std::path::{Path, PathBuf};
 
 pub struct VsCode;
 
 /// Ilk var olan aday kazanir; hicbiri yoksa ilki "kurulu degil" bilgisi olur.
-const CANDIDATES: [&str; 5] = [
+const CANDIDATES: [&str; 8] = [
     r"Code\User\settings.json",
     r"Code - Insiders\User\settings.json",
     r"VSCodium\User\settings.json",
+    r"VSCodium - Insiders\User\settings.json",
     r"Cursor\User\settings.json",
     r"Windsurf\User\settings.json",
+    r"Positron\User\settings.json",
+    r"Trae\User\settings.json",
 ];
 
 const AUTO_DETECT: &str = "window.autoDetectColorScheme";
@@ -49,19 +52,7 @@ impl Adapter for VsCode {
     }
 
     fn locate(&self) -> Option<PathBuf> {
-        let mut found: Option<PathBuf> = None;
-        for rel in CANDIDATES {
-            let Some(path) = appdata(rel) else {
-                continue;
-            };
-            if path.exists() {
-                return Some(path);
-            }
-            if found.is_none() {
-                found = Some(path);
-            }
-        }
-        found
+        first_existing(&CANDIDATES)
     }
 
     fn read(&self, path: &Path) -> Result<Option<Mode>, String> {
@@ -91,13 +82,19 @@ impl Adapter for VsCode {
             return Ok(false);
         }
         let mut next = text.clone();
-        // Kullanicinin O ANKI temasini "tercih edilen koyu" olarak sakla.
-        // Neden: `One Dark Pro Darker` gibi magaza temalari kullanicinin secimi;
-        // onu `Default Dark Modern` ile ezmek geri donusu olmayan bir kayip
-        // olurdu. Boylece her koyu turda kullanici kendi temasini geri gorur.
-        if jsonc::get_string(&next, PREFERRED_DARK).is_none() {
+        // Kullanicinin O ANKI temasini **terk edilen** modun tercih alanina
+        // yaz. Neden: `One Dark Pro Darker` gibi magaza temalari kullanicinin
+        // secimi; `Default Dark Modern` ile ezmek geri donusu olmayan bir kayip
+        // olurdu. Hangi moda yaziyorsak kullanici o an digerindedir, bu yuzden
+        // koyuya gecerken aktif tema "tercih edilen acik" olarak saklanir.
+        // Boylece iki yonde de kullanici kendi temasiyla geri doner.
+        let leaving = match mode {
+            Mode::Dark => PREFERRED_LIGHT,
+            Mode::Light => PREFERRED_DARK,
+        };
+        if jsonc::get_string(&next, leaving).is_none() {
             if let Some(active) = jsonc::get_string(&next, ACTIVE) {
-                next = jsonc::set_string(&next, PREFERRED_DARK, &active);
+                next = jsonc::set_string(&next, leaving, &active);
             }
         }
         let target = match mode {
@@ -254,6 +251,52 @@ mod tests {
         assert_eq!(VsCode.write(&path, Mode::Light).ok(), Some(false));
         assert_eq!(get(&path), src, "dosya bayt bayt ayni kalmali");
         assert_eq!(VsCode.read(&path).ok(), Some(None), "okuma bilinmiyor der");
+        cleanup(&dir);
+    }
+
+    #[test]
+    fn candidate_list_covers_all_vscode_derivatives() {
+        for needle in [
+            r"Code\User",
+            "Code - Insiders",
+            r"VSCodium\User",
+            "VSCodium - Insiders",
+            "Cursor",
+            "Windsurf",
+            "Positron",
+            "Trae",
+        ] {
+            assert!(
+                CANDIDATES.iter().any(|c| c.contains(needle)),
+                "{needle} aday listesinde eksik"
+            );
+        }
+        assert_eq!(CANDIDATES.len(), 8, "tüm adaylar sayılmalı");
+    }
+
+    #[test]
+    fn write_dark_remembers_users_light_theme_as_preferred_light() {
+        // Koyuya geciyoruz: kullanicinin o anki ACIK temasi kendi alanina
+        // yazilmali. Eskiden her yonde "preferredDark" yaziliyordu ve acik
+        // taraf kayboluyordu.
+        let dir = tmpdir("vscode-remember-light");
+        let path = dir.join("settings.json");
+        put(
+            &path,
+            "{\n  \"workbench.colorTheme\": \"GitHub Light\"\n}\n",
+        );
+        assert_eq!(VsCode.write(&path, Mode::Dark).ok(), Some(true));
+        let after_dark = get(&path);
+        assert!(
+            after_dark.contains("\"workbench.preferredLightColorTheme\": \"GitHub Light\""),
+            "terk edilen acik tema saklanmali: {after_dark}"
+        );
+        assert!(after_dark.contains("\"workbench.colorTheme\": \"Default Dark Modern\""));
+        assert_eq!(VsCode.read(&path).ok(), Some(Some(Mode::Dark)));
+        // Koyu → acik donus: kullanicinin kendi acik temasi geri gelir.
+        assert_eq!(VsCode.write(&path, Mode::Light).ok(), Some(true));
+        assert!(get(&path).contains("\"workbench.colorTheme\": \"GitHub Light\""));
+        assert_eq!(VsCode.read(&path).ok(), Some(Some(Mode::Light)));
         cleanup(&dir);
     }
 

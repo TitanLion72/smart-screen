@@ -49,7 +49,7 @@ use logger::{
 use prefs::{
     clear_prefs as wipe_prefs, get_pref as lookup_pref, learn_pref as remember_pref, list_prefs,
 };
-use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem};
+use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Position, Rect, Size, WebviewUrl, WebviewWindowBuilder};
 use theme::{get_theme, set_theme};
@@ -146,9 +146,20 @@ fn tray_status(day_off: bool, paused: bool, locked: bool) -> &'static str {
 }
 
 /// Tray menüsündeki işaretlenebilir ögeler (durum güncellemesi için).
+///
+/// `header` bir `MenuItem`dir (işaret taşımaz, devre dışıdır): menü açılınca
+/// "şu an ne durumdayım" sorusunun cevabı en üstte durur. Diğer alanlar
+/// `CheckMenuItem`; işaretleri **yalnız** `ss:state` yayınından yazılır —
+/// tıklama anında yerel ters çevirme yok (o yol, frontend isteği reddedince
+/// yalan söyleyen işaret üretiyordu).
 struct TrayChecks {
     pause: CheckMenuItem<tauri::Wry>,
     dayoff: CheckMenuItem<tauri::Wry>,
+    lock: CheckMenuItem<tauri::Wry>,
+    warm_auto: CheckMenuItem<tauri::Wry>,
+    warm_fixed: CheckMenuItem<tauri::Wry>,
+    warm_off: CheckMenuItem<tauri::Wry>,
+    header: MenuItem<tauri::Wry>,
 }
 
 /// Yedek dosyası üst sınırı (2 MB): ayarlar + profiller birkaç KB tutar;
@@ -544,10 +555,27 @@ async fn gamma_verify_warmth(percent: u8) -> Result<(u8, u8), String> {
     run_blocking(move || gamma::verify_warmth(percent)).await?
 }
 
-/// Saat + isik seviyesine gore otomatik sicak ton siddeti (0..=100).
+/// Saat + isik seviyesi + ortam tonuna gore otomatik sicak ton siddeti
+/// (0..=100). `tone` verilmezse notr sayilir (eski cagrilar bozulmaz).
 #[tauri::command]
-async fn warmth_auto(hour: u8, minute: u8, light_level: String) -> Result<u8, String> {
-    Ok(decide::warmth_auto(hour % 24, minute % 60, &light_level))
+async fn warmth_auto(
+    hour: u8,
+    minute: u8,
+    light_level: String,
+    tone: Option<String>,
+) -> Result<u8, String> {
+    Ok(decide::warmth_auto(
+        hour % 24,
+        minute % 60,
+        &light_level,
+        tone.as_deref().unwrap_or("neutral"),
+    ))
+}
+
+/// Onizleme icin sarilik egrisi (0..=1440 dk). Kamera yok varsayimi.
+#[tauri::command]
+async fn warmth_curve(step: Option<u8>) -> Vec<u8> {
+    decide::warmth_curve(step.unwrap_or(15))
 }
 
 /// Hedefe gore parlaklik FARKINI ogrenir (delta, −20..+20).
@@ -770,15 +798,84 @@ pub fn run() {
                 .visible(false)
                 .build()
                 .map_err(|e| format!("flyout penceresi açılamadı: {e}"))?;
-            let open = MenuItem::with_id(app, "open", "Ayarlar", true, None::<&str>)?;
-            let pause =
-                CheckMenuItem::with_id(app, "pause", "1 saat duraklat", true, false, None::<&str>)?;
+            // Başlık: ss:state gelene kadar "bilmiyorum" der (tray_tooltip
+            // eksik alanı "—" yapar); uydurma sayı göstermez.
+            let header = MenuItem::with_id(
+                app,
+                "header",
+                tray_tooltip(None, None, tray_status(false, false, false)),
+                false,
+                None::<&str>,
+            )?;
+            let sep_top = PredefinedMenuItem::separator(app)?;
+            let measure = MenuItem::with_id(app, "measure", "Yeniden ölç", true, None::<&str>)?;
+            // Sarılık: üç kip radyo gibi davranır (biri işaretliyse diğerleri
+            // işaretsiz); işaret gerçeği ss:state'ten öğrenilir.
+            let warm_auto =
+                CheckMenuItem::with_id(app, "warm-auto", "Otomatik", true, false, None::<&str>)?;
+            let warm_fixed =
+                CheckMenuItem::with_id(app, "warm-fixed", "Sabit", true, false, None::<&str>)?;
+            let warm_off =
+                CheckMenuItem::with_id(app, "warm-off", "Kapalı", true, false, None::<&str>)?;
+            let sep_warm = PredefinedMenuItem::separator(app)?;
+            // Kademe: 5 puanlık adımlar. Frontend kendi kelepçesini uygular;
+            // burada sınır bilgisi tutmak ikinci bir doğruluk kaynağı olurdu.
+            let warm_inc = MenuItem::with_id(app, "warm-inc", "Artır (+5)", true, None::<&str>)?;
+            let warm_dec = MenuItem::with_id(app, "warm-dec", "Azalt (−5)", true, None::<&str>)?;
+            let warm_menu = Submenu::with_items(
+                app,
+                "Sarılık",
+                true,
+                &[
+                    &warm_auto,
+                    &warm_fixed,
+                    &warm_off,
+                    &sep_warm,
+                    &warm_inc,
+                    &warm_dec,
+                ],
+            )?;
+            let pause_30m = MenuItem::with_id(app, "pause-30m", "30 dakika", true, None::<&str>)?;
+            let pause_1h =
+                CheckMenuItem::with_id(app, "pause", "1 saat", true, false, None::<&str>)?;
             let dayoff =
                 CheckMenuItem::with_id(app, "dayoff", "Bugün kapat", true, false, None::<&str>)?;
+            // "Devam et" her zaman etkin: koşula göre gizlemek menüyü
+            // zıplatır; tıklanınca frontend zaten no-op yapar (duraklama yoksa).
+            let resume = MenuItem::with_id(app, "resume", "Devam et", true, None::<&str>)?;
+            let pause_menu = Submenu::with_items(
+                app,
+                "Duraklat",
+                true,
+                &[&pause_30m, &pause_1h, &dayoff, &resume],
+            )?;
+            let lock = CheckMenuItem::with_id(app, "lock", "Kilitle", true, false, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
+            let open = MenuItem::with_id(app, "open", "Ayarlar", true, None::<&str>)?;
             let quit = MenuItem::with_id(app, "quit", "Çıkış", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&open, &pause, &dayoff, &separator, &quit])?;
-            app.manage(TrayChecks { pause, dayoff });
+            let menu = Menu::with_items(
+                app,
+                &[
+                    &header,
+                    &sep_top,
+                    &measure,
+                    &warm_menu,
+                    &pause_menu,
+                    &lock,
+                    &separator,
+                    &open,
+                    &quit,
+                ],
+            )?;
+            app.manage(TrayChecks {
+                pause: pause_1h,
+                dayoff,
+                lock,
+                warm_auto,
+                warm_fixed,
+                warm_off,
+                header,
+            });
             // Menü işaretleri GERÇEK durumla senkron kalsın: tıklama anında
             // yerel olarak ters çevirmek yetmiyordu (frontend isteği reddederse
             // — "bugün kapatma etkinken 1 saat" gibi — işaret yalan söylüyordu).
@@ -800,23 +897,33 @@ pub fn run() {
                     .get("dayOff")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
-                // "1 saat" işareti yalnız saatlik duraklamayı gösterir; "Bugün
-                // kapat" ayrı ögedir (ikisi aynı anda işaretli görünmemeli).
-                let _ = state.pause.set_checked(paused && !day_off);
-                let _ = state.dayoff.set_checked(day_off);
-
-                // Tooltip aynı yayından beslenir (C3): simgenin üstüne gelince
-                // "ne durumdayım" cevabı görünür. Tray henüz kurulmadıysa ya da
-                // OS yazmayı reddederse sessiz geçilir — tooltip süs, hata değil.
                 let locked = payload
                     .get("locked")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false);
+                // "1 saat" işareti yalnız saatlik duraklamayı gösterir; "Bugün
+                // kapat" ayrı ögedir (ikisi aynı anda işaretli görünmemeli).
+                let _ = state.pause.set_checked(paused && !day_off);
+                let _ = state.dayoff.set_checked(day_off);
+                let _ = state.lock.set_checked(locked);
+
+                // Sarılık kipi: alan yoksa (eski frontend) işaretlere
+                // DOKUNMA — bilinmeyen durumu "hepsi kapalı" diye göstermek
+                // yalan olurdu. Varsa üçü radyo gibi yazılır.
+                if let Some(mode) = payload.get("warmMode").and_then(|v| v.as_str()) {
+                    let _ = state.warm_auto.set_checked(mode == "auto");
+                    let _ = state.warm_fixed.set_checked(mode == "fixed");
+                    let _ = state.warm_off.set_checked(mode == "off");
+                }
+
                 let brightness = payload.get("brightness").and_then(|v| v.as_i64());
                 let theme = payload.get("theme").and_then(|v| v.as_str());
+                let status = tray_status(day_off, paused, locked);
+                // Tooltip ve menü başlığı AYNI metni taşır: tek üretici
+                // (tray_tooltip), iki tüketici. Kopyalamak zamanla ayrışırdı.
+                let text = tray_tooltip(brightness, theme, status);
+                let _ = state.header.set_text(&text);
                 if let Some(tray) = listen_handle.tray_by_id("main") {
-                    let text =
-                        tray_tooltip(brightness, theme, tray_status(day_off, paused, locked));
                     let _ = tray.set_tooltip(Some(text));
                 }
             });
@@ -826,21 +933,61 @@ pub fn run() {
                 .menu(&menu)
                 // Sol tık flyout açar; menü yalnız sağ tıkla çıkar.
                 .show_menu_on_left_click(false)
+                // Menü iş YAPMAZ: yalnız `ss:action` yayar, kararı ve yan etkiyi
+                // frontend verir (tek doğruluk kaynağı). Bu yüzden burada hiçbir
+                // CheckMenuItem'e dokunulmuyor — işaret ss:state'ten gelir.
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "open" => show_main(app),
+                    "measure" => {
+                        let _ = app.emit("ss:action", serde_json::json!({ "action": "measure" }));
+                    }
+                    "warm-auto" => {
+                        let _ = app.emit(
+                            "ss:action",
+                            serde_json::json!({ "action": "warm-mode", "arg": "auto" }),
+                        );
+                    }
+                    "warm-fixed" => {
+                        let _ = app.emit(
+                            "ss:action",
+                            serde_json::json!({ "action": "warm-mode", "arg": "fixed" }),
+                        );
+                    }
+                    "warm-off" => {
+                        let _ = app.emit(
+                            "ss:action",
+                            serde_json::json!({ "action": "warm-mode", "arg": "off" }),
+                        );
+                    }
+                    // Kademe `value` ile taşınır: artı/eksi ayrı eylem adı
+                    // açmak frontend'de iki kez aynı hesabı yazdırırdı.
+                    "warm-inc" => {
+                        let _ = app.emit(
+                            "ss:action",
+                            serde_json::json!({ "action": "warm-step", "value": 5 }),
+                        );
+                    }
+                    "warm-dec" => {
+                        let _ = app.emit(
+                            "ss:action",
+                            serde_json::json!({ "action": "warm-step", "value": -5 }),
+                        );
+                    }
+                    "pause-30m" => {
+                        let _ = app.emit("ss:action", serde_json::json!({ "action": "pause-30m" }));
+                    }
                     "pause" => {
-                        if let Some(item) = app.try_state::<TrayChecks>() {
-                            let on = item.pause.is_checked().unwrap_or(false);
-                            let _ = item.pause.set_checked(!on);
-                        }
                         let _ = app.emit("ss:action", serde_json::json!({ "action": "pause-1h" }));
                     }
+                    "resume" => {
+                        let _ = app.emit("ss:action", serde_json::json!({ "action": "resume" }));
+                    }
                     "dayoff" => {
-                        if let Some(item) = app.try_state::<TrayChecks>() {
-                            let on = item.dayoff.is_checked().unwrap_or(false);
-                            let _ = item.dayoff.set_checked(!on);
-                        }
                         let _ = app.emit("ss:action", serde_json::json!({ "action": "day-off" }));
+                    }
+                    "lock" => {
+                        let _ =
+                            app.emit("ss:action", serde_json::json!({ "action": "lock-toggle" }));
                     }
                     "quit" => {
                         // Sıcak ton açıkken çıkılırsa ekran sarı kalmasın: rampa
@@ -925,6 +1072,7 @@ pub fn run() {
             gamma_restore,
             gamma_verify_warmth,
             warmth_auto,
+            warmth_curve,
             pref_learn_bright,
             pref_get_bright,
             animations_set,
