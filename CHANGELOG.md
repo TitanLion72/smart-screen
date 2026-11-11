@@ -15,6 +15,34 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.4.1] - 2026-11-11
+
+"Uygulama listesi dürüstlüğü" - 3.4.0'ın canlı doğrulamasında çıkan üç yanlış
+bilgi ve bir veri güvenliği açığı.
+
+### Fixed
+- **Kurulu olmayan uygulama "kurulu" görünüyordu.** `installed` hesabı "ayar
+  dosyası var **ya da üst klasörü var**" diye bakıyordu; `%APPDATA%` her zaman
+  var olduğu için JetBrains hiç kurulu değilken "JetBrains IDE · değer
+  okunamadı" yazıyordu. Artık kararı adaptör veriyor (`installed()`).
+- **Obsidian "bilinmiyor" diyordu.** `appearance.json` boşken (`{}`) Obsidian
+  varsayılanı **sistemi takip et**'tir. Arayüz artık "sistemi takip ediyor"
+  yazıyor, kırmızı uyarı vermiyor.
+- **VS Code'un kendi teması "bilinmiyor" (uyarı) görünüyordu.** Kullanıcının
+  mağaza teması (ör. `One Dark Pro Darker`) bir hata değil; kart artık
+  "kendi teman" diyor (nötr). Yazarken o tema hatırlanmaya devam ediyor.
+- **Çok dosyalı adaptörlerde yedek açığı.** Obsidian birden fazla kasaya,
+  JetBrains birden fazla ürüne yazıyor; çekirdek yalnız `locate()`in verdiği
+  **tek** dosyayı yedekliyordu. Diğer dosyalar yedeksiz değişiyor ve "Geri al"
+  onları kurtaramıyordu. `Adapter::targets()` eklendi: her hedef yedeklenir,
+  geri alma hepsini döndürür.
+
+### Notes
+- JetBrains artık yalnız gerçek `laf.xml` dosyası varsa "kurulu" sayılıyor;
+  IDE kurulu ama hiç görünüm ayarı değiştirilmemişse kartta "ayar dosyası yok"
+  yazar (dosya **yaratılmaz**).
+- 309 Rust testi (2 yeni: VS Code "kendi teman", Obsidian "sistem").
+
 ## [3.4.0] - 2026-11-08
 
 "Sarılık ve akıllı otomasyon" - ekran sarılığı artık kameranın ölçtüğü ışığı

@@ -73,7 +73,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
 
 /// Cekirdegin verdigi yol bilinen urunlerden birine aitse **tum** urunler
 /// hedeflenir; degilse yalniz o dosya (birim testleri ve tek dosya kullanimi).
-fn targets(path: &Path) -> Vec<PathBuf> {
+fn all_targets(path: &Path) -> Vec<PathBuf> {
     let Some(root) = root_of(path) else {
         return vec![path.to_path_buf()];
     };
@@ -130,16 +130,30 @@ impl Adapter for JetBrains {
 
     /// En yeni urunun `laf.xml`'i; hicbiri yoksa kok dizin (kurulu mu bilgisi).
     fn locate(&self) -> Option<PathBuf> {
+        // Yalnız gerçek `laf.xml` döndürülür. Önceden kök dizin dönüyordu;
+        // o zaman "kurulu" görünüp "değer okunamadı" diyordu (yanlış bilgi).
         let root = root()?;
-        Some(match laf_files(&root).into_iter().next() {
-            Some(found) => found,
-            None => root,
-        })
+        laf_files(&root).into_iter().next()
+    }
+
+    /// Ürün klasörü varsa IDE kuruludur — `laf.xml` henüz oluşmamış olabilir
+    /// (kullanıcı hiç görünüm ayarını değiştirmemişse). Bu durumda kartta
+    /// "ayar dosyası yok" yazar, "kurulu değil" değil.
+    fn installed(&self) -> bool {
+        let Some(root) = root() else {
+            return false;
+        };
+        std::fs::read_dir(&root)
+            .map(|dir| {
+                dir.filter_map(Result::ok)
+                    .any(|e| e.path().is_dir() && !e.file_name().is_empty())
+            })
+            .unwrap_or(false)
     }
 
     fn read(&self, path: &Path) -> Result<Option<Mode>, String> {
         if !path.is_file() {
-            // `locate` kok dizini dondurmus olabilir: okunacak tema yok.
+            // `locate` yalnız dosya döndürür; yine de savunmacı kalalım.
             return Ok(None);
         }
         let (text, _) = read_utf8(path)?;
@@ -153,13 +167,19 @@ impl Adapter for JetBrains {
         )
     }
 
+    /// Tüm kurulu ürünlerin `laf.xml` dosyaları — çekirdek her birini
+    /// yedekler, "Geri al" hepsini döndürür.
+    fn targets(&self, path: &Path) -> Vec<PathBuf> {
+        all_targets(path)
+    }
+
     fn write(&self, path: &Path, mode: Mode) -> Result<bool, String> {
         if !path.is_file() {
             return Ok(false);
         }
         let mut changed = false;
         let mut first_error: Option<String> = None;
-        for target in targets(path) {
+        for target in all_targets(path) {
             if !target.is_file() {
                 continue;
             }

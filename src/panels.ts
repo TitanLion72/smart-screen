@@ -333,7 +333,7 @@ interface AppInfo {
   installed: boolean;
   live: boolean;
   path: string | null;
-  current: "dark" | "light" | "system" | "unknown" | null;
+  current: "dark" | "light" | "system" | "custom" | "unknown" | null;
   error: string | null;
 }
 
@@ -409,6 +409,10 @@ function appStateText(a: AppInfo): { text: string; warn: boolean } {
       return { text: "sistemi takip ediyor", warn: false };
     case "unknown":
       return { text: "bilinmiyor", warn: true };
+    case "custom":
+      // Kullanıcının kendi (mağaza) teması: uyarı değil, bilgi. Yazarken
+      // smart-screen bu temayı hatırlar ve moda dönünce geri getirir.
+      return { text: "kendi teman", warn: false };
     default:
       // `current` null = dosya var ama değer çözülemedi; ya da dosya hiç yok.
       // İkisini ayırmak kullanıcıya "neden yazmıyor" sorusunun cevabını verir.

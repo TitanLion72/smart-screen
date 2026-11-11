@@ -92,6 +92,26 @@ pub trait Adapter: Send + Sync {
     /// `true` = gercekten yazildi, `false` = deger zaten ayniydi.
     fn write(&self, path: &Path, mode: Mode) -> Result<bool, String>;
 
+    /// Uygulama kurulu mu?
+    ///
+    /// Neden adaptore birakildi: eskiden `list_apps` "dosya var ya da **ust
+    /// klasoru** var" diye bakiyordu. Bu, `%APPDATA%` gibi her zaman var olan
+    /// bir ust klasor icin "kurulu" diyordu (JetBrains hic kurulu degilken
+    /// "kurulu" gorunuyordu). Varsayilan dogru olan: ayar dosyasi var mi.
+    fn installed(&self) -> bool {
+        self.locate().map(|p| p.exists()).unwrap_or(false)
+    }
+
+    /// Bu adaptorun yazacagi TUM dosyalar.
+    ///
+    /// Neden gerekli: Obsidian birden fazla kasa, JetBrains birden fazla urun
+    /// icin yazar. Cekirdek yedegi `locate()`in dondurdugu tek dosya icin
+    /// aliyordu - diger dosyalar **yedeksiz** degisiyordu. Artik her hedef
+    /// yedeklenir ve geri alma hepsini dondurur.
+    fn targets(&self, path: &Path) -> Vec<PathBuf> {
+        vec![path.to_path_buf()]
+    }
+
     /// Arayuzde gorunen durum: `"dark"` / `"light"` / `"system"` / `"unknown"`.
     ///
     /// Neden ayri: `read` yalnizca **yazilabilir** modu dondurur (`Mode`), ama
@@ -114,10 +134,10 @@ pub fn list_apps() -> Vec<AppInfo> {
         .into_iter()
         .map(|adapter| {
             let located = adapter.locate();
-            let installed = located
-                .as_ref()
-                .map(|p| p.exists() || p.parent().map(|d| d.exists()).unwrap_or(false))
-                .unwrap_or(false);
+            // Kurulu mu sorusu adaptore ait: ust klasorun varligi kanit degil
+            // (`%APPDATA%` her zaman var; JetBrains kurulu degilken "kurulu"
+            // gorunuyordu).
+            let installed = adapter.installed();
             let path = located.as_ref().map(|p| p.to_string_lossy().to_string());
 
             let (current, error) = match located.as_ref() {
@@ -211,6 +231,17 @@ fn apply_adapter(adapters: &[Box<dyn Adapter>], id: &str, mode: Mode) -> ApplyRe
     if let Err(e) = ensure_backup(&path) {
         return ApplyResult::fail(id, e);
     }
+    // Birden fazla dosyaya yazan adaptorler (Obsidian kasalari, JetBrains
+    // urunleri) icin her hedef yedeklenir; yoksa yalniz ilk dosya korunur ve
+    // geri alma digerlerini kurtaramaz.
+    for target in adapter.targets(&path) {
+        if target == path || !target.exists() {
+            continue;
+        }
+        if let Err(e) = ensure_backup(&target) {
+            return ApplyResult::fail(id, e);
+        }
+    }
     match adapter.write(&path, mode) {
         Ok(changed) => ApplyResult {
             id: id.to_string(),
@@ -242,28 +273,37 @@ pub fn restore(_pro: bool) -> Result<Vec<ApplyResult>, String> {
                     error: None,
                 };
             };
-            let backup = backup_path(&path);
-            if !backup.exists() {
-                return ApplyResult {
-                    id: id.to_string(),
-                    ok: true,
-                    changed: false,
-                    error: None,
+            let targets = adapter.targets(&path);
+            let mut changed = false;
+            let mut first_error: Option<String> = None;
+            for target in targets {
+                let backup = backup_path(&target);
+                if !backup.exists() {
+                    continue;
+                }
+                let content = match fs::read(&backup) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        first_error.get_or_insert_with(|| format!("yedek okunamadı: {e}"));
+                        continue;
+                    }
                 };
+                // Atomik yaz: yarim dosya kalirsa uygulama ayarlari bozulur.
+                match write_bytes_atomic_verified(&target, &content) {
+                    Ok(()) => changed = true,
+                    Err(e) => {
+                        first_error.get_or_insert(e);
+                    }
+                }
             }
-            let content = match fs::read(&backup) {
-                Ok(c) => c,
-                Err(e) => return ApplyResult::fail(id, format!("yedek okunamadı: {e}")),
-            };
-            // Atomik yaz: yarim dosya kalirsa uygulama ayarlari bozulur.
-            match write_bytes_atomic_verified(&path, &content) {
-                Ok(()) => ApplyResult {
+            match first_error {
+                Some(e) => ApplyResult::fail(id, e),
+                None => ApplyResult {
                     id: id.to_string(),
                     ok: true,
-                    changed: true,
+                    changed,
                     error: None,
                 },
-                Err(e) => ApplyResult::fail(id, e),
             }
         })
         .collect();

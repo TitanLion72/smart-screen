@@ -115,8 +115,8 @@ impl Adapter for VsCode {
     }
 
     /// `autoDetectColorScheme` acikken dogru cevap "sistemi takip ediyor".
-    /// `read` bu durumda `None` doner (yazilacak mod yok); arayuz ise bunu
-    /// "bilinmiyor" diye gostermemeli.
+    /// Kullanicinin kendi (magaza) temasi varsa "kendi teman" — bu bir uyari
+    /// degil, bilgi: smart-screen yazarken o temayi hatirlar.
     fn peek(&self, path: &Path) -> Option<String> {
         let (text, _) = read_utf8(path).ok()?;
         if jsonc::get_bool(&text, AUTO_DETECT) == Some(true) {
@@ -124,6 +124,7 @@ impl Adapter for VsCode {
         }
         Some(match self.read(path) {
             Ok(Some(mode)) => mode.as_str().to_string(),
+            Ok(None) if jsonc::get_string(&text, ACTIVE).is_some() => "custom".to_string(),
             _ => "unknown".to_string(),
         })
     }
@@ -230,14 +231,16 @@ mod tests {
     }
 
     #[test]
-    fn peek_says_unknown_for_a_foreign_manual_theme() {
-        let dir = tmpdir("vscode-peek-unknown");
+    fn peek_says_custom_for_a_foreign_manual_theme() {
+        // Kullanicinin magaza temasi: "bilinmiyor" (uyari) degil "kendi teman"
+        // (bilgi). Yazarken bu tema hatirlanir, moda donunce geri gelir.
+        let dir = tmpdir("vscode-peek-custom");
         let path = dir.join("settings.json");
         put(
             &path,
             "{\n  \"workbench.colorTheme\": \"Solarized Dark\"\n}\n",
         );
-        assert_eq!(VsCode.peek(&path), Some("unknown".to_string()));
+        assert_eq!(VsCode.peek(&path), Some("custom".to_string()));
         cleanup(&dir);
     }
 

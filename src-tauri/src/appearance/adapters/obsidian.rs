@@ -66,7 +66,7 @@ fn same_path(a: &Path, b: &Path) -> bool {
 
 /// Cekirdegin verdigi yol kasalardan birine aitse **tum** kasalar hedeflenir;
 /// degilse yalniz o dosya (birim testleri ve tek dosya kullanimi).
-fn targets(path: &Path) -> Vec<PathBuf> {
+fn all_targets(path: &Path) -> Vec<PathBuf> {
     let known: Vec<PathBuf> = vault_dirs().iter().map(|v| appearance_of(v)).collect();
     if known.iter().any(|k| same_path(k, path)) {
         known
@@ -128,10 +128,33 @@ impl Adapter for Obsidian {
         })
     }
 
+    /// `theme` anahtarı yoksa Obsidian **sistemi takip eder** (varsayılanı
+    /// `system`). `read` "yazılacak mod yok" diye `None` döner; arayüz ise
+    /// "bilinmiyor" değil "sistemi takip ediyor" demeli.
+    fn peek(&self, path: &Path) -> Option<String> {
+        if path.file_name().and_then(|n| n.to_str()) == Some("obsidian.json") {
+            return Some("unknown".to_string());
+        }
+        let (text, _) = read_utf8(path).ok()?;
+        Some(match jsonc::get_string(&text, "theme").as_deref() {
+            Some(DARK) => "dark".to_string(),
+            Some(LIGHT) => "light".to_string(),
+            None => "system".to_string(),
+            // Tanınmayan değer ("system" yazılmış olabilir): sistemi takip eder.
+            Some(_) => "system".to_string(),
+        })
+    }
+
+    /// Tüm kasaların `appearance.json` dosyaları — çekirdek her birini
+    /// yedekler, "Geri al" hepsini döndürür.
+    fn targets(&self, path: &Path) -> Vec<PathBuf> {
+        all_targets(path)
+    }
+
     fn write(&self, path: &Path, mode: Mode) -> Result<bool, String> {
         let mut changed = false;
         let mut first_error: Option<String> = None;
-        for target in targets(path) {
+        for target in all_targets(path) {
             // Dosya yoksa olusturmayiz: kasa hic acilmamis olabilir.
             if !target.exists() {
                 continue;
@@ -183,6 +206,20 @@ mod tests {
         cleanup(&dir);
     }
 
+    #[test]
+    fn peek_says_system_when_theme_key_is_absent() {
+        // Obsidian'in varsayilani "sistemi takip et": anahtar yoksa arayuz
+        // "bilinmiyor" (uyari) degil "sistemi takip ediyor" demeli.
+        let dir = tmpdir("obsidian-peek");
+        let path = dir.join("appearance.json");
+        put(&path, "{}");
+        assert_eq!(Obsidian.read(&path).ok(), Some(None));
+        assert_eq!(Obsidian.peek(&path), Some("system".to_string()));
+
+        put(&path, "{\n  \"theme\": \"moonstone\"\n}\n");
+        assert_eq!(Obsidian.peek(&path), Some("light".to_string()));
+        cleanup(&dir);
+    }
     #[test]
     fn write_then_read_roundtrip_and_second_write_is_noop() {
         let dir = tmpdir("obsidian-write");
