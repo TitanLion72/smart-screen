@@ -223,7 +223,17 @@ fn apply_adapter(adapters: &[Box<dyn Adapter>], id: &str, mode: Mode) -> ApplyRe
         return ApplyResult::fail(id, "bilinmeyen hedef");
     };
     let Some(path) = adapter.locate() else {
-        return ApplyResult::fail(id, "kurulu değil");
+        // Ayarlari okunacak dosya yok. Uygulama kuruluysa bu "bozuk" degil,
+        // "henuz ayar dosyasi yok" demektir (JetBrains laf.xml'i ancak
+        // kullanici gorunum ayarini degistirince olusur).
+        return ApplyResult::fail(
+            id,
+            if adapter.installed() {
+                "ayar dosyası yok - uygulamayı bir kez aç"
+            } else {
+                "kurulu değil"
+            },
+        );
     };
     if !path.exists() {
         return ApplyResult::fail(id, "ayar dosyası yok — uygulamayı bir kez aç");

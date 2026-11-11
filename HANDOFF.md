@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.4.0, 2026-11-08)
+# HANDOFF - smart-screen (güncel: v3.4.1, 2026-11-11)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -148,7 +148,36 @@ dosya: `lib.rs`). Toplam 20 adaptör + 17 sarılık testi eklendi.
 yanlış davrandığı bir noktayı gizliyordu. Yeni bir yan etki (erken toast) ekleyen
 her değişiklikten sonra QA'yı çalıştırmak zorunlu.
 
-## Güncel durum: v3.4.0
+## v3.4.1 turu - dersler (2026-11-11)
+
+3.4.0 yayınlandıktan hemen sonra **kurulu exe'yi canlı incelerken** dört kusur
+çıktı. Hiçbiri testlerde görünmüyordu çünkü **hepsi gerçek ortam verisiyle
+ilgiliydi**:
+
+1. **`installed` yanlış hesaplanıyordu.** `p.exists() || p.parent().exists()`
+   → `%APPDATA%` her zaman var, o yüzden JetBrains hiç kurulu değilken
+   "kurulu" göründü. Kural: **"üst klasör var" kurulum kanıtı değildir**;
+   kararı adaptör vermeli.
+2. **Obsidian'ın varsayılanı `system`.** `appearance.json` boş → `theme` yok →
+   "bilinmiyor" (kırmızı). Oysa Obsidian sistemi takip ediyor. Windows
+   Terminal'de aynı hatayı 3.3.0'da düzeltmiştim; **deseni genelleştirmedim**,
+   o yüzden tekrar ısırdı.
+3. **VS Code'un kendi teması uyarı değil.** "bilinmiyor" kırmızısı, kullanıcının
+   bilinçli seçimini hata gibi gösteriyordu. Yeni durum: "kendi teman" (nötr).
+4. **Çok dosyalı adaptörlerde yedek açığı.** Obsidian (kasalar) ve JetBrains
+   (ürünler) birden fazla dosyaya yazıyor; çekirdek yalnız `locate()`in verdiği
+   tek dosyayı yedekliyordu. **Kural: bir adaptör birden fazla dosyaya
+   dokunuyorsa `targets()` override edilmeli**, yoksa "geri al" yarım kalır.
+
+**Ders:** Testler mantığı doğrular, **ortamı doğrulamaz**. Bu dört hata ancak
+kurulu exe + gerçek `%APPDATA%` ile bakınca göründü. Yeni adaptör eklerken
+"bu makinede kurulu mu, kurulu değilse ne yazıyor?" sorusu sorulmalı.
+
+**Ek not:** debug exe `devUrl`e bağlı — vite sunucusu yokken arayüz boş açılır
+ve `invoke` "Origin header is not a valid URL" verir. Canlı doğrulama için
+**release build** kullanılmalı.
+
+## Güncel durum: v3.4.1
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
