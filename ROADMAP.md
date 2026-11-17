@@ -402,6 +402,44 @@ Canlı: dev + CDP ile sarılık değeri, eğri önizlemesi ve tepsi menüsü do�
 
 ---
 
+## 18. `[x]` v3.5.0 "açılış, akıllı otomasyon, 9 adaptör"
+
+**Kullanıcı şikâyeti:** "pc ilk açılışınca düzgün açılmıyor, otomatik başlat
+bozuk, cmd falan çıkıyor."
+
+**Kök neden (kanıtlı):** `HKCU\...\Run` içinde
+`...\src-tauri\target\debug\smart-screen.exe` kayıtlıydı. İki hata birden:
+1. `main.rs` `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]`
+   → **debug** derlemede konsol açık → **cmd penceresi**.
+2. Debug build `devUrl`e bağlı → vite yoksa **boş arayüz**.
+
+**Çözüm:** kurulu exe tercih edilir, değer tırnaklanır, açılışta kendi kendini
+onaran `repair_autostart()`. Onarım kullanıcı müdahalesi gerektirmez — bozuk
+kayıtla uygulamayı açmak da mümkün değildi.
+
+**Akıllı otomasyon (3 sinyal eklendi):**
+- `GetLastInputInfo` ile boşta algılama → 10/30 dk kademeli parlaklık düşürme.
+- 4 kademeli pil planı (kamera turu + adım kısıtı).
+- Medya oynatıcı tespiti → sarılık −7 (video renk sadakati).
+
+**Adaptörler 6 → 9:** Discord, GitHub Desktop, Typora eklendi.
+
+**Şefin yakaladığı hatalar:**
+1. `skip` değişkeni boşta düşürmeden SONRA hesaplanıyordu → TS derleme hatası;
+   mantık parlaklık okumasından sonraya taşındı (`S.freezeReason` ile).
+2. `S.frozen` diye alan yok (`freezeReason: string | null` doğrusu).
+3. Sarılık eğrisindeki "şu an" noktası `cx=96` ile SVG kenarından kırpılıyordu;
+   `audit-templates` "kırpılan circle#wc-now" dedi → 2..94 aralığına kelepçelendi.
+4. Bozuk `.pdb` (disk dolarken yarım yazılmış) linker'ı düşürdü → PDB'ler silindi.
+5. Adaptör sıra testi 6 adaptöre sabitlenmişti → 9'a güncellendi, "canlı
+   olmayanlar" listesi tek kaynak oldu.
+
+**Kabul:** 327 Rust + 28 frontend testi, `qa/run.mjs`, 6 audit, clippy/fmt.
+Kayıt defteri canlı doğrulandı: `"...\AppData\Local\smart-screen\smart-screen.exe"`
+(tırnaklı, kurulu, dev yolu değil).
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

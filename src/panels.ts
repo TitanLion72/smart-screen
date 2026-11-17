@@ -1575,8 +1575,13 @@ function syncWarmCurve(): void {
   const now = new Date();
   const frac = (now.getHours() * 60 + now.getMinutes()) / 1440;
   const dot = el("wc-now");
-  dot.setAttribute("cx", (frac * 96).toFixed(2));
-  dot.setAttribute("cy", warmCurveY(S.lastWarmApplied ?? 0).toFixed(2));
+  // Nokta yarıçapı 2 birim; 0/96'ya tam oturursa SVG kenarından kırpılır
+  // (audit-templates bunu "kırpılan circle#wc-now" diye yakaladı). 2..94
+  // aralığına kelepçele: günün ilk/son dakikalarında da tam görünür.
+  const cx = Math.max(2, Math.min(94, frac * 96));
+  const cy = Math.max(4, Math.min(24, warmCurveY(S.lastWarmApplied ?? 0)));
+  dot.setAttribute("cx", cx.toFixed(2));
+  dot.setAttribute("cy", cy.toFixed(2));
 }
 
 /** Şu an ekranda ne var? Uydurma yok: uygulanmadıysa sıfır yazılmaz. */

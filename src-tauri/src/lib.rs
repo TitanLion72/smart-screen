@@ -528,11 +528,20 @@ async fn pref_clear() {
     let _ = run_blocking(wipe_prefs).await;
 }
 
+/// Son klavye/fare girdisinden gecen saniye (bosta algilama).
+///
+/// Neden ayri komut: `activity` modulu zaten Windows API'sine sahip; Tauri
+/// katmaninda yalniz gecis yapiyoruz. Hata dondurmez - `activity::idle_seconds`
+/// guvenli tarafta 0 doner (bkz. oradaki yorum).
+#[tauri::command]
+async fn idle_seconds() -> u64 {
+    activity::idle_seconds()
+}
+
 #[tauri::command]
 async fn battery_status() -> Result<(u8, bool), String> {
     run_blocking(query_battery_status).await?
 }
-
 #[tauri::command]
 async fn stats_summary() -> Result<stats::Summary, String> {
     run_blocking(stats::summarize_now).await?
@@ -751,6 +760,22 @@ pub fn run() {
     // boyutu (800x600) yeni varsayılana büyüt — yoksa güncelleme sonrası
     // kullanıcı yine sıkışmış pencereyi görür (v2.4.2).
     winstate::migrate_once();
+
+    // v3.5: bozuk açılış kaydını kendiliğinden onar. Geliştirici derlemesi
+    // (`target\debug`) kayıtlıysa açılışta cmd penceresi çıkıyor ve arayüz
+    // boş geliyordu (devUrl'e bağlı). Kullanıcı bunu kendi düzeltemez:
+    // düzeltmek için uygulamayı açması gerekir, o da bozuk açılır.
+    match autostart::repair_autostart() {
+        Ok(true) => logger::log_tick(&format!(
+            "{} | source=setup/setup | level=info | tone=- | desired=- | applied=- | theme=- | note=acilista baslatma kaydi duzeltildi",
+            logger::now_local()
+        )),
+        Ok(false) => {}
+        Err(e) => logger::log_tick(&format!(
+            "{} | source=setup/setup | level=warn | tone=- | desired=- | applied=- | theme=- | note=acilista baslatma onarilamadi: {e}",
+            logger::now_local()
+        )),
+    }
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
@@ -1067,6 +1092,7 @@ pub fn run() {
             pref_list,
             pref_clear,
             battery_status,
+            idle_seconds,
             stats_summary,
             gamma_set_warmth,
             gamma_restore,

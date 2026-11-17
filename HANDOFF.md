@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.4.1, 2026-11-11)
+# HANDOFF - smart-screen (güncel: v3.5.0, 2026-11-18)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -177,7 +177,45 @@ kurulu exe + gerçek `%APPDATA%` ile bakınca göründü. Yeni adaptör eklerken
 ve `invoke` "Origin header is not a valid URL" verir. Canlı doğrulama için
 **release build** kullanılmalı.
 
-## Güncel durum: v3.4.1
+## v3.5.0 turu - dersler (2026-11-18)
+
+**Kullanıcı şikâyeti ciddiydi:** "otomatik başlat bozuk, cmd çıkıyor, düzgün
+açılmıyor." Bu bir kozmetik sorun değildi — uygulama **hiç doğru açılmıyordu**.
+
+**Kök neden kanıtla bulundu, tahminle değil:**
+```
+HKCU\...\Run  smart-screen = C:\...\src-tauri\target\debug\smart-screen.exe
+```
+İki bağımsız hata aynı kayıttan geliyordu:
+1. Debug derlemesi `windows_subsystem = "windows"` **almaz** (koşul
+   `not(debug_assertions)`) → konsol penceresi.
+2. Debug derlemesi `devUrl`e (`localhost:1420`) bağlanır → vite yoksa boş ekran.
+
+**Ders 1 — kendi kendini onaran kayıt.** Kullanıcı bu hatayı kendi
+düzeltemiyordu çünkü düzeltmek için uygulamayı açması gerekiyor, o da bozuk
+açılıyor. Bu yüzden onarım **açılışta** yapılıyor (`repair_autostart`), UI'da
+değil. Bir daha bu tuzağa düşmemek için: *kendi kendini bozan bir kayıt
+bırakan her özellik, açılışta onarım da getirmeli.*
+
+**Ders 2 — tırnak.** `Run` değerinde tırnak yoksa boşluklu yolda Windows yolu
+böler. PowerShell'in tek tırnağı betik sınırıdır, kayıt defterine geçmez;
+değerin **içine** çift tırnak koymak gerekir.
+
+**Ders 3 — "canlı" ve "canlı değil" adaptör ayrımı.** Discord/GitHub
+Desktop/Typora ayarlarını kapanışta yazar; `live=false` doğru cevaptır ve kart
+"yeniden başlat" rozeti gösterir. Yalan söylemektense yavaş olduğunu söylemek
+daha iyi.
+
+**Şefin yakaladığı 5 hata:** `skip` kullanım sırası (TS), olmayan `S.frozen`
+alanı, SVG kenarından kırpılan "şu an" noktası (`audit-templates` yakaladı),
+disk dolarken bozulan `.pdb` (linker LNK1285), 6 adaptöre sabitlenmiş sıra
+testi.
+
+**Araç notu:** alt ajanlar sunucu yeniden başlamaları yüzünden iki kez kesildi
+ve hiçbir dosya yazmadı. Bu turda işleri sırayla kendim yaptım — kesilen ajan
+çıktısına güvenmek yerine `git status` ile doğrulamak doğru karardı.
+
+## Güncel durum: v3.5.0
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

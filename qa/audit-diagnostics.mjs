@@ -107,6 +107,7 @@ await page.addInitScript(() => { try { localStorage.setItem('ss:onboarded','1');
       if (cmd === "theme_get") return ["vesper", "dark"];
       if (cmd === "theme_set") return null;
       if (cmd === "autostart_get") return true;
+      if (cmd === "idle_seconds") return 0;
       if (cmd === "battery_status") return [80, true];
       // v3.0: gece ışığı okunamıyor (bu makinede blob boş).
       if (cmd === "nightlight_status") return null;

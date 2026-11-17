@@ -15,6 +15,41 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.5.0] - 2026-11-18
+
+"Açılış düzeltmesi, akıllı otomasyon, daha çok uygulama"
+
+### Fixed
+- **Açılışta çıkan cmd penceresi ve bozuk arayüz.** `HKCU\...\Run` içinde
+  geliştirici derlemesi (`target\debug\smart-screen.exe`) kayıtlıydı. Debug
+  build konsol alt sistemini kullanır (**cmd penceresi**) ve `devUrl`e bağlıdır
+  (**vite yoksa boş ekran**). Artık:
+  - "Açılışta başlat" **kurulu** exe'yi yazar, dev yolunu asla.
+  - Değer **tırnaklı** yazılır (`"...\smart-screen.exe"`) — boşluklu yolda
+    Windows yolu bölmesin.
+  - Uygulama açılışta kaydı **kendi onarır**: dev yolu veya yanlış exe
+    görürse kurulu sürümle değiştirir. Kullanıcı bunu kendi düzeltemezdi
+    (düzeltmek için uygulamayı açması gerekiyor, o da bozuk açılıyordu).
+
+### Added
+- **Boşta kalınca parlaklık düşer.** 10 dakika giriş yoksa hedef −15 puan,
+  30 dakikada −25 (taban %20). Kullanıcı dönünce hemen geri gelir. Yalnız
+  otomatik modda; kilitli/dondurulmuş durumda dokunulmaz.
+- **Kademeli pil tasarrufu.** Tek eşik (%20) yerine 4 kademe: %30/20/10 →
+  kamera turu 5/10/20 dk, parlaklık adımı 8/6/4/3. Şarjdayken hiç kısıt yok.
+- **Medya oynatılırken sarılık azalır.** VLC, mpv, MPC-HC, PotPlayer, Kodi
+  öndeyse otomatik sarılık 7 puan düşer — videoda renk sadakati bozulmasın.
+- **3 yeni uygulama:** Discord, GitHub Desktop, Typora (toplam 9 adaptör).
+  Uygulamalar kartı artık `chat` grubunu da gösteriyor.
+
+### Notes
+- Discord/GitHub Desktop/Typora ayarlarını kapanışta yazar; kart "yeniden
+  başlat" rozeti gösterir (dürüst bilgi).
+- Yeni ayarlar: `ss:idleDim`, `ss:mediaWarmth` (ikisi de varsayılan açık).
+- 327 Rust + 28 frontend testi, `qa/run.mjs`, 6 denetim aracı PASS.
+- Yerleşim hatası: sarılık eğrisindeki "şu an" noktası SVG kenarından
+  kırpılıyordu (gece yarısına yakın saatlerde) — `audit-templates` yakaladı.
+
 ## [3.4.1] - 2026-11-11
 
 "Uygulama listesi dürüstlüğü" - 3.4.0'ın canlı doğrulamasında çıkan üç yanlış

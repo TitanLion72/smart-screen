@@ -22,11 +22,14 @@ import { DEFAULT_DESIGN_THEME, MODE_LABEL, SOURCE_LABEL } from "./catalog";
 import type { Mode, Source } from "./catalog";
 import {
   autoPaletteDue,
+  batteryPlan,
   extendRespect,
   finalTarget,
+  idleDim,
   isExternalChange,
   isIndependentTurn,
   isIntentTheme,
+  isMediaApp,
   learnAllowed,
   learnDelta,
   lightKey,
@@ -167,7 +170,6 @@ export interface LightCard {
 // ---------- sabitler ----------
 
 const CAM_MS = 5 * 60 * 1000;
-const CAM_MS_LOW = 15 * 60 * 1000;
 /** `decide_level` çıktısını doğrulamak için (Rust `Level::as_str`). */
 const LEVEL_NAMES: LightLevel[] = ["dark", "dim", "normal", "bright"];
 export const BREAK_MS = 20 * 60 * 1000;
@@ -316,6 +318,10 @@ export interface AppState {
   targetPct: number | null;
   desiredBase: number | null;
   lowPower: boolean;
+  /// v3.5: bosta dusurme su an uygulaniyor mu (log spamini onler).
+  idleDimmed: boolean;
+  /// v3.5: son turda on plandaki exe (medya tespiti icin).
+  lastForegroundExe: string | null;
   calibHint: string;
   histLines: string[];
   stats: StatsSummary | null;
@@ -444,6 +450,8 @@ export const S: AppState = {
   targetPct: null,
   desiredBase: null,
   lowPower: false,
+  idleDimmed: false,
+  lastForegroundExe: null,
   calibHint: "Öğrenilen tercih: henüz gözlem yok",
   histLines: [],
   stats: null,
@@ -871,6 +879,17 @@ export async function applyWarmth(force = false): Promise<void> {
       const auto = await autoWarmth();
       // İki eksen çarpımsal: eğri × kullanıcı şiddeti.
       percent = auto === null ? null : (auto * S.warmPercent) / 100;
+      // v3.5 (A4): medya oynatılıyorsa sarılığı 7 puan düşür. Neden: video
+      // izlerken renk sadakati önemli; sarartmak sahnenin beyaz dengesini
+      // bozuyor. Yalnız otomatik kipte ve HDR kapalıyken.
+      if (
+        percent !== null &&
+        !S.hdrOn &&
+        getSetting("mediaWarmth", "1") === "1" &&
+        isMediaApp(S.lastForegroundExe ?? "")
+      ) {
+        percent = Math.max(0, percent - 7);
+      }
     }
     // stabilite (d): hesaplanamadıysa son uygulanan şiddet korunur.
     let value = Math.round(percent === null ? (S.lastWarmApplied ?? S.warmPercent) : percent);
@@ -1635,6 +1654,9 @@ async function runTick(reason: string): Promise<void> {
   if (S.locked) await gameBoostOff();
   // Uygulamaya bağlı profil: dondurma kuralları dışında bu turu yönetir.
   const exe = await foregroundExe();
+  // v3.5 (A4): sarılık kararı da aynı turdaki exe'yi kullanır — her çağrıda
+  // yeniden sormak tur başına fazladan bir invoke demekti.
+  S.lastForegroundExe = exe;
   const bound = exe ? S.profiles.find((p) => (p.apps ?? []).includes(exe)) ?? null : null;
   S.boundName = bound ? bound.name : null;
   S.boundExe = bound ? exe : null;
@@ -1720,9 +1742,15 @@ async function runTick(reason: string): Promise<void> {
     const minute = now.getMinutes();
     // stabilite (f): pil bilinmiyorsa lowPower kapalı kalır.
     const battery = await readBattery();
-    const lowPower = battery ? battery.pct < 20 && !battery.charging : false;
+    // v3.5: kademeli pil planı. Eski tek eşik (%20) yerine 4 kademe: her
+    // kademe kamera turunu seyreltir ve parlaklık adımını kısar. Şarjdayken
+    // hiçbir kısıt yok (pil tasarrufu anlamsız).
+    const plan = battery
+      ? batteryPlan(battery.pct, battery.charging)
+      : { camEverySec: 300, stepLimit: 8 };
+    const lowPower = plan.stepLimit <= 6;
     S.lowPower = lowPower;
-    const camLimit = lowPower ? CAM_MS_LOW : CAM_MS;
+    const camLimit = Math.max(CAM_MS, plan.camEverySec * 1000);
 
     // Windows gece ışığı: yalnız okunur (programatik yazma desteklenmiyor).
     // `null` = bilinmiyor → davranış değişmez; tahmin etmeyiz.
@@ -1852,7 +1880,7 @@ async function runTick(reason: string): Promise<void> {
     // `next_brightness` hedefi yeniden 25'e çekip gece tavanını iptal ediyordu
     // (v3.0.2: kullanıcı 15 yazsa da ekran 25'te kalıyordu).
     const floor = cap === null ? floorRaw : Math.min(floorRaw, cap);
-    const target = finalTarget({
+    let target = finalTarget({
       base: desired,
       learnDelta: learnedDelta,
       offset: effOffset,
@@ -1880,6 +1908,29 @@ async function runTick(reason: string): Promise<void> {
     // Parlaklık tur başına tek okunur (PLAN-v3 §11: tur başına ≤ 1 okuma).
     const current = await invoke<number>("brightness_get").catch(() => null);
     let appliedNow = current ?? S.lastAppliedBright;
+    // v3.5 (A1): boşta kalınca hedefi düşür. Yalnız otomatik modda ve
+    // kilitli/dondurulmuş değilken — o durumlarda kullanıcı niyeti ya da
+    // oyun/video kuralı öndedir. `skip` için ön okuma gerekiyor, o yüzden
+    // parlaklık okumasından SONRA.
+    if (
+      S.mode === "auto" &&
+      !S.locked &&
+      S.freezeReason === null &&
+      getSetting("idleDim", "1") === "1"
+    ) {
+      const idleSec = await invoke<number>("idle_seconds").catch(() => 0);
+      const dimmed = idleDim(target, idleSec);
+      if (dimmed !== target) {
+        if (!S.idleDimmed) {
+          S.idleDimmed = true;
+          log(`boşta ${Math.round(idleSec / 60)} dk — parlaklık hedefi %${dimmed}`, "warn");
+        }
+        target = dimmed;
+      } else if (S.idleDimmed) {
+        S.idleDimmed = false;
+        log("kullanıcı döndü — parlaklık hedefi geri alındı", "ok");
+      }
+    }
     // Ekran kapalıyken (WMI 0) tema da değiştirilmez: kilit ekranında
     // cli.json yazıp durmak anlamsız (PLAN-v3 §2/A6).
     const skip = skipReason({ locked: S.locked, current, desired: target });

@@ -82,6 +82,7 @@ const STUB = (disableWebgl) => `
       if (cmd === "theme_get") return ["ss-dusk", "dark"];
       if (cmd === "theme_set") return null;
       if (cmd === "autostart_get") return true;
+      if (cmd === "idle_seconds") return 0;
       if (cmd === "battery_status") return [80, true];
       if (cmd === "nightlight_status") return null;
       if (cmd === "pref_get") return null;

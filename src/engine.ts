@@ -302,3 +302,56 @@ export function warmthToKelvin(warmth: number): number {
   const k = 6500 - ((6500 - 3000) * w) / 100;
   return Math.round(k / 100) * 100;
 }
+// ---------- v3.5: akilli otomasyon (saf) ----------
+
+/**
+ * Bosta kalinca hedef parlakligi dusurur.
+ *
+ * Neden: kullanici 10 dakikadir bilgisayara dokunmuyorsa tam parlaklik
+ * gereksiz (goz yorgunlugu + guc). Esikler kademeli: 10 dk -> -15, 30 dk -> -25.
+ * Taban 20: okunabilirligin altina inilmez.
+ */
+export function idleDim(base: number, idleSeconds: number): number {
+  if (!Number.isFinite(base) || !Number.isFinite(idleSeconds)) return base;
+  const cut = idleSeconds < 600 ? 0 : idleSeconds < 1800 ? 15 : 25;
+  return Math.max(20, Math.min(100, Math.round(base - cut)));
+}
+
+/** Pil seviyesine gore olcum araligi (sn) ve parlaklik adim kisiti. */
+export function batteryPlan(
+  pct: number,
+  charging: boolean,
+): { camEverySec: number; stepLimit: number } {
+  // Sarjdayken pil tasarrufu anlamsiz: tam cozunurlukte kal.
+  if (charging || !Number.isFinite(pct)) return { camEverySec: 300, stepLimit: 8 };
+  if (pct >= 30) return { camEverySec: 300, stepLimit: 8 };
+  if (pct >= 20) return { camEverySec: 600, stepLimit: 6 };
+  if (pct >= 10) return { camEverySec: 1200, stepLimit: 4 };
+  return { camEverySec: 1800, stepLimit: 3 };
+}
+
+/** Medya oynaticisi exe adlari (kucuk harf, .exe ile). */
+const MEDIA_APPS = new Set([
+  "vlc.exe",
+  "mpv.exe",
+  "mpvnet.exe",
+  "mpc-hc.exe",
+  "mpc-hc64.exe",
+  "potplayer.exe",
+  "potplayermini.exe",
+  "potplayermini64.exe",
+  "wmplayer.exe",
+  "kodi.exe",
+]);
+
+/**
+ * On plandaki uygulama medya oynaticisi mi?
+ *
+ * Neden: video izlerken renk sadakati onemli; ekrani sarartmak sahneyi bozar.
+ * Tam ekran sart degil - pencere icinde oynatirken de ayni sorun var.
+ */
+export function isMediaApp(exe: string): boolean {
+  if (typeof exe !== "string") return false;
+  const name = exe.trim().toLowerCase().split(/[\\/]/).pop() ?? "";
+  return MEDIA_APPS.has(name);
+}

@@ -145,6 +145,7 @@ const stub = () => {
           }));
         case "license_status":
           return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
+        case "idle_seconds": return 0;
         case "battery_status":
           return [85, true];
         case "stats_summary":

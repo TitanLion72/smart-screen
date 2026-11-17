@@ -196,7 +196,8 @@ window.__TAURI_INTERNALS__ = {
       case "license_deactivate":
         window.__licPro = false;
         return { pro: false, email: null, issued: null };
-      case "battery_status": return [85, true];
+      case "idle_seconds": return 0;
+        case "battery_status": return [85, true];
       case "nightlight_status": return null;
       // v3.3: uygulama temalari. Sabit liste: 2 kurulu + 1 kurulu degil.
       // appearance_apply cagrilarini window.__appThemeCalls'a alir; senaryo

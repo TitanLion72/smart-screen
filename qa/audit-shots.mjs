@@ -59,6 +59,7 @@ const stub = () => {
         case "brightness_set_monitor": return null;
         case "license_status": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
         case "license_activate": return { pro: true, email: "qa@test.local", issued: "2026-10-20" };
+        case "idle_seconds": return 0;
         case "battery_status": return [85, true];
       case "nightlight_status": return null;
         // v3.3: uygulama temalari (kart bos kalmasin).

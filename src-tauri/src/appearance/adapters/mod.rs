@@ -6,9 +6,12 @@
 //! (`appearance::apply`) tek yerde durur. Buradaki ortak yardimcilar da
 //! (UTF-8/BOM, JSONC dogrulama) tekrarlanmasin diye modul seviyesinde.
 
+pub mod discord;
+pub mod github_desktop;
 pub mod jetbrains;
 pub mod obsidian;
 pub mod sublime;
+pub mod typora;
 pub mod vscode;
 pub mod windows_terminal;
 pub mod zed;
@@ -33,6 +36,9 @@ pub fn all() -> Vec<Box<dyn Adapter>> {
         Box::new(sublime::Sublime),
         Box::new(zed::Zed),
         Box::new(obsidian::Obsidian),
+        Box::new(github_desktop::GithubDesktop),
+        Box::new(discord::Discord),
+        Box::new(typora::Typora),
     ]
 }
 
@@ -230,7 +236,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn registry_has_all_six_adapters_in_contract_order() {
+    fn registry_has_all_adapters_in_contract_order() {
         let ids: Vec<&str> = all().iter().map(|a| a.id()).collect();
         assert_eq!(
             ids,
@@ -240,27 +246,27 @@ mod tests {
                 "jetbrains",
                 "sublime",
                 "zed",
-                "obsidian"
+                "obsidian",
+                "github-desktop",
+                "discord",
+                "typora"
             ]
         );
         let groups: Vec<&str> = all().iter().map(|a| a.group()).collect();
         assert_eq!(
             groups,
-            vec!["terminal", "editor", "editor", "editor", "editor", "notes"]
+            vec![
+                "terminal", "editor", "editor", "editor", "editor", "notes", "editor", "chat",
+                "notes"
+            ]
         );
-        // JetBrains temayi yalniz acilista okur: canli olmamali (dogru rozet).
-        assert!(
-            all()
-                .iter()
-                .filter(|a| a.id() != "jetbrains")
-                .all(|a| a.live()),
-            "JetBrains disindakiler canli olmali"
-        );
-        let jetbrains = all().into_iter().find(|a| a.id() == "jetbrains");
+        // Canli olmayanlar: dosyayi uygulama kendisi ezenler (yeniden baslat
+        // rozeti dogru bilgi verir). Digerleri canli olmali.
+        let not_live: Vec<&str> = all().iter().filter(|a| !a.live()).map(|a| a.id()).collect();
         assert_eq!(
-            jetbrains.map(|a| a.live()),
-            Some(false),
-            "JetBrains canli olmamali"
+            not_live,
+            vec!["jetbrains", "github-desktop", "discord", "typora"],
+            "yalniz kapanista/ezerek yazanlar canli olmamali"
         );
     }
 

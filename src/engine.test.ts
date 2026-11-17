@@ -15,11 +15,14 @@ import {
   THEME_DWELL_MS,
   applyLearnDelta,
   autoPaletteDue,
+  batteryPlan,
   extendRespect,
   finalTarget,
   isExternalChange,
   isIndependentTurn,
   isIntentTheme,
+  idleDim,
+  isMediaApp,
   paletteForHour,
   palettePhaseLabel,
   isNewMeasurement,
@@ -230,4 +233,43 @@ test("palettePhaseLabel paletle çelişmez (aynı aralıklar)", () => {
   // Bozuk girdi çevrimsel kelepçelenir (23 → 23, 25 → 1, -1 → 23).
   assert.equal(palettePhaseLabel(-1), "gece");
   assert.equal(paletteForHour(25), paletteForHour(1));
+});
+
+// ---------- v3.5: akilli otomasyon ----------
+
+test("idleDim kademeli esikler ve taban 20", () => {
+  assert.equal(idleDim(80, 0), 80);
+  assert.equal(idleDim(80, 599), 80);
+  assert.equal(idleDim(80, 600), 65, "10 dk sonra -15");
+  assert.equal(idleDim(80, 1799), 65);
+  assert.equal(idleDim(80, 1800), 55, "30 dk sonra -25");
+  assert.equal(idleDim(80, 99999), 55);
+  // Taban: 20'nin altina inmez (okunabilirlik).
+  assert.equal(idleDim(25, 3600), 20);
+  assert.equal(idleDim(10, 3600), 20);
+  // Bozuk girdi: base aynen doner (ekrani karartma riski yok).
+  assert.equal(idleDim(80, Number.NaN), 80);
+});
+
+test("batteryPlan esikleri", () => {
+  assert.deepEqual(batteryPlan(80, false), { camEverySec: 300, stepLimit: 8 });
+  assert.deepEqual(batteryPlan(30, false), { camEverySec: 300, stepLimit: 8 });
+  assert.deepEqual(batteryPlan(29, false), { camEverySec: 600, stepLimit: 6 });
+  assert.deepEqual(batteryPlan(20, false), { camEverySec: 600, stepLimit: 6 });
+  assert.deepEqual(batteryPlan(19, false), { camEverySec: 1200, stepLimit: 4 });
+  assert.deepEqual(batteryPlan(10, false), { camEverySec: 1200, stepLimit: 4 });
+  assert.deepEqual(batteryPlan(9, false), { camEverySec: 1800, stepLimit: 3 });
+  // Sarjdayken pil tasarrufu yok:
+  assert.deepEqual(batteryPlan(5, true), { camEverySec: 300, stepLimit: 8 });
+});
+
+test("isMediaApp oynaticilari taniyor", () => {
+  assert.equal(isMediaApp("vlc.exe"), true);
+  assert.equal(isMediaApp("VLX".replace("X", "C") + ".EXE"), true, "buyuk harf kabul");
+  assert.equal(isMediaApp("C:\\Program Files\\VideoLAN\\VLC\\vlc.exe"), true, "tam yol");
+  assert.equal(isMediaApp("mpv.net"), false, "uzanti farkli - .exe aranir");
+  assert.equal(isMediaApp("mpv.exe"), true);
+  assert.equal(isMediaApp("chrome.exe"), false);
+  assert.equal(isMediaApp(""), false);
+  assert.equal(isMediaApp("   "), false);
 });

@@ -73,6 +73,12 @@ Otomatik kurallar:
 - Kameradan yalnız **tek kare** okur; görüntü **diske yazılmaz**, hiçbir yere
   gönderilmez. Bu satır Durum kartında da yazar.
 - Aynı kararı 2 kez onaylamadan değiştirmez (titreşim olmaz).
+- **Boşta kalınca parlaklık düşer**: 10 dk giriş yoksa −15, 30 dk'da −25
+  (taban %20). Kullanıcı dönünce hemen geri gelir.
+- **Pil kademeli**: %30/20/10 altında kamera turu 10/20/30 dk'ya seyrelir,
+  parlaklık adımı küçülür. Şarjdayken kısıt yok.
+- **Video oynatılırken** (VLC, mpv, MPC-HC, PotPlayer, Kodi) sarılık 7 puan
+  azalır — renk sadakati bozulmasın.
 - Gece 00:00–01:30 dışında parlaklığı %0'a çekmez.
 - Kilitliyse / "Sabit" moddaysa / oyun-video-PDF açıkken hiçbir şeye dokunmaz.
 
@@ -107,7 +113,7 @@ kapalı**; Ayarlar → Görünüm → "Uygulama temaları"ndan açılır.
 | **Windows teması** | Explorer, Başlat, Ayarlar ve sistemi takip eden uygulamalar anında döner | ücretsiz |
 | **Windows Terminal** | `settings.json` → `theme`; açık sekmeler yeniden başlatmadan döner | Pro |
 | **VS Code** (Code/Insiders/VSCodium/Cursor/Windsurf) | Tema yazar; **kendi seçtiğin tema hatırlanır**, koyu tura dönünce geri gelir | Pro |
-| **Sublime Text**, **Zed**, **Obsidian**, **JetBrains IDE** | Tema yazar (Obsidian'da tüm kasalar, JetBrains'te tüm kurulu ürünler) | Pro |
+| **Sublime Text**, **Zed**, **Obsidian**, **JetBrains IDE**, **Discord**, **GitHub Desktop**, **Typora** | Tema yazar (Obsidian'da tüm kasalar, JetBrains'te tüm kurulu ürünler) | Pro |
 
 Güvenlik sınırları:
 

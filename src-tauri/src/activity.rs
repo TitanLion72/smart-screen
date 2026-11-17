@@ -40,6 +40,31 @@ pub fn is_shell_host(exe: &str) -> bool {
     SHELL_HOSTS.contains(&exe)
 }
 
+/// Son klavye/fare girdisinden bu yana gecen **saniye**.
+///
+/// Neden gerekli: 20 dakikadir kimse bilgisayara dokunmuyorsa ekranin tam
+/// parlaklikta durmasi gereksiz (goz yorgunlugu + guc). Karar motoru bunu
+/// "bosta" sinyali olarak kullanir.
+///
+/// Hata durumunda **0** doner: "bosta" saymamak guvenli taraftir, yoksa
+/// API bir kez aksarsa ekran sebepsiz kararir.
+pub fn idle_seconds() -> u64 {
+    use windows::Win32::System::SystemInformation::GetTickCount;
+    use windows::Win32::UI::Input::KeyboardAndMouse::{GetLastInputInfo, LASTINPUTINFO};
+
+    let mut info = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    // GetLastInputInfo basarisizsa veya hic girdi yoksa 0 kabul et.
+    if !unsafe { GetLastInputInfo(&mut info) }.as_bool() {
+        return 0;
+    }
+    let now = unsafe { GetTickCount() };
+    // dwTime 32 bit; 49 gunde bir sifirlanir. `saturating_sub` sarmayi keser.
+    u64::from(now.saturating_sub(info.dwTime)) / 1000
+}
+
 /// Windows'un "kullaniciya bildirim gosterme" durumu: on planda gercek bir
 /// tam ekran uygulama (oyun/video/sunum) var mi? Kabuk katmanindaki XAML
 /// pencereleri bu durumu tetiklemez — ayirt edici sinyal burasidir.
@@ -215,5 +240,12 @@ mod tests {
     #[test]
     fn shell_busy_query_does_not_panic() {
         let _ = shell_is_busy();
+    }
+
+    #[test]
+    fn idle_seconds_is_a_sane_number() {
+        // Canli cagri: panik yok, deger 0..=49 gun (32 bit tick siniri).
+        let idle = idle_seconds();
+        assert!(idle < 50 * 24 * 3600, "gercek disi deger: {idle}");
     }
 }
