@@ -464,6 +464,7 @@ function rebuildAppRows(): void {
   const groups: Array<[string, string]> = [
     ["terminal", "Terminaller"],
     ["editor", "Editörler"],
+    ["chat", "Sohbet"],
     ["notes", "Notlar"],
   ];
   const known = new Set(groups.map(([key]) => key));

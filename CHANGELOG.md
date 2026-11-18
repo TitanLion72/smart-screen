@@ -15,6 +15,13 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.5.1] - 2026-11-18
+
+### Fixed
+- **Discord "Diğer" grubunda görünüyordu.** Adaptör `chat` grubunu döndürüyor
+  ama arayüzde karşılığı yoktu; bilinmeyen gruplar "Diğer" başlığına düşüyordu.
+  Artık **Sohbet** başlığı var (Terminaller → Editörler → Sohbet → Notlar).
+
 ## [3.5.0] - 2026-11-18
 
 "Açılış düzeltmesi, akıllı otomasyon, daha çok uygulama"
