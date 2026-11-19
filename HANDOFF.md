@@ -249,7 +249,6 @@ ediyordu). Kısayol öğrenilen ofseti kirletmiyor; `noteExternalBrightness` ile
 DDC) + 33 frontend (+4 `wakeGap`) + QA'da yeni `bright-step` senaryosu.
 
 ## v3.6.1 turu - dersler (2026-11-19)
-
 **Tek iş: boşta dönüşünün dakikalarca sürmesi.** Tur dakikada bir koşuyor ve
 `decide_brightness` adımı en fazla 8 puan. Boşta −25'lik düşüşten sonra kullanıcı
 ekrana döndüğünde parlaklık **dakikalarca** düşük kalıyordu. Çözüm karar yolunda
@@ -268,6 +267,20 @@ Test iki kez yanlış yerde patladı (`%30 → %30`, `rampa 0 adım`) çünkü s
 "Akıllı kip" varsaymıştı. Ayrıca hedef 30'da kalınca boşta kesintisi 20'ye
 kırpılıyor ve tek adım yetiyor — rampa ölçmek için hedefi 85'e çekmek gerekti.
 **Testin ölçtüğü şey ile ölçtüğünü sandığı şey ayrı olabilir.**
+
+**Ders 4 — "tauri build imzaladı" kanıt değil.** `.sig` dosyasının üretilmiş olması,
+yayındaki dosyanın uygulamanın içindeki `pubkey` ile eşleştiğini göstermiyordu; bunu
+denetleyen araç yoktu (`verify-signature.mjs` **Authenticode** sorar, updater'ın
+baktığı minisign/Ed25519 imzasına bakmaz). Yeni `tools/updater-signature.mjs`
+(`npm run verify:updater`) tam olarak updater'ın işini yapar: base64 paketi çöz →
+key id eşleşmesi → BLAKE2b-512 ön-özet üzerinde Ed25519. Bu turda canlı 3.6.1
+dosyası üzerinde geçti; **tek bayt bozulmuş kopya ve yanlış `.sig` reddedildi**
+(negatif test, aracın "her şeye geçerli" demediğinin kanıtı).
+
+**Ders 5 — sessiz ölüm: updater endpoint'i.** `endpoints` sabit bir sürüme
+sabitlenmiş olsaydı kimse güncelleme almazdı ve testler yine yeşil kalırdı.
+`releases/latest/download/latest.json` (sürümden bağımsız) doğrulandı; kurulu
+3.6.1'de Ayarlar → "Güncellemeyi denetle" → **"güncel — son kontrol 21:07"**.
 
 ## Güncel durum: v3.6.1
 

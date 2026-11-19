@@ -16,6 +16,7 @@
     "tauri": "tauri",
     "sign": "node tools/sign-artifacts.mjs",
     "verify:signature": "node tools/verify-signature.mjs",
+    "verify:updater": "node tools/updater-signature.mjs",
     "qa": "cd qa && node run.mjs",
     "qa:audit": "cd qa && node audit-scene.mjs && node audit-templates.mjs && node audit-diagnostics.mjs && node audit-flyout.mjs && node audit-accent.mjs",
     "winget:manifest": "node tools/winget-manifest.mjs",

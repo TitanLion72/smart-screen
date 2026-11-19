@@ -305,6 +305,28 @@ node tools/release-manifest.mjs --version 2.1.0 --notes-file release-notes.md \
 installer için `.sha256` yazar. `latest.json` ve `.sig` dosyaları **release'e yüklenmeli**,
 yoksa otomatik güncelleme çalışmaz.
 
+**Yayından sonra imza kapısı.** `tauri build`'in `.sig` üretmesi "yayındaki dosya
+updater tarafından kabul edilir" demek **değildir**; yanlış anahtar ya da karışmış
+bir yükleme ancak indirirken belli olur. Yayınlanan dosyayı indirip updater'ın
+kendi doğrulamasını koş:
+
+```powershell
+# latest.json + indirilen installer: sürüm, url ve Ed25519 (minisign) imzası
+node tools/updater-signature.mjs --manifest latest.json --file .\indirilen-setup.exe --selftest
+
+# ya da doğrudan .sig dosyasıyla (npm run verify:updater -- <dosya> <sig>)
+node tools/updater-signature.mjs .\indirilen-setup.exe .\setup.exe.sig
+```
+
+`--selftest` aynı koşuda tek baytı bozulmuş bir kopyayı **bellekte** denetler ve
+reddedilmesini şart koşar: "imza geçerli" diyen araç, her şeye geçerli diyen
+araçtan böyle ayrılır (diske bozuk dosya yazmaz).
+
+Çıkış kodu 0 = imza geçerli, 1 = geçersiz, 2 = kullanım/eksik dosya. Bu araç
+**Authenticode sormaz** (`verify:signature` onu yapar); updater'ın baktığı
+`tauri.conf.json` içindeki gömülü `pubkey` ile `.sig` eşleşmesini denetler.
+Yanlış `.sig` de reddedilir (key id aynı olsa bile imza tutmaz).
+
 > **Anahtar yedeği kritik:** `smart-screen-updater.key` kaybolursa mevcut kullanıcılara
 > güncelleme yayınlanamaz. İki kopya tut (biri çevrimdışı); anahtar ve şifresi repoya
 > girmez (`*.key` `.gitignore`'da).
