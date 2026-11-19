@@ -376,3 +376,28 @@ export function wakeGap(prevMs: number, nowMs: number, tickMs: number): boolean 
   // Bir tur + 60 sn pay: yavaş bir tur (kamera, DDC) tek başına tetiklemesin.
   return nowMs - prevMs > tickMs + 60_000;
 }
+
+/**
+ * Boşta dönüşünde hedefe kaç adımda gidileceğini hesaplar.
+ *
+ * Neden: dakikalık tur tek adım (≤8) atıyor; boşta −25'lik düşüşten sonra
+ * kullanıcı ekrana döndüğünde ekran **dakikalarca** karanlık kalıyordu.
+ * Ani sıçrama da istenmiyor ("ekran bir anda parladı"): 3–4 saniyelik
+ * yumuşak rampa en iyisi. `maxSteps` tur süresini kısıtlar
+ * (5 × 700 ms ≈ 3,5 sn).
+ *
+ * Kural: 2 puandan küçük fark için tek adım (gereksiz ara değer yok);
+ * dönüş değeri her zaman `to` ile biter. Bozuk girdi → boş dizi
+ * (yanlış yazmaktansa hiç yazmamak yeğdir).
+ */
+export function rampSteps(from: number, to: number, maxSteps = 5): number[] {
+  if (!Number.isFinite(from) || !Number.isFinite(to)) return [];
+  const a = Math.max(0, Math.min(100, Math.round(from)));
+  const b = Math.max(0, Math.min(100, Math.round(to)));
+  if (a === b) return [];
+  const gap = Math.abs(b - a);
+  const steps = Math.max(1, Math.min(maxSteps, Math.ceil(gap / 2)));
+  const out: number[] = [];
+  for (let i = 1; i <= steps; i++) out.push(Math.round(a + ((b - a) * i) / steps));
+  return out;
+}

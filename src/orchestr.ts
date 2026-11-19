@@ -34,6 +34,7 @@ import {
   learnDelta,
   lightKey,
   medianTone,
+  rampSteps,
   skipReason,
   themeGate,
   wakeGap,
@@ -175,6 +176,9 @@ export interface LightCard {
  * (tek kaynak) — uyanma tespiti bu değere dayanıyor.
  */
 export const TICK_MS = 60 * 1000;
+
+/** Boşta dönüş rampasının adım aralığı (5 adım ≈ 3,5 sn). */
+const IDLE_RAMP_MS = 700;
 
 const CAM_MS = 5 * 60 * 1000;
 /** `decide_level` çıktısını doğrulamak için (Rust `Level::as_str`). */
@@ -1576,6 +1580,38 @@ export async function stepBrightness(delta: number): Promise<void> {
 }
 
 /**
+ * Boşta dönüşü rampası: hedefe ~3,5 saniyede, 5 küçük adımla döner.
+ *
+ * Neden burada, `decide_brightness`'ta değil: tur dakikada bir çalışıyor.
+ * Karar yoluna bırakılsa −25'lik boşta düşüşünden sonra kullanıcı ekrana
+ * döndüğünde parlaklık dakikalarca düşük kalıyordu. Ani sıçrama da yok.
+ *
+ * Dönen değer son yazılan parlaklık; ilk adımda hata olursa `null`.
+ * Her adımda `lastWritten` güncellenir — döngü bunu dış müdahale sanmasın.
+ */
+async function rampBrightnessTo(target: number, from: number): Promise<number | null> {
+  const steps = rampSteps(from, target);
+  if (steps.length === 0) return null;
+  let last: number | null = null;
+  for (let i = 0; i < steps.length; i++) {
+    try {
+      const verified = await invoke<number>("brightness_set", { value: steps[i] });
+      last = Math.round(verified || steps[i]);
+      S.lastAppliedBright = last;
+      S.lastWritten = { value: last, at: Date.now() };
+      render();
+    } catch (e) {
+      log("boşta dönüş parlaklığı yazılamadı: " + String(e), "warn");
+      return last;
+    }
+    if (i < steps.length - 1) {
+      await new Promise((r) => setTimeout(r, IDLE_RAMP_MS));
+    }
+  }
+  return last;
+}
+
+/**
  * stabilite (a): tur sürerken gelen istek tek "son istek" olarak kuyruğa
  * alınır; tur bitince bir kez koşar. Böylece iç içe turlar yarışmaz.
  */
@@ -1958,6 +1994,8 @@ async function runTick(reason: string): Promise<void> {
     // kilitli/dondurulmuş değilken — o durumlarda kullanıcı niyeti ya da
     // oyun/video kuralı öndedir. `skip` için ön okuma gerekiyor, o yüzden
     // parlaklık okumasından SONRA.
+    // Boşta dönüşünde hedefe yumuşak rampa için (v3.6.1).
+    let idleReturn: number | null = null;
     if (
       S.mode === "auto" &&
       !S.locked &&
@@ -1974,6 +2012,7 @@ async function runTick(reason: string): Promise<void> {
         target = dimmed;
       } else if (S.idleDimmed) {
         S.idleDimmed = false;
+        idleReturn = target;
         log("kullanıcı döndü — parlaklık hedefi geri alındı", "ok");
       }
     }
@@ -2091,7 +2130,19 @@ async function runTick(reason: string): Promise<void> {
     // Harici monitörler yalnız yazma serbestken ve yazılan değerle beslenir;
     // hedefe sıçratmak dış ekranda ani parlaklık demekti.
     if (!effFixed && !skip && !respected && wroteBright) {
-      await applyAutoMonitors(appliedNow).catch(() => undefined);
+      // Harici monitörlere bu turun İLK adımı gider (sıçratma yok); dahili
+      // panel ise aşağıdaki rampayla hedefe ~3,5 sn'de döner.
+      const monitorStep = appliedNow;
+      if (idleReturn !== null) {
+        const final = await rampBrightnessTo(idleReturn, monitorStep);
+        if (final !== null) {
+          if (final !== monitorStep) {
+            log(`boşta dönüşü: parlaklık %${monitorStep} → %${final}`, "ok");
+          }
+          appliedNow = final;
+        }
+      }
+      await applyAutoMonitors(monitorStep).catch(() => undefined);
     }
 
     const note = bound

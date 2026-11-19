@@ -440,7 +440,7 @@ Kayıt defteri canlı doğrulandı: `"...\AppData\Local\smart-screen\smart-scree
 
 ---
 
-## 19. `[~]` v3.6.0 "kanayan yaralar" (piyasa analizi)
+## 19. `[x]` v3.6.0 "kanayan yaralar" (piyasa analizi)
 
 **Kaynak:** [`REKABET-v3.6.md`](REKABET-v3.6.md) — rakiplerin **açık** şikâyetleri
 (Twinkle Tray 615 issue, Monitorian/LightBulb uyku sonrası kalıcılık, HDR'da
@@ -455,12 +455,26 @@ parlaklık) kodda doğrulandı.
    tekerleği olayı **yok**, doğrulandı — en yakın gerçek ihtiyaç buydu).
 5. **winget hazırlığı:** manifest üreteci + `WINGET.md`.
 
-**Kapsam dışı bırakılanlar (kanıtlı):** tepside fare tekerleği (API yok), boşta
-dönüşünü yumuşatma (zaten 3–8 puanlık adımlar), Night Light blob yazma (sürüm
-kırılgan).
+**Kapsam dışı bırakılanlar (kanıtlı):** tepside fare tekerleği (API yok), Night
+Light blob yazma (sürüm kırılgan).
 
 **Kabul:** 331 Rust + 33 frontend testi, `qa/run.mjs`, 6 audit, clippy/fmt,
 `npm run verify`. Canlı: uyku/uyanma ve global kısayol kurulu exe'de doğrulanır.
+
+---
+
+## 19b. `[x]` v3.6.1 "boşta dönüşü" (v3.6.0'ın açık kalan E5'i)
+
+REKABET §5/E5'te "P2" diye ertelenmişti; v3.6.0 turunda kapsam dışı bırakılma
+gerekçesi ("zaten 3-8 puanlık adımlarla gidiyor") **yanlıştı**: adımlar küçük ama
+**tur dakikada bir**, yani −25'lik düşüşten sonra dönüş dakikalarca sürüyordu.
+
+**Yapılan:** `engine.rampSteps` (en fazla 5 adım, son adım hedefin kendisi, 0-100
+kelepçesi, bozuk girdide boş dizi) + `orchestr.rampBrightnessTo` (700 ms aralık,
+her adımda `lastWritten` güncellemesi). Harici monitörlere ek yazma yok.
+
+**Kabul:** 37 frontend testi (+4 `rampSteps`), QA'da yeni `bosta` senaryosu
+(gerçek çok adımlı rampa ölçüyor: ≥3 farklı değer), 331 Rust, 6 audit, verify.
 
 ---
 
@@ -468,8 +482,10 @@ kırılgan).
 
 1. `[ ]` **Site yenileme** — kullanıcı kararı: "sonra planlarız". Kapsam: ürün
    sayfası, ekran görüntüleri, fiyat bölümü, SSS. Release akışından bağımsız.
-2. `[ ]` **winget PR** — `wingetcreate submit` (inceleme süresi bizim kontrolümüzde
-   değil; `WINGET.md`).
+2. `[~]` **winget PR** - PR **açık** (microsoft/winget-pkgs#484203, `Needs-CLA`).
+   Üç dosya fork'ta `smart-screen-3.6.0` dalında. 3.6.1 manifestleri de hazır
+   (`winget/manifests/.../3.6.1/`, `winget validate` PASS) — ilk paket birleşince
+   güncelleme PR'ı olarak verilir. CLA onayı hesap sahibinde.
 3. `[ ]` **Microsoft Store (MSIX)** — kullanıcı kararı: "daha sonra".
 4. `[ ]` **Pro fiyatı** — kullanıcı kararı: "en son". Çıpa: Iris $15 · CareUEyes
    $24.90 ömürlük · DisplayFusion $34 → üst sınır ~$35.

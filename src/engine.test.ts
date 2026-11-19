@@ -29,6 +29,7 @@ import {
   learnAllowed,
   learnDelta,
   medianTone,
+  rampSteps,
   readableTarget,
   skipReason,
   themeGate,
@@ -308,4 +309,38 @@ test("wakeGap bozuk girdide false", () => {
   assert.equal(wakeGap(Number.NaN, 999_999, 60_000), false);
   assert.equal(wakeGap(0, Number.NaN, 60_000), false);
   assert.equal(wakeGap(0, 999_999, Number.NaN), false);
+});
+
+// ---------- v3.6.1: boşta dönüş rampası ----------
+
+test("rampSteps hedefe ulaşır ve monoton ilerler", () => {
+  const up = rampSteps(58, 83);
+  assert.equal(up.length, 5, "en fazla 5 adım");
+  assert.equal(up.at(-1), 83, "son adım hedefin kendisi");
+  assert.ok(up[0] > 58, "ilk adım yukarı");
+  for (let i = 1; i < up.length; i++) assert.ok(up[i] > up[i - 1], "monoton artan");
+
+  const down = rampSteps(80, 60);
+  assert.equal(down.at(-1), 60);
+  for (let i = 1; i < down.length; i++) assert.ok(down[i] < down[i - 1], "monoton azalan");
+});
+
+test("rampSteps küçük farkta tek adım", () => {
+  // 2 puanlık fark için 5 ara değer üretmek anlamsız gürültü olurdu.
+  assert.deepEqual(rampSteps(58, 60), [60]);
+  assert.deepEqual(rampSteps(58, 59), [59]);
+  assert.deepEqual(rampSteps(58, 58), [], "fark yoksa yazma yok");
+});
+
+test("rampSteps üst sınırı aşmaz ve 0-100 aralığında kalır", () => {
+  const wide = rampSteps(0, 100);
+  assert.equal(wide.length, 5);
+  assert.equal(wide.at(-1), 100);
+  assert.ok(wide.every((v) => v >= 0 && v <= 100));
+  assert.deepEqual(rampSteps(10, 90, 1), [90], "maxSteps=1 tek adım");
+});
+
+test("rampSteps bozuk girdide boş dizi", () => {
+  assert.deepEqual(rampSteps(Number.NaN, 60), []);
+  assert.deepEqual(rampSteps(50, Number.POSITIVE_INFINITY), []);
 });

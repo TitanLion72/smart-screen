@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.6.0, 2026-11-19)
+# HANDOFF - smart-screen (güncel: v3.6.1, 2026-11-19)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -248,7 +248,28 @@ ediyordu). Kısayol öğrenilen ofseti kirletmiyor; `noteExternalBrightness` ile
 **Yeni kapılar:** 331 Rust (4 yeni: kısayol ayrıştırma, HDR ipucu, geçici/kalıcı
 DDC) + 33 frontend (+4 `wakeGap`) + QA'da yeni `bright-step` senaryosu.
 
-## Güncel durum: v3.6.0
+## v3.6.1 turu - dersler (2026-11-19)
+
+**Tek iş: boşta dönüşünün dakikalarca sürmesi.** Tur dakikada bir koşuyor ve
+`decide_brightness` adımı en fazla 8 puan. Boşta −25'lik düşüşten sonra kullanıcı
+ekrana döndüğünde parlaklık **dakikalarca** düşük kalıyordu. Çözüm karar yolunda
+değil turda: dönüş algılandığında `rampSteps` ile 5 küçük adım, 700 ms aralıkla
+(≈3,5 sn). Ani sıçrama yok, 2 puandan küçük farkta tek adım.
+
+**Ders 1 — "yumuşatma"yı `decide.rs`'e koymak işe yaramaz.** Oranın zaman
+çözünürlüğü bir tur = 60 sn. Rampa turun içinde, yazma yolunda olmalı.
+
+**Ders 2 — rampa kendi `lastWritten`'ını güncellemeli.** Yoksa döngü kendi
+adımlarını "dış müdahale" sanıp 15 dk saygı penceresi açar ve otomasyon susar.
+
+**Ders 3 — QA senaryosu kendi önkoşulunu kurmalı.** Aynı `scenario` bloğunda
+önceki adım "Sabit" kipe geçmişti; sabit kipte `runTick` parlaklığa hiç dokunmaz.
+Test iki kez yanlış yerde patladı (`%30 → %30`, `rampa 0 adım`) çünkü senaryo
+"Akıllı kip" varsaymıştı. Ayrıca hedef 30'da kalınca boşta kesintisi 20'ye
+kırpılıyor ve tek adım yetiyor — rampa ölçmek için hedefi 85'e çekmek gerekti.
+**Testin ölçtüğü şey ile ölçtüğünü sandığı şey ayrı olabilir.**
+
+## Güncel durum: v3.6.1
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

@@ -15,6 +15,20 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.6.1] - 2026-11-19
+
+"Boşta dönüşü artık dakikalar değil saniyeler sürüyor"
+
+### Fixed
+- **Boşta dönüşünde ekran dakikalarca karanlık kalıyordu.** Boşta kalınca hedef
+  −15 (30 dk üstünde −25) düşüyor; kullanıcı döndüğünde eski yol dakikada bir
+  tur başına en fazla 8 puan yükseldiği için parlaklık **dakikalarca** düşük
+  kalıyordu. Dönüş artık 5 küçük adımda ~3,5 saniyede hedefe çıkıyor
+  (`engine.rampSteps` + `orchestr.rampBrightnessTo`); adımlar 700 ms aralıkla
+  yazılır, her adım `lastWritten`'ı günceller (dış müdahale sanılmaz). Fark 2
+  puandan küçükse tek adım — gereksiz ara değer yok. Harici monitörlere yine
+  turun ilk değeri gider (DDC/CI üzerinde ek yazma yapılmaz).
+
 ## [3.6.0] - 2026-11-19
 
 "Uyanma sonrası kalıcılık, HDR dürüstlüğü, global kısayol"

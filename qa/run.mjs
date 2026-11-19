@@ -85,6 +85,8 @@ window.__target = ["vesper", "dark", 30];
 // Parlaklık durumu: yazınca okunan değer de değişir (gerçek WMI gibi),
 // böylece kademeli adım kuralı QA'de de sınanır.
 window.__bright = 42;
+// Boşta süresi: idleDim senaryosu 900 yapıp geri alır (v3.6.1).
+window.__idle = 0;
 // Sicak ton rampa durumu: __warmReject = surucu yazimi yutuyor senaryosu.
 window.__warm = 0;
 window.__warmReject = false;
@@ -196,7 +198,7 @@ window.__TAURI_INTERNALS__ = {
       case "license_deactivate":
         window.__licPro = false;
         return { pro: false, email: null, issued: null };
-      case "idle_seconds": return 0;
+      case "idle_seconds": return window.__idle ?? 0;
         case "battery_status": return [85, true];
       case "nightlight_status": return null;
       // v3.3: uygulama temalari. Sabit liste: 2 kurulu + 1 kurulu degil.
@@ -1856,6 +1858,66 @@ async function run() {
       // İpucu metni gerçeği söylemeli: kullanıcı kısayolu nereden bilsin?
       const hint = await text(page, "#shortcut-hint");
       check(hint.includes("parlaklık"), "kisayol", `kısayol ipucu parlaklığı anmıyor: "${hint}"`);
+
+      // ── Boşta dönüş rampası (v3.6.1) ──
+      // 15 dk boşta → hedef düşer; kullanıcı döner → hedef geri gelir.
+      // Eski davranış tek adım/dk olduğu için ekran dakikalarca karanlık
+      // kalıyordu; yeni yol 5 adımda ~3,5 sn'de dönmeli.
+      //
+      // DİKKAT: önceki senaryo "Sabit" kipe geçmiş olabilir; sabit kipte tur
+      // parlaklığa hiç dokunmaz (runTick erken döner). Akıllı kipe dönmeden
+      // bu senaryo sessizce hiçbir şey ölçmez. Kip kartları Ayarlar'da.
+      await openTab("settings");
+      await page.locator("#mode-seg .seg-item").nth(0).click();
+      await page.waitForTimeout(400);
+      check(
+        (await text(page, "#mode-pill")) === "Akıllı",
+        "bosta",
+        `Akıllı kipe dönülemedi: "${await text(page, "#mode-pill")}"`,
+      );
+      // Hedefi 85'e çek ama parlaklığı oraya OTURTMA (snap yok): dönüşte
+      // gerçek bir boşluk kalsın, rampa birden çok adım atasın. Hedef 30'da
+      // kalsaydı boşta kesintisi 20'ye kırpılır ve tek adım yeterdi — test
+      // rampayı değil karar adımını ölçerdi.
+      await page.evaluate(() => {
+        window.__target = ["vesper", "dark", 85];
+      });
+      await page.evaluate(() => {
+        window.__idle = 900;
+      });
+      await page.evaluate(() => window.__emit("ss:action", { action: "measure" }));
+      await page.waitForTimeout(900);
+      const dimmedBy = await page.evaluate(() => window.__bright);
+      await page.evaluate(() => {
+        window.__idle = 0;
+      });
+      const rampMark = (await invocations()).length;
+      await page.evaluate(() => window.__emit("ss:action", { action: "measure" }));
+      await page.waitForTimeout(4500);
+      const rampWrites = (await invocations())
+        .slice(rampMark)
+        .filter(([c]) => c === "brightness_set")
+        .map(([, a]) => a && a.value);
+      const afterReturn = await page.evaluate(() => window.__bright);
+      check(
+        afterReturn > dimmedBy,
+        "bosta",
+        `dönüşte parlaklık yükselmedi: %${dimmedBy} → %${afterReturn}`,
+      );
+      check(
+        rampWrites.length >= 3,
+        "bosta",
+        `rampa çok az adımda (${rampWrites.length}): ${JSON.stringify(rampWrites)}`,
+      );
+      check(
+        new Set(rampWrites).size >= 3,
+        "bosta",
+        `rampa tek değere sıkıştı: ${JSON.stringify(rampWrites)}`,
+      );
+      // Sonraki adımlar (yedek) bu sayfada devam ediyor: hedefi geri koy.
+      await page.evaluate(() => {
+        window.__target = ["vesper", "dark", 30];
+      });
 
       // ── Yedek alma: tüm ss:* anahtarları tek JSON'da ──
       // Önce bir anahtarın GERÇEKTEN var olduğundan emin ol: varsayılanlar
