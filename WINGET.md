@@ -46,6 +46,14 @@ winget validate --manifest winget\manifests\t\TitanLion72\smart-screen\3.6.0
 > bakımcıları inceler; birkaç gün sürebilir, değişiklik isteyebilir.
 > "Yayınladım" demek için birleşmiş PR'ı görmek gerekir.
 
+> **Token tuzağı (yaşandı):** fine-grained PAT ile `wingetcreate submit`
+> `Resource not accessible by personal access token` (403) verir — fine-grained
+> token'lar sahibi olmadığın **public** repolara yazamaz. Gerekli olan classic
+> token'da `public_repo` yetkisidir (`gh auth refresh -s public_repo`). Alternatif:
+> fork dalını hazırlayıp PR'ı web'den açmak —
+> `https://github.com/microsoft/winget-pkgs/compare/master...<kullanıcı>:<dal>?expand=1`.
+> Ayrıca Microsoft CLA'sını PR sahibi hesabın imzalaması gerekir.
+
 ## Sonraki sürümler
 
 Aynı akış: yeni sürüm yayınla → `node tools/winget-manifest.mjs --version X` →
