@@ -355,3 +355,24 @@ export function isMediaApp(exe: string): boolean {
   const name = exe.trim().toLowerCase().split(/[\\/]/).pop() ?? "";
   return MEDIA_APPS.has(name);
 }
+
+/**
+ * İki tur arasındaki boşluk "normalden uzun" mu? Yani sistem uyudu mu?
+ *
+ * Neden gerekli: uyku sırasında zamanlayıcılar durur. Uyanınca ilk tur
+ * normalden çok sonra gelir — bu, sürücünün gamma rampasını/parlaklığı
+ * sıfırlamış olabileceğinin tek güvenilir işaretidir (Tauri'de güç olayı
+ * dinleme API'si yok). Bozuk girdide `false`: yanlış kurtarma yapmaktansa
+ * hiç yapmamak yeğdir.
+ */
+export function wakeGap(prevMs: number, nowMs: number, tickMs: number): boolean {
+  if (!Number.isFinite(prevMs) || !Number.isFinite(nowMs) || !Number.isFinite(tickMs)) {
+    return false;
+  }
+  // Açılışta `lastAct` henüz 0'dır: ilk tur "uykudan dönüş" değildir.
+  if (prevMs <= 0) return false;
+  // Saat geri alındıysa (NTP düzeltmesi) uyku sayma.
+  if (nowMs <= prevMs) return false;
+  // Bir tur + 60 sn pay: yavaş bir tur (kamera, DDC) tek başına tetiklemesin.
+  return nowMs - prevMs > tickMs + 60_000;
+}

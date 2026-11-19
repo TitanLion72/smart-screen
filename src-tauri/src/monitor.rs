@@ -124,17 +124,47 @@ pub fn set_brightness_checked(
         return Err("harici monitör kontrolü Pro lisans gerektirir".to_string());
     }
     write_value(m, value, snap.monitors.len() == 1)
+        .map_err(|e| with_hdr_hint(e, crate::hdr::is_hdr(&m.device)))
+}
+
+/// Hata metnine HDR bağlamı ekler.
+///
+/// Neden: HDR açıkken bazı monitörler DDC/CI parlaklık yazmayı reddeder
+/// (Windows'ta bilinen davranış; twinkle-tray#97 altında 90+ yorum). Kullanıcı
+/// yalnız "yazılamadı" görürse parlaklığın bozuk olduğunu sanıyor. Sebebi
+/// söylemek, çözümü de söylemek demek: HDR'ı kapat ya da monitör OSD'sini kullan.
+///
+/// HDR kapalıyken metin **aynen** kalır — mevcut hata mesajlarına dokunmuyoruz.
+fn with_hdr_hint(err: String, hdr: bool) -> String {
+    if !hdr {
+        return err;
+    }
+    format!("{err} (HDR açık: bu monitör DDC/CI parlaklığını reddedebilir)")
 }
 
 /// Dahili panel WMI'ya, harici monitor DDC'ye yazar; DDC hatasinda tek
 /// monitörlü kurulumda son sans olarak WMI'ya duser.
+///
+/// v3.6: DDC hatasi **bir kez** yeniden denenir. Neden: monitör uyanırken,
+/// HDR geçişinde veya sürücü meşgulken DDC geçici olarak cevap vermiyor
+/// (twinkle-tray#1187, 342 açık issue). Tek denemede vazgeçmek o turun
+/// parlaklığını kaybettiriyordu.
 fn write_value(m: &RawMonitor, value: u8, single: bool) -> Result<(), String> {
     if m.is_internal {
         return crate::brightness::set_brightness(value).map(|_| ());
     }
-    match ddc_set_brightness(m, value) {
+    let ddc = match ddc_set_brightness(m, value) {
+        Ok(()) => return Ok(()),
+        Err(e) if should_retry(&e) => {
+            std::thread::sleep(std::time::Duration::from_millis(120));
+            ddc_set_brightness(m, value)
+        }
+        Err(e) => Err(e),
+    };
+    match ddc {
         Ok(()) => Ok(()),
         Err(e) => {
+            // Tek monitörlü kurulumda WMI son şans (dahili panel sanılmış olabilir).
             if single {
                 crate::brightness::set_brightness(value)
                     .map(|_| ())
@@ -144,6 +174,15 @@ fn write_value(m: &RawMonitor, value: u8, single: bool) -> Result<(), String> {
             }
         }
     }
+}
+
+/// DDC yazımı yeniden denenmeli mi?
+///
+/// Geçici hatalar (meşgul, uyanıyor, zaman aşımı) denenir; kalıcı olanlar
+/// (fiziksel tanıtıcı yok, Pro kapısı) denenmez — ikinci deneme sonucu
+/// değiştirmez, yalnız turu yavaşlatır.
+fn should_retry(err: &str) -> bool {
+    !(err.contains("tanıtıcı") || err.contains("Pro lisans"))
 }
 
 fn api_name(is_internal: bool) -> &'static str {
@@ -524,6 +563,38 @@ mod tests {
     fn api_name_splits_on_internal() {
         assert_eq!(api_name(true), "wmi");
         assert_eq!(api_name(false), "ddc");
+    }
+
+    #[test]
+    fn hdr_hint_only_added_when_hdr_is_on() {
+        let plain = "DDC/CI bu monitörde çalışmıyor - parlaklık yazılamadı (kod 31)".to_string();
+        // HDR kapalı: metin AYNEN kalmalı (regression yok).
+        assert_eq!(with_hdr_hint(plain.clone(), false), plain);
+        // HDR açık: orijinal metin korunur + sebep eklenir.
+        let hinted = with_hdr_hint(plain.clone(), true);
+        assert!(hinted.starts_with(&plain), "orijinal metin kaybolmamalı");
+        assert!(hinted.contains("HDR"), "sebep görünmeli: {hinted}");
+        // Boş metin bozulmaz.
+        assert!(with_hdr_hint(String::new(), true).contains("HDR"));
+    }
+
+    #[test]
+    fn transient_ddc_errors_are_retried() {
+        // Meşgul/uyanıyor/zaman aşımı: geçici → yeniden dene.
+        assert!(should_retry(
+            "DDC/CI bu monitörde çalışmıyor - parlaklık yazılamadı (kod 31)"
+        ));
+        assert!(should_retry("parlaklık okunamadı (kod 0)"));
+        assert!(should_retry("monitör parlaklık aralığı geçersiz"));
+    }
+
+    #[test]
+    fn permanent_ddc_errors_are_not_retried() {
+        // Donanım yok / kapı: ikinci deneme sonucu değiştirmez.
+        assert!(!should_retry("monitörde fiziksel DDC tanıtıcısı yok"));
+        assert!(!should_retry(
+            "harici monitör kontrolü Pro lisans gerektirir"
+        ));
     }
 
     #[test]

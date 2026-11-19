@@ -48,7 +48,8 @@ kullanabilirsin.
 verinin cihazda kaldığı); "Anladım" deyince bir daha görünmez.
 
 Kısayollar (pencere odaklıyken): **Ctrl+Alt+M** ölç · **Ctrl+Alt+P** duraklat ·
-**Ctrl+Alt+L** kilit.
+**Ctrl+Alt+L** kilit. Her yerde çalışan: **Ctrl+Alt+↑ / Ctrl+Alt+↓** parlaklık ±5
+(flyout kapalıyken de).
 
 Her eylem geri bildirim verir: kaydet/sil/etkinleştir gibi işlemlerde **toast** çıkar,
 silme ve kayıt temizlemede **Geri al** sunulur; yalnız kaydırıcı ve anında görünen

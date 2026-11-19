@@ -24,7 +24,7 @@ import { getSetting, setSetting } from "./store";
 import { toast } from "./toast";
 import { PURCHASE_URL, DESIGN_THEMES } from "./catalog";
 
-const WATCH_MS = 60 * 1000;
+const WATCH_MS = O.TICK_MS;
 /** Canlı saat + gün şeridi imleci: tur dışında hafif tazeleme. */
 const CLOCK_MS = 30 * 1000;
 /** İlk güncelleme kontrolü açılıştan 10 sn sonra, sonra 24 saatte bir. */
@@ -310,6 +310,12 @@ function wireFlyoutBridge(): void {
       // bir sonraki ss:state/ini render slider'ı eski değere geri çekmesin.
       if (typeof ev.payload?.value === "number") {
         O.noteExternalBrightness(ev.payload.value);
+      }
+    } else if (action === "bright-step") {
+      // Global kısayol (Ctrl+Alt+↑/↓): ±5. Otomatik kontrolü kapatmaz,
+      // öğrenilen ofseti de değiştirmez — yalnız o anki değeri kaydırır.
+      if (typeof ev.payload?.value === "number") {
+        void O.stepBrightness(ev.payload.value);
       }
     } else if (action === "open-main") {
       void mainWin

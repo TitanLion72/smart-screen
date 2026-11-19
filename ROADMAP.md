@@ -440,6 +440,43 @@ Kayıt defteri canlı doğrulandı: `"...\AppData\Local\smart-screen\smart-scree
 
 ---
 
+## 19. `[~]` v3.6.0 "kanayan yaralar" (piyasa analizi)
+
+**Kaynak:** [`REKABET-v3.6.md`](REKABET-v3.6.md) — rakiplerin **açık** şikâyetleri
+(Twinkle Tray 615 issue, Monitorian/LightBulb uyku sonrası kalıcılık, HDR'da
+parlaklık) kodda doğrulandı.
+
+**Yapılanlar:**
+1. **Uyanma kurtarma:** `wakeGap` + dönüşte monitör tazeleme + sarılık zorla yazma.
+2. **HDR dürüstlüğü:** parlaklık reddedilirse hata sebebi söyleniyor; tanılama satırı
+   HDR'ın parlaklığı da etkilediğini yazıyor.
+3. **DDC geri kazanma:** geçici hatada tek yeniden deneme (120 ms), kalıcı hatada yok.
+4. **Global kısayol:** Ctrl+Alt+↑/↓ ile her yerde parlaklık (Tauri v2'de tepsi
+   tekerleği olayı **yok**, doğrulandı — en yakın gerçek ihtiyaç buydu).
+5. **winget hazırlığı:** manifest üreteci + `WINGET.md`.
+
+**Kapsam dışı bırakılanlar (kanıtlı):** tepside fare tekerleği (API yok), boşta
+dönüşünü yumuşatma (zaten 3–8 puanlık adımlar), Night Light blob yazma (sürüm
+kırılgan).
+
+**Kabul:** 331 Rust + 33 frontend testi, `qa/run.mjs`, 6 audit, clippy/fmt,
+`npm run verify`. Canlı: uyku/uyanma ve global kısayol kurulu exe'de doğrulanır.
+
+---
+
+## Sıradaki işler (kararlaştırılmış sıra)
+
+1. `[ ]` **Site yenileme** — kullanıcı kararı: "sonra planlarız". Kapsam: ürün
+   sayfası, ekran görüntüleri, fiyat bölümü, SSS. Release akışından bağımsız.
+2. `[ ]` **winget PR** — `wingetcreate submit` (inceleme süresi bizim kontrolümüzde
+   değil; `WINGET.md`).
+3. `[ ]` **Microsoft Store (MSIX)** — kullanıcı kararı: "daha sonra".
+4. `[ ]` **Pro fiyatı** — kullanıcı kararı: "en son". Çıpa: Iris $15 · CareUEyes
+   $24.90 ömürlük · DisplayFusion $34 → üst sınır ~$35.
+5. `[ ]` **Kod imzalama** — sertifika başvurusu kullanıcıya bağlı (`CODE-SIGNING.md`).
+
+---
+
 ## Yapılmayacaklar (bilinçli)
 
 - Kamera dışı ortam ışığı (ALS yok, doğrulandı).

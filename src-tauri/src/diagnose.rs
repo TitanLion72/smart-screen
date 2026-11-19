@@ -226,8 +226,11 @@ pub fn hdr_check(infos: &[hdr::HdrInfo]) -> Check {
             "hdr",
             "HDR",
             "warn",
-            format!("{} monitörde açık — orada sıcak ton uygulanmaz", on.len()),
-            "Windows Ayarlar → Ekran → HDR'ı kapat; sıcak ton ancak HDR kapalıyken çalışır.",
+            format!(
+                "{} monitörde açık — orada sıcak ton ve DDC/CI parlaklık reddedilebilir",
+                on.len()
+            ),
+            "Windows Ayarlar → Ekran → HDR'ı kapat; sıcak ton ve harici parlaklık ancak HDR kapalıyken güvenilir.",
         )
     }
 }
@@ -570,6 +573,12 @@ mod tests {
         }]);
         assert_eq!(open.status, "warn");
         assert!(open.detail.contains("açık"));
+        // Dürüstlük: HDR yalnız sarılığı değil DDC/CI parlaklığını da etkiler.
+        assert!(
+            open.detail.contains("parlaklık"),
+            "HDR uyarısı parlaklığı da anmalı: {}",
+            open.detail
+        );
 
         let shut = hdr_check(&[hdr::HdrInfo {
             device: "\\\\.\\DISPLAY1".into(),

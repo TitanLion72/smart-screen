@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.5.0, 2026-11-18)
+# HANDOFF - smart-screen (güncel: v3.6.0, 2026-11-19)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -215,7 +215,40 @@ testi.
 ve hiçbir dosya yazmadı. Bu turda işleri sırayla kendim yaptım — kesilen ajan
 çıktısına güvenmek yerine `git status` ile doğrulamak doğru karardı.
 
-## Güncel durum: v3.5.0
+## v3.6.0 turu - dersler (2026-11-19)
+
+**Hedef rakip değil, rakiplerin yarasıydı.** `REKABET-v3.6.md` beş paralel
+araştırma + GitHub API teyidiyle yazıldı; en sık açık şikâyetler: (1) uyku
+sonrası parlaklığın/gamma'nın sıfırlanması, (2) HDR açıkken parlaklığın
+çalışmaması ve sebebinin söylenmemesi, (3) DDC/CI'nin tek hatada düşmesi.
+Üçü de bizim kodumuzda **doğrulandı**, sonra kapatıldı.
+
+**Ders 1 — "güç olayı dinle" kolay değil.** Tauri v2'de `WM_POWERBROADCAST`
+için hazır API yok; fractional `windows` crate'e yeni feature eklemek yerine
+**zaman boşluğu** sinyali kullanıldı (`wakeGap`: tur aralığı + 60 sn). Açılış
+`lastAct=0` özel durumu testle kilitlendi — yoksa her açılışta gereksiz
+kurtarma olurdu.
+
+**Ders 2 — hata metni bir özelliktir.** HDR açıkken DDC yazımı reddedilirse
+kullanıcı "bozuk" sanıyordu. Metin artık sebebi söylüyor; HDR kapalıyken metin
+**aynen** kalıyor (regresyon testi bunu bekliyor). Dürüstlük, yeni özellikten
+ucuz.
+
+**Ders 3 — yeniden deneme seçici olmalı.** DDC hatasında körlemesine retry
+kalıcı hatada turu yavaşlatır. `should_retry` yalnız geçici hataları (meşgul/
+uyanıyor/zaman aşımı) dener; "fiziksel tanıtıcı yok" ve "Pro kapısı" denenmez.
+
+**Ders 4 — tepsi tekerleği Tauri v2'de yok.** `TrayIconEvent` kaynağı okundu:
+`Click`/`DoubleClick`/`Enter`/`Move`/`Leave` var, `Scroll` **yok**. Planlanan
+tekerlek özelliği iptal edildi, yerine gerçek boşluk kapatıldı: global
+`Ctrl+Alt+↑/↓` (eski kısayollar yalnız pencere odaklıydı, README "global" ima
+ediyordu). Kısayol öğrenilen ofseti kirletmiyor; `noteExternalBrightness` ile
+"bizim yazımız" işaretleniyor.
+
+**Yeni kapılar:** 331 Rust (4 yeni: kısayol ayrıştırma, HDR ipucu, geçici/kalıcı
+DDC) + 33 frontend (+4 `wakeGap`) + QA'da yeni `bright-step` senaryosu.
+
+## Güncel durum: v3.6.0
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

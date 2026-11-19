@@ -52,6 +52,7 @@ use prefs::{
 use tauri::menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{AppHandle, Emitter, Manager, Position, Rect, Size, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use theme::{get_theme, set_theme};
 
 /// Bloklayici isi arka plan is parcaciginda calistirir; komutlar ana
@@ -292,6 +293,36 @@ fn show_main(app: &AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
         let _ = w.show();
         let _ = w.set_focus();
+    }
+}
+
+/// Global parlaklık kısayolları ve adımları. Tek kaynak: `register_brightness_shortcuts`
+/// ve ayrıştırma testi bu diziyi okur; ikisi ayrışırsa test kırılır.
+const BRIGHT_STEPS: [(&str, i32); 2] = [("Ctrl+Alt+Up", 5), ("Ctrl+Alt+Down", -5)];
+
+/// Global parlaklık kısayolları: `Ctrl+Alt+↑` / `Ctrl+Alt+↓` (±5).
+///
+/// Neden: flyout kapalıyken parlaklığı değiştirmenin yolu yoktu; eski
+/// `Ctrl+Alt+M/P/L` yalnız ana pencere odaktayken çalışıyordu. Kayıt
+/// başarısız olursa (kombinasyonu başka uygulama kapmış olabilir) uygulama
+/// düşmez — yalnız loglanır ve kısayol sessizce yok sayılır.
+fn register_brightness_shortcuts(app: &AppHandle) {
+    for (accel, delta) in BRIGHT_STEPS {
+        let payload = serde_json::json!({ "action": "bright-step", "value": delta });
+        let result = app
+            .global_shortcut()
+            .on_shortcut(accel, move |app, _shortcut, event| {
+                // Yalnız basılışta: bırakılış ikinci bir adım saymamalı.
+                if event.state != ShortcutState::Pressed {
+                    return;
+                }
+                if let Err(e) = app.emit("ss:action", payload.clone()) {
+                    log_setup_error("kısayol olayı", &e.to_string());
+                }
+            });
+        if let Err(e) = result {
+            log_setup_error(&format!("global kısayol {accel}"), &e.to_string());
+        }
     }
 }
 
@@ -799,6 +830,8 @@ pub fn run() {
         // diyalog yalnız yol seçer.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // Global parlaklık kısayolları (T4): flyout kapalıyken de çalışır.
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .setup(|app| {
             // Kendi goz konforu temalarimizi kur (eksikse), sonra onceki
             // oturumdan kalma sicak tonu temizle (crash sonrasi). Hatalar
@@ -1049,6 +1082,9 @@ pub fn run() {
                     }
                 })
                 .build(app)?;
+            // Tray hazır olduktan sonra global kısayolları kur; hata uygulamayı
+            // düşürmez (kombinasyon başka uygulamada olabilir).
+            register_brightness_shortcuts(app.handle());
             Ok(())
         })
         .on_window_event(|w, e| match e {
@@ -1130,6 +1166,25 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn global_shortcut_accels_parse_with_expected_keys() {
+        // Kısayol metni yanlış yazılırsa kayıt sessizce düşer (yalnız log).
+        // Bu test metin ile niyeti eşleştirir: yukarı = artır, aşağı = azalt.
+        use std::str::FromStr;
+        use tauri_plugin_global_shortcut::{Code, Modifiers, Shortcut};
+        for (accel, delta) in BRIGHT_STEPS {
+            let s = Shortcut::from_str(accel).unwrap_or_else(|e| panic!("{accel}: {e}"));
+            assert_eq!(s.mods, Modifiers::CONTROL | Modifiers::ALT, "{accel}");
+            let expected = if delta > 0 {
+                Code::ArrowUp
+            } else {
+                Code::ArrowDown
+            };
+            assert_eq!(s.key, expected, "{accel} yönü adımla uyuşmuyor");
+            assert_ne!(delta, 0, "adım 0 olamaz");
+        }
+    }
 
     #[test]
     fn flyout_pos_centers_on_tray_and_sits_above_work_area() {

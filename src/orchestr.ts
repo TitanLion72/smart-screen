@@ -36,6 +36,7 @@ import {
   medianTone,
   skipReason,
   themeGate,
+  wakeGap,
   warmthToKelvin,
 } from "./engine";
 import type { LightLevel, Tone, WriteRecord } from "./engine";
@@ -168,6 +169,12 @@ export interface LightCard {
 }
 
 // ---------- sabitler ----------
+
+/**
+ * Bir turun nominal aralığı. `main.ts` zamanlayıcısı da bunu kullanır
+ * (tek kaynak) — uyanma tespiti bu değere dayanıyor.
+ */
+export const TICK_MS = 60 * 1000;
 
 const CAM_MS = 5 * 60 * 1000;
 /** `decide_level` çıktısını doğrulamak için (Rust `Level::as_str`). */
@@ -1544,6 +1551,31 @@ export function noteExternalBrightness(value: number): void {
 }
 
 /**
+ * Global kısayoldan gelen parlaklık adımı (`Ctrl+Alt+↑/↓`, ±5).
+ *
+ * Neden: flyout penceresi kapalıyken parlaklığı değiştirmenin yolu yoktu.
+ * Bu yol **öğrenilen tercihi (`S.offset`) değiştirmez** — kullanıcı bir
+ * kısayola bastı diye kalibrasyon bozulmasın; yalnız o anki değer kaydırılır
+ * ve `noteExternalBrightness` ile döngüye "bu bizim yazımız" bildirilir
+ * (yoksa sonraki tur bunu dış müdahale sanıp 15 dk saygı penceresi açardı).
+ */
+export async function stepBrightness(delta: number): Promise<void> {
+  const step = Math.round(delta);
+  if (!Number.isFinite(step) || step === 0) return;
+  const current = Math.round(S.lastAppliedBright);
+  const next = Math.max(0, Math.min(100, current + step));
+  if (next === current) return;
+  try {
+    const verified = await invoke<number>("brightness_set", { value: next });
+    const applied = Math.round(verified || next);
+    noteExternalBrightness(applied);
+    log(`kısayol: parlaklık %${current} → %${applied}`, "ok");
+  } catch (e) {
+    log("kısayol parlaklığı yazılamadı: " + String(e), "bad");
+  }
+}
+
+/**
  * stabilite (a): tur sürerken gelen istek tek "son istek" olarak kuyruğa
  * alınır; tur bitince bir kez koşar. Böylece iç içe turlar yarışmaz.
  */
@@ -1637,7 +1669,21 @@ async function gameBoostOff(): Promise<void> {
 }
 
 async function runTick(reason: string): Promise<void> {
-  S.lastAct = Date.now();
+  const tickAt = Date.now();
+  // v3.6: uyku sonrası ilk tur. Uyku sırasında zamanlayıcı durur; uyanınca
+  // sürücü gamma rampasını ve monitör parlaklığını sıfırlamış olabilir.
+  // Bu yüzden tazeleme kararlardan ÖNCE yapılır — yoksa tur, sürücünün
+  // sıfırladığı değeri "mevcut" sanıp yanlış hesaplar.
+  const woke = wakeGap(S.lastAct, tickAt, TICK_MS);
+  S.lastAct = tickAt;
+  if (woke) {
+    log("sistem uykudan döndü — monitörler ve sarılık yeniden yükleniyor", "ok");
+    await refreshMonitorList();
+    // Sarılık sıfırlanmış olabilir; kuvvetle yeniden yaz (hız sınırını atla).
+    await applyWarmth(true);
+    // Kamera önbelleği saatler öncesine ait: bir sonraki ölçüm taze olsun.
+    S.lastCam = null;
+  }
   S.freezeReason = null;
   if (isPaused()) {
     // Oyun/video %100 parlaklığa çıkardıysa duraklatma onu geri almalı;

@@ -1828,6 +1828,35 @@ async function run() {
       await page.keyboard.press("Control+Alt+KeyP");
       await page.waitForTimeout(500);
 
+      // ── Global kısayol: bright-step olayı parlaklığı ±5 kaydırır ──
+      // Rust tarafı Ctrl+Alt+↑/↓'yi bu olaya çevirir; burada olayın frontend
+      // yolunu sınıyoruz (OS kısayol kaydı QA'de taklit edilemez).
+      await page.evaluate(() => window.__emit("ss:action", { action: "measure" }));
+      await page.waitForTimeout(700);
+      const b0 = await page.evaluate(() => window.__bright);
+      const writesBefore = (await invocations()).filter(([c]) => c === "brightness_set").length;
+      await page.evaluate(() => window.__emit("ss:action", { action: "bright-step", value: 5 }));
+      await page.waitForTimeout(500);
+      const b1 = await page.evaluate(() => window.__bright);
+      check(
+        b1 === Math.min(100, b0 + 5),
+        "kisayol",
+        `bright-step +5 uygulanmadı: %${b0} → %${b1}`,
+      );
+      await page.evaluate(() => window.__emit("ss:action", { action: "bright-step", value: -5 }));
+      await page.waitForTimeout(500);
+      const b2 = await page.evaluate(() => window.__bright);
+      check(
+        b2 === Math.max(0, b1 - 5),
+        "kisayol",
+        `bright-step −5 uygulanmadı: %${b1} → %${b2}`,
+      );
+      const writesAfter = (await invocations()).filter(([c]) => c === "brightness_set").length;
+      check(writesAfter > writesBefore, "kisayol", "bright-step brightness_set çağırmadı");
+      // İpucu metni gerçeği söylemeli: kullanıcı kısayolu nereden bilsin?
+      const hint = await text(page, "#shortcut-hint");
+      check(hint.includes("parlaklık"), "kisayol", `kısayol ipucu parlaklığı anmıyor: "${hint}"`);
+
       // ── Yedek alma: tüm ss:* anahtarları tek JSON'da ──
       // Önce bir anahtarın GERÇEKTEN var olduğundan emin ol: varsayılanlar
       // diske yazılmaz, yalnız kullanıcı değiştirince `ss:` anahtarı doğar.

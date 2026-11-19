@@ -15,6 +15,41 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.6.0] - 2026-11-19
+
+"Uyanma sonrası kalıcılık, HDR dürüstlüğü, global kısayol"
+
+### Fixed
+- **Uykudan dönünce ekran sarılığı ve parlaklık sıfırlanabiliyordu.** Sürücü
+  uyku sırasında gamma rampasını ve monitör parlaklığını unutuyor; uygulama
+  bunu fark etmiyordu (`gamma::recover()` yalnız açılışta çalışıyordu). Artık
+  iki tur arasındaki anormal boşluk uyku sayılıyor (`engine.wakeGap`), dönüşte
+  monitör listesi tazeleniyor, sarılık kuvvetle yeniden yazılıyor ve kamera
+  önbelleği geçersizleştiriliyor. Açılışta (`lastAct=0`) tetiklenmez.
+- **DDC/CI geçici hatasında o tur kaybediliyordu.** Monitör uyanırken, HDR
+  geçişinde veya sürücü meşgulken gelen hata artık **bir kez** (120 ms sonra)
+  yeniden deneniyor. Kalıcı hatalar (fiziksel DDC tanıtıcısı yok, Pro kapısı)
+  yeniden denenmez — boşuna tur yavaşlatılmaz.
+- **HDR açıkken parlaklık çalışmayınca sebebi görünmüyordu.** HDR açık bir
+  monitörde DDC/CI yazımı başarısız olursa hata metni artık sebebi söylüyor
+  ("HDR açık: bu monitör DDC/CI parlaklığını reddedebilir"). HDR kapalıyken
+  metin aynen kalır. Tanılamadaki HDR satırı da parlaklığı anıyor.
+
+### Added
+- **Global parlaklık kısayolu: Ctrl+Alt+↑ / Ctrl+Alt+↓ (±5).** Flyout kapalıyken
+  de çalışır; eski Ctrl+Alt+M/P/L yalnız ana pencere odaktayken çalışıyordu.
+  Kısayol öğrenilen parlaklık ofsetini (`brightOffset`) değiştirmez; yalnız o
+  anki değeri kaydırır ve bunu "kendi yazımız" olarak işaretler (15 dk saygı
+  penceresi açılmaz). Kısayol kombinasyonu başka uygulamada kayıtlıysa uygulama
+  düşmez, yalnız loglanır.
+- **winget dağıtımı hazırlığı:** `tools/winget-manifest.mjs` (sürüm + SHA256'dan
+  3 YAML üretir) ve `WINGET.md` (yayın/güncelleme akışı, inceleme sürecinin
+  bizim kontrolümüzde olmadığı notu).
+
+### Changed
+- `Ctrl+Alt+↑/↓` dışındaki kısayolların yalnız pencere odaklı olduğu arayüz
+  ipucunda açıkça yazıyor.
+
 ## [3.5.1] - 2026-11-18
 
 ### Fixed

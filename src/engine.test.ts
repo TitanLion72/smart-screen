@@ -32,6 +32,7 @@ import {
   readableTarget,
   skipReason,
   themeGate,
+  wakeGap,
   warmthToKelvin,
 } from "./engine.ts";
 
@@ -272,4 +273,39 @@ test("isMediaApp oynaticilari taniyor", () => {
   assert.equal(isMediaApp("chrome.exe"), false);
   assert.equal(isMediaApp(""), false);
   assert.equal(isMediaApp("   "), false);
+});
+
+// ---------- v3.6: uyanma tespiti ----------
+
+test("wakeGap normal turda tetiklemez", () => {
+  assert.equal(wakeGap(1000, 1000 + 60_000, 60_000), false, "tek tur normal");
+  // Yavaş tur (kamera + DDC) uyku sayılmamalı: pay 60 sn.
+  assert.equal(
+    wakeGap(1000, 1000 + 119_000, 60_000),
+    false,
+    "119 sn hâlâ normal",
+  );
+});
+
+test("wakeGap uzun boşlukta tetikler", () => {
+  assert.equal(wakeGap(1000, 1000 + 121_000, 60_000), true, "121 sn = uyku");
+  // Sekiz saatlik gece uykusu (başlangıç 0 değil: 0 = "açılış" işareti).
+  assert.equal(wakeGap(1000, 8 * 3600 * 1000, 60_000), true);
+});
+
+test("wakeGap saat geri giderse susar", () => {
+  assert.equal(wakeGap(10_000, 5_000, 60_000), false, "NTP/manuel saat geri alma");
+  assert.equal(wakeGap(10_000, 10_000, 60_000), false, "eşit zaman");
+});
+
+test("wakeGap açılışta (lastAct=0) susar", () => {
+  // İlk turda `lastAct` 0: uyku değil. Yoksa her açılışta gereksiz kurtarma.
+  assert.equal(wakeGap(0, Date.now(), 60_000), false);
+  assert.equal(wakeGap(-1, 999_999, 60_000), false);
+});
+
+test("wakeGap bozuk girdide false", () => {
+  assert.equal(wakeGap(Number.NaN, 999_999, 60_000), false);
+  assert.equal(wakeGap(0, Number.NaN, 60_000), false);
+  assert.equal(wakeGap(0, 999_999, Number.NaN), false);
 });
