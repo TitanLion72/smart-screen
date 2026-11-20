@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://aka.ms/winget-manifest.installer.1.6.0.schema.json
+PackageIdentifier: TitanLion72.smart-screen
+PackageVersion: 3.6.2
+MinimumOSVersion: 10.0.0.0
+InstallerType: nullsoft
+Scope: user
+InstallModes:
+  - interactive
+  - silent
+  - silentWithProgress
+UpgradeBehavior: install
+AppsAndFeaturesEntries:
+  - DisplayName: smart-screen
+    Publisher: TitanLion72
+Installers:
+  - Architecture: x64
+    InstallerUrl: https://github.com/TitanLion72/smart-screen/releases/download/v3.6.2/smart-screen_3.6.2_x64-setup.exe
+    InstallerSha256: AD0A3E53F19926C20280AA61480BE564A4066CA61BAEDD86D6106512CE017F09
+    InstallerSwitches:
+      Silent: /S
+      SilentWithProgress: /S
+ManifestType: installer
+ManifestVersion: 1.6.0

@@ -293,9 +293,14 @@ imkânsızdı: 4 × 120 KB tek başına 480 KB):
 
 | Ölçü | Sınır | Ne dahil |
 |---|---|---|
-| İlk yükleme | ≤ 120 KB | HTML + CSS + JS (hero'da ekran görüntüsü **yok**, eğri SVG) |
+| İlk yükleme (raw) | ≤ 120 KB | HTML + CSS + JS (hero'da ekran görüntüsü **yok**, eğri SVG) |
+| İlk yükleme (gzip) | ≤ 40 KB | aynı üçü, sıkıştırılmış |
+| JS toplam | ≤ 20 KB | site.js + curve.js + phase-math.js |
 | Tek kare | ≤ 120 KB | WebP |
 | Tüm `site/dist` | ≤ 900 KB | 4 kare + og.png + kod + HTML'ler |
+
+> İlk taslakta "JS ≤ 5 KB" yazılmıştı; ölçüm 15.7 KB (gzip 6.6) gösterdi. Üç ayrı
+> modülün toplamı için 5 KB gerçekçi değildi; sınır ölçüme göre düzeltildi.
 
 `site-check.mjs` üçünü ayrı ayrı ölçer ve aşımı hata sayar.
 

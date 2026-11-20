@@ -15,6 +15,23 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.6.2] - 2026-11-21
+
+"Kontrast listesi taşması + tanıtım sitesi"
+
+### Fixed
+- **Kontrast listesinde uzun rozet oranın üstüne biniyordu.** `soluk-tema`
+  satırında `2.3:1` ile "okunaksız" rozeti üst üste geliyor, sayı okunmuyordu.
+  Sebep sabit 62 piksellik sütun: dokuz harfli etiket + 20 piksel iç boşluk
+  sığmıyordu. Sütun artık içeriğe göre esniyor (`minmax(64px, auto)`), rozet
+  komşu sütuna taşamıyor. Hata tanıtım sitesi için ekran görüntüsü alınırken
+  ortaya çıktı — kullanıcı da görecekti.
+
+### Added
+- **İki dilli tanıtım sitesi** (`site/`, yayın `gh-pages`): TR + EN tek
+  kaynaktan üretiliyor, kaydırdıkça dört ışık fazında ton değiştiriyor
+  (şafak/öğlen/akşam/gece), ekran görüntüleri gerçek uygulamadan.
+
 ## [3.6.1] - 2026-11-19
 
 "Boşta dönüşü artık dakikalar değil saniyeler sürüyor"

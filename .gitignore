@@ -48,3 +48,14 @@ qa/audit/
 
 # Canli ekran goruntuleri (qa/cdp-localstorage.mjs --screenshot)
 qa/live/
+
+# Tanitim sitesi: uretilen cikti COMMIT EDILIR (diff'te gorunsun), ama
+# siradan `dist` kurali bunu yutuyor - olumsuzlama sart.
+!site/dist/
+!site/dist/**
+
+# Site onizleme kareleri ve Lighthouse raporlari (elle inceleme icin)
+site/preview-*.png
+site/sec-*.png
+site/lighthouse-*.json
+site/.og.html

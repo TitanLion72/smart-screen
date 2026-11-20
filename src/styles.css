@@ -2425,7 +2425,10 @@ button.swatch[aria-pressed="true"] {
 
 .audit-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 40px 58px 62px 86px;
+  /* v3.6.2: verdict sütunu 62px'ti ve "okunaksız" rozeti (9 harf + 20px iç
+     boşluk) taşıp oranın üstüne biniyordu: "2.3:1okunaksız". Rozet içeriğe
+     göre büyüsün; sütun minmax(auto) ile esnesin. */
+  grid-template-columns: minmax(0, 1fr) 40px 56px minmax(64px, auto) 86px;
   align-items: center;
   gap: var(--sp-2);
   height: 22px;
@@ -2459,6 +2462,11 @@ button.swatch[aria-pressed="true"] {
 
 .audit-row .badge {
   justify-self: end;
+  /* Rozet asla komşu sütuna taşmasın: uzun etiket ("okunaksız") sütunu
+     büyütür, taşıp oranın üstüne binmez. */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ═══════════════ Kontrol (tanılama) kartı — v2.10 ═══════════════ */

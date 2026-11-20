@@ -1,7 +1,7 @@
 {
   "name": "smart-screen",
   "private": true,
-  "version": "3.6.1",
+  "version": "3.6.2",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "scripts": {
@@ -20,6 +20,10 @@
     "qa": "cd qa && node run.mjs",
     "qa:audit": "cd qa && node audit-scene.mjs && node audit-templates.mjs && node audit-diagnostics.mjs && node audit-flyout.mjs && node audit-accent.mjs",
     "winget:manifest": "node tools/winget-manifest.mjs",
+    "site:build": "node tools/site-build.mjs",
+    "site:shots": "node tools/site-shots.mjs",
+    "site:check": "node tools/site-check.mjs",
+    "site:publish": "node tools/site-publish.mjs",
     "verify": "npm run test && npm run check:tokens && npm run check:security && npm run test:security && npm run build"
   },
   "dependencies": {

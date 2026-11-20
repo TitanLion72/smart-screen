@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.6.1, 2026-11-19)
+# HANDOFF - smart-screen (güncel: v3.6.2, 2026-11-21)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -282,7 +282,58 @@ sabitlenmiş olsaydı kimse güncelleme almazdı ve testler yine yeşil kalırd�
 `releases/latest/download/latest.json` (sürümden bağımsız) doğrulandı; kurulu
 3.6.1'de Ayarlar → "Güncellemeyi denetle" → **"güncel — son kontrol 21:07"**.
 
-## Güncel durum: v3.6.1
+## v3.6.2 turu - tanıtım sitesi (2026-11-21)
+
+**Varsayım çürüdü: "site zaten var, sadece güncellenecek".** `gh-pages`'te tek
+commitlik, v0.7.0 döneminden kalma 14 KB'lik bir sayfa vardı; sekmeler, pil
+davranışı ve "tamamen ücretsiz" ifadesi bugünkü ürünle çelişiyordu. Ürünle
+çelişen site, üründen daha çok zarar verir.
+
+**Ders 1 — "iki dil" mimari karardır, çeviri işi değil.** İki ayrı HTML
+yazsaydık bir cümleyi düzeltince diğerini unutmak kaçınılmazdı (bu depoda
+`README` ↔ `AGENTS.md` kısayol satırı zaten ayrışmıştı). `site/content.mjs` tek
+kaynak; `site-check` parity'yi zorluyor. EN metinde Türkçe karakter kalırsa test
+yakalıyor — çeviri kopyası sızamıyor.
+
+**Ders 2 — kapı "PASS" dedi, ekran görüntüsü yalan söyledi.** `site-shots`
+dört kareyi "yazıldı" diye raporladı, ama `night.webp` **bembeyaz boştu**.
+Sebep: `fixture` fonksiyonu tarayıcıya string olarak gidiyor, `MONITORS`
+sabiti Node kapsamında kalıyor → `ReferenceError` → invoke reddediliyor →
+liste boş. Test "seçici var + dosya yazıldı" diyordu, "içerik var" demiyordu.
+Artık üç kapı var: seçici var mı, öğe **görünür alanda** mı (`clip` koordinatı
+görünüm alanına göre!), öğenin **metni** var mı.
+
+**Ders 3 — renk geçişi "çalışıyor" görünüp yanlış çalışabilir.** İlk
+`phaseWeights` ağırlığı bölümün üstünden sonrakine doğrusal dağıtıyordu; sonuç:
+şafak `#0e1014` yerine **gri rgb(86,86,85)**, öğlen `#f6f1e6` yerine `rgb(191,185,175)`.
+Yani hiçbir bölüm kendi fazında durmuyordu. Ölçmeden "geçiş çalışıyor" demek
+mümkündü; her bölümün ortasında zemini okuyan bir ölçüm bunu yakaladı. Kural:
+renk bölüm boyunca sabit, yalnız sınıra yakın `z` kadar alanda devreder.
+
+**Ders 4 — site, uygulamanın kendi hatasını sergiledi.** `noon.webp`'te
+`2.3:1` ile "okunaksız" rozeti üst üste biniyordu (`src/styles.css`
+`.audit-row` grid'inde 62px'lik sabit sütun). Yani site çalışması **ürün
+hatası** buldu ve düzeltti: `minmax(64px, auto)` + rozete `max-width: 100%`.
+
+**Ders 5 — yanlış tema adı sessiz felakettir.** Spec'te karelere
+`ss-paper`/`ss-dusk`/`ss-night` yazmıştım; onlar OpenCode **tema** adları,
+uygulama **paleti** değil. Uygulama tanımadığı id'de `obsidyen`e düşüyor;
+"şafak = açık tema" iddiası koyu kareyle yayına gidecekti. Gerçek paletler
+`fildisi`/`kagit`/`gunbatimi`/`gece`. Kapı artık uygulanan temayı da denetliyor.
+
+**Ders 6 — HTML'de yanlış `width/height` = CLS + bozulma.** Dört kareye de
+`1280×720` yazmıştım; gerçek oranlar 1.4 ile 8.3 arasında değişiyordu.
+`tools/site-shots.mjs` artık WebP başlığından gerçek boyutu okuyup
+`shots/manifest.json` yazıyor, üreteç oradan okuyor.
+
+**Kapılar:** 54 site testi (+10 `phaseWeights` regresyonu) · `site:check` PASS ·
+`site:check --smoke` PASS · 37 frontend · 331 Rust · `qa/run.mjs` PASS.
+
+**Kapsam dışı (bilinçli):** fiyat bölümü (Pro fiyatı belirlenmedi; uydurma fiyat
+yok), özel alan adı, analitik/çerez (gizlilik iddiası sayfanın kendi
+davranışıyla tutarlı olmalı).
+
+## Güncel durum: v3.6.2
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /
