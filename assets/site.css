@@ -1,0 +1,763 @@
+/* ════════════════════════════════════════════════════════════════════
+   smart-screen — tanıtım sitesi stilleri (site/assets/site.css)
+
+   KURAL: bu dosyada HEX renk YOKTUR. Renk yalnız `:root` faz
+   değişkenlerinden gelir (`--bg --text --muted --accent --on-accent`),
+   faz CSS'i `site/phases.mjs`'ten üretilir. `site/css-budget.test.mjs`
+   bunu denetler: site kendi rengini uydurmaz, ürünün paletinden türetir.
+
+   DİL: saç teli 1px kurallar, geniş boşluk, tabular rakamlar, mono
+   mikro etiketler. Yasak: blob, cam+blur, mor vurgu, emoji ikon,
+   üç kolonlu ikon-kart ızgarası, yuvarlatılmış kutu yığını.
+   ════════════════════════════════════════════════════════════════════ */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+:root {
+  /* tipografi — web font indirilmez, craft tipografik kontrolden gelir */
+  --sans: "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, "Inter", Roboto, sans-serif;
+  --mono: "Cascadia Mono", "Cascadia Code", Consolas, ui-monospace, "SF Mono", Menlo, monospace;
+
+  --measure: 68ch;
+  --page: 1120px;
+  --gap: clamp(1.5rem, 4vw, 4rem);
+  --rule: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
+  --rule-strong: 1px solid color-mix(in srgb, var(--text) 26%, transparent);
+
+  color-scheme: dark;
+  transition: background-color 0.35s linear, color 0.35s linear;
+}
+
+/* Öğlen fazı gerçekten açık; kaydırıcı/form renkleri de dönsün. */
+:root[data-phase="noon"],
+[data-phase="noon"] {
+  color-scheme: light;
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 400 1rem/1.65 var(--sans);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+/* ── ortak tipografi ─────────────────────────────────────────────── */
+
+.eyebrow {
+  margin: 0 0 1.2rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.display {
+  margin: 0;
+  font-size: clamp(2.1rem, 6.2vw, 4.4rem);
+  font-weight: 300;
+  line-height: 1.02;
+  letter-spacing: -0.035em;
+  max-width: 22ch;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+h2 {
+  margin: 0 0 0.8rem;
+  font-size: clamp(1.5rem, 3.2vw, 2.4rem);
+  font-weight: 350;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+  overflow-wrap: anywhere;
+}
+
+h3 {
+  margin: 0 0 0.4rem;
+  font-size: 1.02rem;
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  overflow-wrap: anywhere;
+}
+
+p {
+  margin: 0 0 1rem;
+}
+
+.lead {
+  font-size: clamp(1rem, 1.5vw, 1.18rem);
+  line-height: 1.6;
+  color: var(--muted);
+  max-width: var(--measure);
+  overflow-wrap: anywhere;
+}
+
+.hint {
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+/* ── üst çubuk ───────────────────────────────────────────────────── */
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: color-mix(in srgb, var(--bg) 92%, transparent);
+  border-bottom: var(--rule);
+}
+
+.topbar-in {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 0.7rem clamp(1rem, 3vw, 2rem);
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  font-size: 0.98rem;
+  white-space: nowrap;
+}
+
+.mark {
+  width: 0.62rem;
+  height: 0.62rem;
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.nav {
+  display: flex;
+  gap: 1.4rem;
+  margin-left: auto;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.nav a:hover,
+.foot-links a:hover,
+.lang:hover {
+  color: var(--text);
+}
+
+.topbar-end {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.lang {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 2px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.2;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity 0.15s linear, border-color 0.2s linear, color 0.2s linear;
+}
+
+.btn:hover {
+  opacity: 0.88;
+}
+
+.btn .ver {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  opacity: 0.72;
+  font-variant-numeric: tabular-nums;
+}
+
+.btn-lg {
+  padding: 0.78rem 1.35rem;
+  font-size: 0.98rem;
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text);
+  border-color: color-mix(in srgb, var(--text) 30%, transparent);
+}
+
+.btn-ghost:hover {
+  border-color: var(--text);
+  opacity: 1;
+}
+
+/* ── hero ────────────────────────────────────────────────────────── */
+
+.hero {
+  border-bottom: var(--rule);
+}
+
+.hero-in {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: clamp(3rem, 9vh, 6rem) clamp(1rem, 3vw, 2rem) clamp(2.5rem, 6vh, 4rem);
+}
+
+.reading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: clamp(1.5rem, 4vw, 3.5rem);
+  margin: 2.2rem 0 1.6rem;
+  padding: 1rem 0;
+  border-top: var(--rule);
+  border-bottom: var(--rule);
+}
+
+.reading-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.reading-k {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.reading-v {
+  font-family: var(--mono);
+  font-size: clamp(1.3rem, 2.4vw, 1.7rem);
+  font-weight: 300;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.curve-wrap {
+  margin: 0 0 2rem;
+}
+
+#day-curve {
+  width: 100%;
+  height: clamp(110px, 20vw, 200px);
+  display: block;
+  overflow: visible;
+}
+
+.axis,
+.grid {
+  stroke: color-mix(in srgb, var(--text) 16%, transparent);
+  stroke-width: 1;
+}
+
+.grid {
+  stroke-dasharray: 2 6;
+  opacity: 0.55;
+}
+
+.curve-path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+
+.curve-now {
+  stroke: color-mix(in srgb, var(--accent) 60%, transparent);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+}
+
+.curve-dot {
+  fill: var(--accent);
+}
+
+.curve-ticks {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  padding-top: 0.5rem;
+}
+
+.cta-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.8rem;
+  align-items: center;
+  margin: 1.6rem 0 1.2rem;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.6rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.facts li {
+  position: relative;
+  padding-left: 1rem;
+}
+
+.facts li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.62em;
+  width: 0.34rem;
+  height: 1px;
+  background: var(--accent);
+}
+
+/* ── bölümler (dört saat) ────────────────────────────────────────── */
+
+.chapter {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vh, 6rem) clamp(1rem, 3vw, 2rem);
+  border-bottom: var(--rule);
+  display: grid;
+  /* Saat sütunu içeriğe göre: `min-content` sabit 6rem'in taşmasını bitirir. */
+  grid-template-columns: minmax(min-content, 8rem) minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2.5rem);
+}
+
+.chapter-num {
+  font-family: var(--mono);
+  font-size: clamp(2.2rem, 4vw, 3.1rem);
+  font-weight: 200;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: var(--text);
+  opacity: 0.35;
+  font-variant-numeric: tabular-nums;
+  position: sticky;
+  top: 5rem;
+  align-self: start;
+  /* Sütun genişliğini rakam belirlesin: sabit 6rem, 3.1rem'lik mono "18:00"
+     ile çakışıp "AKŞAM" etiketinin üstüne biniyordu (18:00 bölümünde). */
+  white-space: nowrap;
+}
+
+.chapter-body {
+  min-width: 0;
+}
+
+.points {
+  margin: 1.4rem 0 2rem;
+  padding: 0;
+  list-style: none;
+  max-width: var(--measure);
+  border-top: var(--rule);
+}
+
+.points li {
+  padding: 0.6rem 0 0.6rem 1.1rem;
+  border-bottom: var(--rule);
+  font-size: 0.94rem;
+  color: var(--muted);
+  position: relative;
+  overflow-wrap: anywhere;
+}
+
+.points li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 1.35em;
+  width: 0.4rem;
+  height: 1px;
+  background: var(--accent);
+  opacity: 0.7;
+}
+
+.shot {
+  margin: 0;
+}
+
+.shot img {
+  width: 100%;
+  border: var(--rule);
+  border-radius: 2px;
+  background: var(--bg);
+}
+
+.shot figcaption {
+  margin-top: 0.7rem;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+/* ── sınırlar: iki sütun karşılaştırma (ikon ızgarası değil) ─────── */
+
+.bounds {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vh, 6rem) clamp(1rem, 3vw, 2rem);
+  border-bottom: var(--rule);
+}
+
+.bound-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr));
+  gap: clamp(1.5rem, 4vw, 3rem);
+  margin-top: 2rem;
+}
+
+.bound-col h3 {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-bottom: 0.7rem;
+  border-bottom: var(--rule-strong);
+  margin-bottom: 0.9rem;
+}
+
+.bound-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bound-list li {
+  padding: 0.55rem 0 0.55rem 1.4rem;
+  border-bottom: var(--rule);
+  font-size: 0.94rem;
+  position: relative;
+  overflow-wrap: anywhere;
+}
+
+.bound-list.untouch li {
+  color: var(--muted);
+}
+
+.bound-list.touch li::before {
+  content: "—";
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+.bound-list.untouch li::before {
+  content: "×";
+  position: absolute;
+  left: 0;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* ── özellikler: numaralı liste (kart yok) ───────────────────────── */
+
+.features,
+.facts-block,
+.plans,
+.faq,
+.closing {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: clamp(3rem, 8vh, 6rem) clamp(1rem, 3vw, 2rem);
+  border-bottom: var(--rule);
+}
+
+.feature-list {
+  margin: 2rem 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: var(--rule-strong);
+}
+
+.feature {
+  display: grid;
+  grid-template-columns: 3.2rem minmax(0, 14rem) minmax(0, 1fr);
+  gap: 1rem 1.5rem;
+  align-items: baseline;
+  padding: 1.1rem 0;
+  border-bottom: var(--rule);
+}
+
+.feature-num {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.feature h3 {
+  margin: 0;
+}
+
+.feature p {
+  margin: 0;
+  font-size: 0.94rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── gerçekler tablosu ───────────────────────────────────────────── */
+
+.fact-table {
+  margin: 2rem 0 0;
+  border-top: var(--rule-strong);
+}
+
+.fact-row {
+  display: grid;
+  grid-template-columns: minmax(0, 10rem) minmax(0, 1fr);
+  gap: 1rem 1.5rem;
+  padding: 0.9rem 0;
+  border-bottom: var(--rule);
+}
+
+.fact-row dt {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding-top: 0.2rem;
+}
+
+.fact-row dd {
+  margin: 0;
+  font-size: 0.94rem;
+  overflow-wrap: anywhere;
+}
+
+/* ── ücretsiz / Pro ──────────────────────────────────────────────── */
+
+.plan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr));
+  gap: clamp(1.2rem, 3vw, 2.5rem);
+  margin: 2rem 0 1.2rem;
+}
+
+.plan {
+  padding: 1.4rem 0 0;
+  border-top: var(--rule-strong);
+}
+
+.plan h3 {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 0.8rem;
+}
+
+.plan-pro h3 {
+  color: var(--accent);
+}
+
+.plan ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.plan li {
+  padding: 0.45rem 0;
+  font-size: 0.94rem;
+  border-bottom: var(--rule);
+  overflow-wrap: anywhere;
+}
+
+.plan-note {
+  font-size: 0.86rem;
+  color: var(--muted);
+  border-left: 1px solid var(--accent);
+  padding-left: 0.9rem;
+  margin-top: 1.2rem;
+}
+
+/* ── SSS ─────────────────────────────────────────────────────────── */
+
+.qa {
+  border-bottom: var(--rule);
+}
+
+.qa:first-of-type {
+  border-top: var(--rule-strong);
+  margin-top: 2rem;
+}
+
+.qa summary {
+  cursor: pointer;
+  padding: 0.95rem 0;
+  font-size: 1rem;
+  font-weight: 450;
+  list-style: none;
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  overflow-wrap: anywhere;
+}
+
+.qa summary::-webkit-details-marker {
+  display: none;
+}
+
+.qa summary::after {
+  content: "+";
+  font-family: var(--mono);
+  color: var(--accent);
+  flex: none;
+}
+
+.qa[open] summary::after {
+  content: "−";
+}
+
+.qa p {
+  margin: 0 0 1.1rem;
+  max-width: var(--measure);
+  font-size: 0.94rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+/* ── kapanış + altlık ────────────────────────────────────────────── */
+
+.closing {
+  border-bottom: none;
+}
+
+.foot {
+  max-width: var(--page);
+  margin: 0 auto;
+  padding: 2.5rem clamp(1rem, 3vw, 2rem) 3.5rem;
+  border-top: var(--rule);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem 2rem;
+  align-items: baseline;
+  font-size: 0.84rem;
+  color: var(--muted);
+}
+
+.foot p {
+  margin: 0;
+}
+
+.foot .tagline {
+  color: var(--text);
+}
+
+.foot-links {
+  margin-left: auto;
+  font-size: 0.8rem;
+}
+
+/* ── odak görünürlüğü (klavye) ───────────────────────────────────── */
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* ── dar ekran ───────────────────────────────────────────────────── */
+
+@media (max-width: 760px) {
+  .nav {
+    display: none;
+  }
+
+  .chapter {
+    grid-template-columns: 1fr;
+    gap: 0.6rem;
+  }
+
+  .chapter-num {
+    position: static;
+    font-size: 2rem;
+    opacity: 0.3;
+  }
+
+  .feature {
+    grid-template-columns: 2.4rem minmax(0, 1fr);
+    gap: 0.3rem 0.8rem;
+  }
+
+  .feature p {
+    grid-column: 2;
+  }
+
+  .fact-row {
+    grid-template-columns: 1fr;
+    gap: 0.2rem;
+  }
+
+  .foot-links {
+    margin-left: 0;
+  }
+}
+
+/* ── hareket azaltma: her şey durur, fazlar keskin kalır ─────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
+}
