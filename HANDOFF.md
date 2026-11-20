@@ -326,8 +326,16 @@ uygulama **paleti** değil. Uygulama tanımadığı id'de `obsidyen`e düşüyor
 `tools/site-shots.mjs` artık WebP başlığından gerçek boyutu okuyup
 `shots/manifest.json` yazıyor, üreteç oradan okuyor.
 
+**Ders 7 — `tauri build` sessizce -1 dönebilir; paketleme ayrı koşulur.**
+3.6.2 turunda tam hat `Exit code: -1` verdi, **hiç hata mesajı yoktu**; Rust
+derlemesi bitmiş, paketleme adımı hiç başlamamıştı. Ayrı ayrı
+`npx tauri bundle --bundles nsis` ve `--bundles msi` sorunsuz çalıştı.
+Yani "build -1" = "kod bozuk" değil. Kontrol: `src-tauri/target/release/bundle`
+altında `.exe`/`.msi` var mı; yoksa bundle'ı ayrı koş.
+
 **Kapılar:** 54 site testi (+10 `phaseWeights` regresyonu) · `site:check` PASS ·
-`site:check --smoke` PASS · 37 frontend · 331 Rust · `qa/run.mjs` PASS.
+`site:check --smoke` PASS · canlı URL üzerinde de PASS · 37 frontend · 331 Rust ·
+`qa/run.mjs` PASS.
 
 **Kapsam dışı (bilinçli):** fiyat bölümü (Pro fiyatı belirlenmedi; uydurma fiyat
 yok), özel alan adı, analitik/çerez (gizlilik iddiası sayfanın kendi
