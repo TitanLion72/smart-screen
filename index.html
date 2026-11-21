@@ -3,32 +3,35 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>smart-screen — ekranınız odanın ışığına uyar</title>
-<meta name="description" content="Windows için tepsi uygulaması: ortam ışığını ölçer, ekran parlaklığını ve sıcak tonu ayarlar. Oyun, video ve kilitli ekranda dokunmaz. Hesap yok, telemetri yok.">
+<title>smart-screen — oda karanlıkken ekran da karanlık olur</title>
+<meta name="description" content="Windows için tepsi uygulaması. Ortam ışığını kamerayla ölçer, ekran parlaklığını ve sıcak tonu buna göre ayarlar. Oyun, video ve kilitli ekranda dokunmaz.">
 <link rel="canonical" href="https://titanlion72.github.io/smart-screen/">
 <link rel="alternate" hreflang="tr" href="https://titanlion72.github.io/smart-screen/">
 <link rel="alternate" hreflang="en" href="https://titanlion72.github.io/smart-screen/en/">
 <link rel="alternate" hreflang="x-default" href="https://titanlion72.github.io/smart-screen/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="smart-screen — ekranınız odanın ışığına uyar">
-<meta property="og:description" content="Windows için tepsi uygulaması: ortam ışığını ölçer, ekran parlaklığını ve sıcak tonu ayarlar. Oyun, video ve kilitli ekranda dokunmaz. Hesap yok, telemetri yok.">
+<meta property="og:title" content="smart-screen — oda karanlıkken ekran da karanlık olur">
+<meta property="og:description" content="Windows için tepsi uygulaması. Ortam ışığını kamerayla ölçer, ekran parlaklığını ve sıcak tonu buna göre ayarlar. Oyun, video ve kilitli ekranda dokunmaz.">
 <meta property="og:image" content="https://titanlion72.github.io/smart-screen/og.png">
-<meta property="og:image:alt" content="smart-screen: %38 parlaklık ve gün boyunca değişen sıcak ton eğrisi">
+<meta property="og:image:alt" content="Karanlık bir odada tek ışık: smart-screen&#39;in durum ekranı">
 <meta property="og:url" content="https://titanlion72.github.io/smart-screen/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="./assets/icon.svg" type="image/svg+xml">
+<link rel="preload" href="./assets/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="./assets/site.css">
-<style>:root{--bg:#0a0908;--text:#f5f1ea;--muted:#b8afa2;--accent:#d8b98a;--on-accent:#0a0908}:root[data-phase="dawn"]{--bg:#0e1014;--text:#ded9d0;--muted:#a8a49c;--accent:#b9c4cf;--on-accent:#0e1014}:root[data-phase="noon"]{--bg:#f6f1e6;--text:#211d18;--muted:#5c5449;--accent:#7a4a2f;--on-accent:#f6f1e6}:root[data-phase="dusk"]{--bg:#241c16;--text:#e7dccd;--muted:#a99c8a;--accent:#d8b98a;--on-accent:#241c16}:root[data-phase="night"]{--bg:#0a0908;--text:#f5f1ea;--muted:#b8afa2;--accent:#d8b98a;--on-accent:#0a0908}</style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="topbar-in">
-    <a class="brand" href="./"><span class="mark" aria-hidden="true"></span>smart-screen</a>
+<header class="topbar" id="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+<rect x="2.5" y="5.5" width="19" height="12.5" rx="2" stroke="currentColor" stroke-width="1.6"/>
+<path d="M1 21h22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".5"/>
+<path d="M7.5 11.75h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>smart-screen</a>
     <nav class="nav" aria-label="Ana gezinme">
-      <a href="#how">Nasıl çalışır</a>
-          <a href="#features">Özellikler</a>
-          <a href="#faq">Sık sorulanlar</a>
+      <a href="#stops">Gün boyunca</a>
+        <a href="#features">Neler yapar</a>
+        <a href="#faq">Sorular</a>
     </nav>
     <div class="topbar-end">
       <a class="lang" href="./en/" hreflang="en" lang="en">English</a>
@@ -38,284 +41,272 @@
 </header>
 
 <main>
-  <section class="hero" data-phase="night" aria-labelledby="h-hero">
-    <div class="hero-in">
-      <p class="eyebrow">Windows · tepsi uygulaması</p>
-      <h1 class="display" id="h-hero">Ekranınız odanın ışığını ölçer.</h1>
-      <p class="lead">Kamera birkaç kare okur, ortalama parlaklığı ve tonu çıkarır. Parlaklık, sıcak ton ve OpenCode teması bu ölçüme göre ayarlanır. Oyun, video, PDF ve kilit ekranında hiçbir şeye dokunmaz.</p>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <h1>Oda karanlıkken ekran da karanlık olmalı.</h1>
+      <p class="lead">Kamera ortam ışığını ölçer. Parlaklık ve sıcak ton bu ölçüme göre ayarlanır; gece yarısı beyaz bir sayfa gözünü yakmaz.</p>
 
-      <div class="reading">
-        <div class="reading-item">
-          <span class="reading-k">Şu an</span>
-          <span class="reading-v" id="now-time">--:--</span>
-        </div>
-        <div class="reading-item">
-          <span class="reading-k">sıcak ton</span>
-          <span class="reading-v" id="now-warmth">—</span>
-        </div>
-        <div class="reading-item">
-          <span class="reading-k">renk sıcaklığı</span>
-          <span class="reading-v" id="now-kelvin">—</span>
-        </div>
+      <div class="hero-actions">
+        <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Windows için indir · 3.6.2</a>
+        <a class="btn btn-quiet btn-lg" href="https://github.com/TitanLion72/smart-screen">Kaynak kodu</a>
       </div>
 
-      <div class="curve-wrap">
-        <svg id="day-curve" viewBox="0 0 960 220" preserveAspectRatio="none" role="img" aria-label="Varsayılan ayarlarla hesaplanır: şiddet tavanı %70, gece en fazla %62.">
-          <line class="axis" x1="0" y1="210" x2="960" y2="210"></line>
-          <line class="grid" x1="240" y1="10" x2="240" y2="210"></line>
-          <line class="grid" x1="480" y1="10" x2="480" y2="210"></line>
-          <line class="grid" x1="720" y1="10" x2="720" y2="210"></line>
-          <path id="curve-path" class="curve-path" d=""></path>
-          <line id="curve-now" class="curve-now" x1="0" y1="10" x2="0" y2="210" opacity="0"></line>
-          <circle id="curve-dot" class="curve-dot" r="4" cx="0" cy="0" opacity="0"></circle>
-        </svg>
-        <div class="curve-ticks" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
-        <p class="hint">Varsayılan ayarlarla hesaplanır: şiddet tavanı %70, gece en fazla %62.</p>
-      </div>
-
-      <div class="cta-row">
-        <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">İndir · 3.6.2</a>
-        <a class="btn btn-ghost" href="https://github.com/TitanLion72/smart-screen">Kaynak kodu</a>
-      </div>
-      <ul class="facts">
-        <li>Kamera görüntüsü diske yazılmaz</li>
-        <li>Hesap açılmaz</li>
-        <li>Telemetri yok</li>
-        <li>GPL-3.0</li>
+      <ul class="trust">
+          <li>Kamera görüntüsü diske yazılmaz</li>
+          <li>Hesap açılmaz</li>
+          <li>Telemetri yok</li>
+          <li>GPL-3.0</li>
       </ul>
+
+      <div class="stage">
+        <div class="screen" id="hero-screen" data-brightness="55">
+          <img src="./assets/shots/hero.webp" alt="Durum ekranı: %38 parlaklık, mod rozeti ve gün boyunca değişen sıcak ton eğrisi" width="1634" height="520" fetchpriority="high" decoding="async">
+        </div>
+        <p class="screen-note">Durum ekranı. Üstte gün boyunca değişen sıcak ton eğrisi, solda o anki parlaklık.</p>
+      </div>
+
+      <dl class="readout" id="readout">
+        <div><dt>şu an</dt><dd id="now-time">21:04</dd></div>
+        <div><dt>sıcak ton</dt><dd id="now-warmth">%55</dd></div>
+        <div><dt>renk sıcaklığı</dt><dd id="now-kelvin">4600 K</dd></div>
+      </dl>
     </div>
   </section>
 
-  <div id="how" class="how">
-
-      <section class="chapter" id="morning" data-phase="dawn" aria-labelledby="h-morning">
-        <div class="chapter-num" aria-hidden="true">06:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Şafak</p>
-          <h2 id="h-morning">Perde aralanırken ekran parlar.</h2>
-          <p class="lead">Ortam ışığı düşükken parlaklık düşük kalır. Işık arttıkça tur başına en fazla 8 puan yükselir; ekran bir anda patlamaz.</p>
-          <ul class="points">
-            <li>Parlaklık hedefi ışık ölçümüne göre kayar: karanlıkta 6 puan aşağı, aydınlıkta 4 puan yukarı.</li>
-            <li>Karanlıkta sıcak ton da artar; şafakta eğri %39 şiddet verir.</li>
-            <li>Tur dakikada bir koşar, kamera en fazla 5 dakikada bir açılır.</li>
-          </ul>
-          <figure class="shot">
-            <img src="./assets/shots/morning.webp" alt="Durum sayfası: %38 parlaklık, mod rozeti ve gün boyunca değişen sıcak ton eğrisi" width="1650" height="456" loading="lazy" decoding="async">
-            <figcaption>Durum sayfası, ss-paper açık temasıyla.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="noon" data-phase="noon" aria-labelledby="h-noon">
-        <div class="chapter-num" aria-hidden="true">12:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Öğlen</p>
-          <h2 id="h-noon">Gündüz en net hâlinde.</h2>
-          <p class="lead">Öğlen eğrisi sıfıra iner: sıcak ton kapanır, renkler 6500 K&#39;de kalır. Parlaklık gündüz tavanına yaklaşır.</p>
-          <ul class="points">
-            <li>Otomatik seçimde ölçülüp FAIL çıkan tema uygulanmaz; elle seçmek serbest.</li>
-            <li>Kontrast oranı WCAG 2.1 ile hesaplanır: 7 üstü çok iyi, 4.5 iyi, 3 sınır.</li>
-            <li>Eşik Ayarlar&#39;dan kapatılabilir; varsayılan açık.</li>
-          </ul>
-          <figure class="shot">
-            <img src="./assets/shots/noon.webp" alt="Kontrast denetimi listesi: tema satırları, oranlar ve AA/FAIL rozetleri" width="2746" height="1728" loading="lazy" decoding="async">
-            <figcaption>Kontrast denetimi: her tema ölçülür, FAIL olan otomatik seçilmez.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="evening" data-phase="dusk" aria-labelledby="h-evening">
-        <div class="chapter-num" aria-hidden="true">18:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Akşam</p>
-          <h2 id="h-evening">Ton ısınmaya başlar.</h2>
-          <p class="lead">Akşam eğrisi tırmanır: 18:00&#39;de %27, 21:00&#39;de %55 şiddet. Ekran kararmadan renkler sıcak tonlara kayar.</p>
-          <ul class="points">
-            <li>Şiddet tavanı %70; gece en fazla %62 uygulanır.</li>
-            <li>Kelvin 6500&#39;den 3000&#39;e kadar iner, 100&#39;lük adımlarla.</li>
-            <li>Sıcak ton kapatılınca öğrenilen renk dengesi geri gelir.</li>
-          </ul>
-          <figure class="shot">
-            <img src="./assets/shots/evening.webp" alt="Sıcak ton kartı: şiddet kaydırıcısı, gece tavanı satırı ve Kelvin seçimi" width="1870" height="1206" loading="lazy" decoding="async">
-            <figcaption>Sıcak ton: şiddet, tavan ve Kelvin tek kartta.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="night" data-phase="night" aria-labelledby="h-night">
-        <div class="chapter-num" aria-hidden="true">23:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Gece</p>
-          <h2 id="h-night">Gece tavanı devreye girer.</h2>
-          <p class="lead">23:00&#39;te eğri %88&#39;e çıkar, tavanla %62 uygulanır. Ekran karanlık ama okunur kalır.</p>
-          <ul class="points">
-            <li>Boşta 10 dakikada hedef 15 puan, 30 dakikada 25 puan düşer; geri dönüş ~3,5 saniyelik rampayla olur.</li>
-            <li>20-20-20 uyarısı tek seferliktir: &quot;Baktım&quot; ya da &quot;Ertele&quot; ile kapanır, kendini tekrarlamaz.</li>
-            <li>Harici monitörün parlaklığı DDC/CI ile ayrı ayrı okunur ve yazılır.</li>
-          </ul>
-          <figure class="shot">
-            <img src="./assets/shots/night.webp" alt="Monitör listesi: dahili panel ve iki harici ekran, birinde DDC/CI hatası" width="1184" height="848" loading="lazy" decoding="async">
-            <figcaption>Monitör listesi: üç ekran, biri DDC/CI&#39;yi reddediyor.</figcaption>
-          </figure>
-        </div>
-      </section>
-  </div>
-
-  <section class="bounds" data-phase="night" aria-labelledby="h-bounds">
-    <h2 id="h-bounds">Neye dokunmaz</h2>
-    <p class="lead">Kurallar her durumda önde gelir; bağlı profil bile bunları ezemez.</p>
-    <div class="bound-grid">
-      <div class="bound-col">
-        <h3>Dokunur</h3>
-        <ul class="bound-list touch">
-            <li>Duraklatma yoksa ve ekran açıksa parlaklığı ayarlar.</li>
-            <li>Sarılık kapalıysa renk dengesine dokunmaz.</li>
-            <li>Bir monitör DDC/CI&#39;yi reddederse o monitörü atlar, diğerlerini sürer.</li>
-        </ul>
-      </div>
-      <div class="bound-col">
-        <h3>Dokunmaz</h3>
-        <ul class="bound-list untouch">
-            <li>Oyun öndeyse tur dondurulur.</li>
-            <li>Video oynatıcı öndeyse tur dondurulur.</li>
-            <li>Tam ekran bir uygulama listedeyse devam eder, değilse durur.</li>
-            <li>PDF okuyucu öndeyse dondurulur.</li>
-            <li>Ekran kilitliyken hiçbir şey yazılmaz.</li>
-        </ul>
-      </div>
+  <section class="wrap stops" id="stops" aria-labelledby="h-stops">
+    <div class="stops-head">
+      <h2 id="h-stops">Gün boyunca ne değişir</h2>
+      <p>Aynı gün, dört farklı saat. Değerler varsayılan ayarlarla hesaplanır.</p>
     </div>
-  </section>
-
-  <section class="features" id="features" data-phase="dusk" aria-labelledby="h-features">
-    <h2 id="h-features">Yedi şey yapar</h2>
-    <p class="lead">Hepsi aynı turda, dakikada bir. Ayrı bir servis, ayrı bir süreç yok.</p>
-    <ul class="feature-list">
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">01</span>
-            <h3>Kamera ile ortam ışığı</h3>
-            <p>Kare başına yalnız ortalama parlaklık ve ton çıkarılır; görüntü diske yazılmaz. Kamera meşgulse saat moduna düşer.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">02</span>
-            <h3>Saat eğrisi ve gece tavanı</h3>
-            <p>Şiddet 11 çapa noktasıyla hesaplanır; 23:00&#39;te tepe %88, tavanla %62 uygulanır.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">03</span>
-            <h3>Sıcak ton</h3>
-            <p>6500 K&#39;den 3000 K&#39;ye kadar, 100 K adımlarla. Ekranı karartmadan renkleri kaydırır.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">04</span>
-            <h3>Kontrast kapısı</h3>
-            <p>Tema dosyaları WCAG 2.1 ile ölçülür; FAIL çıkan tema otomatik seçimde uygulanmaz.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">05</span>
-            <h3>Profiller</h3>
-            <p>Ücretsizde 3, Pro&#39;da 6 profil. Bir profili exe adına bağlayabilirsin; o uygulama öne gelince ayarlar profilden okunur.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">06</span>
-            <h3>Harici monitörler</h3>
-            <p>Dahili panel WMI, harici ekran DDC/CI ile okunur. Yazma yalnız Pro lisansla açılır.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">07</span>
-            <h3>20-20-20 ve boşta dönüşü</h3>
-            <p>Her 20 dakikada bir uyarı; onaylanana kadar tekrarlamaz. Boşta parlaklık düşer, dönüşte 3,5 saniyede geri gelir.</p>
-          </li>
-    </ul>
-  </section>
-
-  <section class="facts-block" data-phase="dusk" aria-labelledby="h-facts">
-    <h2 id="h-facts">Kurulum gerçekleri</h2>
-    <dl class="fact-table">
-            <div class="fact-row"><dt>Kurulum</dt><dd>NSIS setup, x64, kullanıcı kapsamı. Yönetici izni istemez.</dd></div>
-            <div class="fact-row"><dt>İmza</dt><dd>Authenticode imzası yok. SmartScreen &quot;bilinmeyen yayıncı&quot; uyarabilir; &quot;Ek bilgi → Yine de çalıştır&quot; gerekir.</dd></div>
-            <div class="fact-row"><dt>Bütünlük</dt><dd>Her sürümde .sha256 var: Get-FileHash ile doğrula.</dd></div>
-            <div class="fact-row"><dt>Güncelleme</dt><dd>Uygulama içi; paket minisign ile imzalı ve indirmede doğrulanır.</dd></div>
-            <div class="fact-row"><dt>Gizlilik</dt><dd>Kamera görüntüsü yazılmaz, ağa gitmez. Telemetri ve hesap yok.</dd></div>
-            <div class="fact-row"><dt>Lisans</dt><dd>Ücretsiz sürüm tam çalışır. Pro çevrimdışı Ed25519 anahtarıyla açılır.</dd></div>
+    <div class="stops-curve" aria-hidden="true">
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path class="stops-path" d="M 0.0 50.6 C 6.3 50.6, 6.3 50.6, 12.5 50.6 C 18.8 50.6, 18.8 50.6, 25.0 50.6 C 31.3 50.6, 31.3 50.6, 37.5 50.6 C 43.8 50.6, 43.8 50.6, 50.0 50.6 C 56.3 50.6, 56.3 50.6, 62.5 50.6 C 68.8 50.6, 68.8 50.6, 75.0 50.6 C 81.3 50.6, 81.3 50.6, 87.5 50.6 C 93.8 50.6, 93.8 50.6, 100.0 50.6 C 106.3 50.6, 106.3 50.6, 112.5 50.6 C 118.8 50.6, 118.8 50.6, 125.0 50.6 C 131.3 50.6, 131.3 50.6, 137.5 50.6 C 143.8 50.6, 143.8 50.6, 150.0 50.6 C 156.3 50.6, 156.3 50.6, 162.5 50.6 C 168.8 50.6, 168.8 50.6, 175.0 50.6 C 181.3 50.6, 181.3 50.6, 187.5 50.6 C 193.8 50.6, 193.8 50.6, 200.0 50.6 C 206.3 50.6, 206.3 50.6, 212.5 50.6 C 218.8 50.6, 218.8 50.6, 225.0 50.6 C 231.3 50.6, 231.3 50.6, 237.5 50.6 C 243.8 50.6, 243.8 50.6, 250.0 50.6 C 256.3 50.6, 256.3 55.0, 262.5 55.0 C 268.8 55.0, 268.8 64.0, 275.0 64.0 C 281.3 64.0, 281.3 71.8, 287.5 71.8 C 293.8 71.8, 293.8 76.3, 300.0 76.3 C 306.3 76.3, 306.3 80.8, 312.5 80.8 C 318.8 80.8, 318.8 89.8, 325.0 89.8 C 331.3 89.8, 331.3 98.7, 337.5 98.7 C 343.8 98.7, 343.8 103.2, 350.0 103.2 C 356.3 103.2, 356.3 105.4, 362.5 105.4 C 368.8 105.4, 368.8 111.0, 375.0 111.0 C 381.3 111.0, 381.3 117.8, 387.5 117.8 C 393.8 117.8, 393.8 120.0, 400.0 120.0 C 406.3 120.0, 406.3 120.0, 412.5 120.0 C 418.8 120.0, 418.8 120.0, 425.0 120.0 C 431.3 120.0, 431.3 120.0, 437.5 120.0 C 443.8 120.0, 443.8 120.0, 450.0 120.0 C 456.3 120.0, 456.3 120.0, 462.5 120.0 C 468.8 120.0, 468.8 120.0, 475.0 120.0 C 481.3 120.0, 481.3 120.0, 487.5 120.0 C 493.8 120.0, 493.8 120.0, 500.0 120.0 C 506.3 120.0, 506.3 120.0, 512.5 120.0 C 518.8 120.0, 518.8 120.0, 525.0 120.0 C 531.3 120.0, 531.3 120.0, 537.5 120.0 C 543.8 120.0, 543.8 120.0, 550.0 120.0 C 556.3 120.0, 556.3 120.0, 562.5 120.0 C 568.8 120.0, 568.8 120.0, 575.0 120.0 C 581.3 120.0, 581.3 120.0, 587.5 120.0 C 593.8 120.0, 593.8 120.0, 600.0 120.0 C 606.3 120.0, 606.3 120.0, 612.5 120.0 C 618.8 120.0, 618.8 120.0, 625.0 120.0 C 631.3 120.0, 631.3 120.0, 637.5 120.0 C 643.8 120.0, 643.8 120.0, 650.0 120.0 C 656.3 120.0, 656.3 120.0, 662.5 120.0 C 668.8 120.0, 668.8 120.0, 675.0 120.0 C 681.3 120.0, 681.3 120.0, 687.5 120.0 C 693.8 120.0, 693.8 120.0, 700.0 120.0 C 706.3 120.0, 706.3 120.0, 712.5 120.0 C 718.8 120.0, 718.8 120.0, 725.0 120.0 C 731.3 120.0, 731.3 120.0, 737.5 120.0 C 743.8 120.0, 743.8 120.0, 750.0 120.0 C 756.3 120.0, 756.3 118.9, 762.5 118.9 C 768.8 118.9, 768.8 117.8, 775.0 117.8 C 781.3 117.8, 781.3 114.4, 787.5 114.4 C 793.8 114.4, 793.8 111.0, 800.0 111.0 C 806.3 111.0, 806.3 107.7, 812.5 107.7 C 818.8 107.7, 818.8 105.4, 825.0 105.4 C 831.3 105.4, 831.3 103.2, 837.5 103.2 C 843.8 103.2, 843.8 103.2, 850.0 103.2 C 856.3 103.2, 856.3 102.1, 862.5 102.1 C 868.8 102.1, 868.8 98.7, 875.0 98.7 C 881.3 98.7, 881.3 94.2, 887.5 94.2 C 893.8 94.2, 893.8 89.8, 900.0 89.8 C 906.3 89.8, 906.3 84.2, 912.5 84.2 C 918.8 84.2, 918.8 80.8, 925.0 80.8 C 931.3 80.8, 931.3 77.4, 937.5 77.4 C 943.8 77.4, 943.8 76.3, 950.0 76.3 C 956.3 76.3, 956.3 75.2, 962.5 75.2 C 968.8 75.2, 968.8 73.0, 975.0 73.0 C 981.3 73.0, 981.3 70.7, 987.5 70.7 C 993.8 70.7, 993.8 67.4, 1000.0 67.4 C 1006.3 67.4, 1006.3 64.0, 1012.5 64.0 C 1018.8 64.0, 1018.8 61.8, 1025.0 61.8 C 1031.3 61.8, 1031.3 59.5, 1037.5 59.5 C 1043.8 59.5, 1043.8 58.4, 1050.0 58.4 C 1056.3 58.4, 1056.3 58.4, 1062.5 58.4 C 1068.8 58.4, 1068.8 57.3, 1075.0 57.3 C 1081.3 57.3, 1081.3 56.2, 1087.5 56.2 C 1093.8 56.2, 1093.8 55.0, 1100.0 55.0 C 1106.3 55.0, 1106.3 53.9, 1112.5 53.9 C 1118.8 53.9, 1118.8 51.7, 1125.0 51.7 C 1131.3 51.7, 1131.3 51.7, 1137.5 51.7 C 1143.8 51.7, 1143.8 50.6, 1150.0 50.6 C 1156.3 50.6, 1156.3 50.6, 1162.5 50.6 C 1168.8 50.6, 1168.8 50.6, 1175.0 50.6 C 1181.3 50.6, 1181.3 50.6, 1187.5 50.6 C 1193.8 50.6, 1193.8 50.6, 1200.0 50.6" fill="none"></path>
+        <circle class="stops-dot" id="stops-dot" r="4.5" cx="0" cy="0" opacity="0"></circle>
+      </svg>
+    </div>    <ol class="stop-list">
+        <li class="stop">
+          <time datetime="2026-01-01T06:00:00">06:00</time>
+          <h3>Perde aralanırken</h3>
+          <p>Işık azken parlaklık düşük kalır. Ton şiddeti %39&#39;a çıkar; ekran yumuşak başlar.</p>
+        </li>
+        <li class="stop">
+          <time datetime="2026-01-01T12:00:00">12:00</time>
+          <h3>Gündüz</h3>
+          <p>Eğri sıfıra iner, sıcak ton kapanır. Renkler 6500 K&#39;de kalır, parlaklık gündüz tavanına yaklaşır.</p>
+        </li>
+        <li class="stop">
+          <time datetime="2026-01-01T18:00:00">18:00</time>
+          <h3>Ton ısınır</h3>
+          <p>Şiddet %27&#39;ye tırmanır. Ekran kararmadan renkler sıcak tonlara kayar.</p>
+        </li>
+        <li class="stop now">
+          <time datetime="2026-01-01T23:00:00">23:00</time>
+          <h3>Gece tavanı</h3>
+          <p>Eğri %88&#39;e çıkar, tavanla %62 uygulanır. Ekran karanlık ama okunur kalır.</p>
+        </li>
+    </ol>
+    <dl class="stats">
+      <div><dt>gece tavanı</dt><dd data-count="62" data-suffix="%">%62</dd></div>
+      <div><dt>gece rengi</dt><dd data-count="4300" data-space="1">4300 K</dd></div>
+      <div><dt>boşta dönüşü</dt><dd data-count="3.5" data-decimal="1" data-suffix=" sn">3,5 sn</dd></div>
     </dl>
   </section>
 
-  <section class="plans" id="plans" data-phase="dawn" aria-labelledby="h-plans">
+  <section class="wrap gallery" id="gallery" aria-labelledby="h-gallery">
+    <div class="gallery-head">
+      <h2 id="h-gallery">Ekranın kendisi</h2>
+      <p class="lead">Aşağıdakiler tanıtım görseli değil, uygulamanın kendi ekranları.</p>
+    </div>
+    <div class="shot-grid">
+      <figure class="shot wide">
+        <img src="./assets/shots/overview.webp" alt="Durum sayfasının tamamı: parlaklık kartı, gün eğrisi ve monitör listesi" width="2750" height="1592" loading="lazy" decoding="async">
+        <figcaption>Durum sayfası: o anki parlaklık, mod ve altında monitörler.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/monitors.webp" alt="Monitör listesi: dahili panel ve iki harici ekran, birinde DDC/CI hatası" width="1168" height="658" loading="lazy" decoding="async">
+        <figcaption>Monitörler: dahili panel ve iki harici ekran.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/warmth.webp" alt="Sıcak ton kartı: şiddet kaydırıcısı, gece tavanı satırı ve Kelvin seçimi" width="1854" height="1100" loading="lazy" decoding="async">
+        <figcaption>Sıcak ton: şiddet, gece tavanı ve Kelvin seçimi.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/contrast.webp" alt="Kontrast denetimi listesi: tema satırları, oranlar ve AA/FAIL rozetleri" width="2880" height="1720" loading="lazy" decoding="async">
+        <figcaption>Kontrast denetimi: her tema ölçülür, okunaksız olan işaretlenir.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/profiles.webp" alt="Profil kartları: her profilde mod, kaynak ve parlaklık ofseti" width="1224" height="688" loading="lazy" decoding="async">
+        <figcaption>Profiller: uygulamalara bağlanabilir, ücretsizde üç tane.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/themes.webp" alt="Tema seçici: renk şeritli palet çipleri" width="2566" height="1444" loading="lazy" decoding="async">
+        <figcaption>Temalar: on iki palet, her biri zemin metin vurgu şeridiyle.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="./assets/shots/history.webp" alt="Geçmiş ekranı: ölçüm kayıtları zaman çizelgesinde" width="848" height="520" loading="lazy" decoding="async">
+        <figcaption>Geçmiş: her turun ne yaptığı, saat saat.</figcaption>
+      </figure>
+      <figure class="shot wide">
+        <img src="./assets/shots/diagnostics.webp" alt="Tanılama kartı: kontrol satırları ve durum rozetleri" width="2730" height="1280" loading="lazy" decoding="async">
+        <figcaption>Tanılama: kamera, HDR, DDC/CI ve izinler tek listede.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap bounds" id="bounds" aria-labelledby="h-bounds">
+    <h2 id="h-bounds">Neye dokunmaz</h2>
+    <p class="lead">Kurallar her durumda önde gelir; bağlı bir profil bile bunları ezemez.</p>
+    <div class="bound-cols">
+      <div>
+        <h3>Dokunur</h3>
+        <ul class="touch">
+          <li>Duraklatma yoksa ve ekran açıksa parlaklığı ayarlar.</li>
+          <li>Sarılık kapalıysa renk dengesine dokunmaz.</li>
+          <li>Bir monitör DDC/CI&#39;yi reddederse onu atlar, diğerlerini sürer.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Dokunmaz</h3>
+        <ul class="untouch">
+          <li>Oyun öndeyken tur dondurulur.</li>
+          <li>Video oynatıcı öndeyken dondurulur.</li>
+          <li>Tam ekran bir uygulama listede değilse durur.</li>
+          <li>PDF okuyucu öndeyken dondurulur.</li>
+          <li>Ekran kilitliyken hiçbir şey yazılmaz.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap features" id="features" aria-labelledby="h-features">
+    <h2 id="h-features">Yedi şey yapar</h2>
+    <p class="lead">Hepsi aynı turda, dakikada bir. Ayrı servis yok, ayrı süreç yok.</p>
+    <ul class="feature-list">
+      <li class="feature">
+        <h3>Işığı kamerayla okur</h3>
+        <p>Kare başına yalnız ortalama parlaklık ve ton çıkarılır. Kamera meşgulse saat moduna düşer.</p>
+      </li>
+      <li class="feature">
+        <h3>Gün eğrisi ve gece tavanı</h3>
+        <p>Şiddet 11 çapa noktasından hesaplanır. 23:00&#39;te tepe %88, uygulanan %62.</p>
+      </li>
+      <li class="feature">
+        <h3>Sıcak ton</h3>
+        <p>6500 K&#39;den 3000 K&#39;ye, 100 K adımlarla. Ekranı karartmadan renkleri kaydırır.</p>
+      </li>
+      <li class="feature">
+        <h3>Kontrast kapısı</h3>
+        <p>Tema dosyaları WCAG 2.1 ile ölçülür; okunaksız çıkan tema otomatik seçimde uygulanmaz.</p>
+      </li>
+      <li class="feature">
+        <h3>Profiller</h3>
+        <p>Ücretsizde üç, Pro&#39;da altı. Bir profili exe adına bağlayabilirsin.</p>
+      </li>
+      <li class="feature">
+        <h3>Harici monitörler</h3>
+        <p>Dahili panel WMI, harici ekran DDC/CI ile okunur. Yazma Pro lisansla açılır.</p>
+      </li>
+      <li class="feature">
+        <h3>20-20-20 ve boşta dönüşü</h3>
+        <p>Uyarı bir kez çıkar, onaylanana kadar tekrarlamaz. Boşta parlaklık düşer, dönüşte 3,5 saniyede geri gelir.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section class="wrap facts" id="facts" aria-labelledby="h-facts">
+    <h2 id="h-facts">Kurulumda ne olur</h2>
+    <dl class="fact-rows">
+      <div class="fact-row"><dt>Kurulum</dt><dd>NSIS setup, x64, kullanıcı kapsamı. Yönetici izni istemez.</dd></div>
+      <div class="fact-row"><dt>İmza</dt><dd>Authenticode imzası yok. SmartScreen &quot;bilinmeyen yayıncı&quot; diyebilir; &quot;Ek bilgi → Yine de çalıştır&quot; gerekir.</dd></div>
+      <div class="fact-row"><dt>Bütünlük</dt><dd>Her sürümde .sha256 var; Get-FileHash ile doğrulanır.</dd></div>
+      <div class="fact-row"><dt>Güncelleme</dt><dd>Uygulama içi. Paket minisign ile imzalı ve indirmede doğrulanır.</dd></div>
+      <div class="fact-row"><dt>Gizlilik</dt><dd>Kamera görüntüsü yazılmaz, ağa gitmez. Telemetri ve hesap yok.</dd></div>
+      <div class="fact-row"><dt>Kaldırınca</dt><dd>Renk dengesi geri yüklenir; sıcak ton kapalıyken de kalibrasyon geri gelir.</dd></div>
+    </dl>
+  </section>
+
+  <section class="wrap plans" id="plans" aria-labelledby="h-plans">
     <h2 id="h-plans">Ücretsiz ve Pro</h2>
-    <p class="lead">Ücretsiz sürüm kısıtlı süre değil, tam bir uygulama. Pro ekran sayısını ve profil sayısını açar.</p>
-    <div class="plan-grid">
+    <p class="lead">Ücretsiz sürüm süreli deneme değil, çalışan bir uygulama. Pro profil sayısını ve harici ekranları açar.</p>
+    <div class="plan-cols">
       <div class="plan">
         <h3>Ücretsiz</h3>
         <ul>
-              <li>Işığa ve saate göre parlaklık</li>
-              <li>Otomatik sıcak ton ve gece tavanı</li>
-              <li>OpenCode teması ve Windows sistem teması</li>
-              <li>3 profil</li>
-              <li>Kontrast kapısı</li>
-              <li>20-20-20 hatırlatması</li>
+          <li>Işığa ve saate göre parlaklık</li>
+          <li>Otomatik sıcak ton ve gece tavanı</li>
+          <li>OpenCode teması ve Windows sistem teması</li>
+          <li>Üç profil</li>
+          <li>Kontrast kapısı</li>
+          <li>20-20-20 hatırlatması</li>
         </ul>
       </div>
-      <div class="plan plan-pro">
+      <div class="plan pro">
         <h3>Pro</h3>
         <ul>
-              <li>6 profil</li>
-              <li>Harici monitör parlaklığı (DDC/CI)</li>
-              <li>Harici monitöre sıcak ton</li>
-              <li>Uygulamaya bağlı profil ve uygulama başına tema</li>
+          <li>Altı profil</li>
+          <li>Harici monitör parlaklığı (DDC/CI)</li>
+          <li>Harici monitöre sıcak ton</li>
+          <li>Uygulamaya bağlı profil ve uygulama başına tema</li>
         </ul>
       </div>
     </div>
     <p class="plan-note">Pro fiyatı henüz belirlenmedi. Uygulamadaki &quot;Pro&#39;yu al&quot; düğmesi şimdilik proje sayfasına gider.</p>
   </section>
 
-  <section class="faq" id="faq" data-phase="noon" aria-labelledby="h-faq">
-    <h2 id="h-faq">Sık sorulanlar</h2>
-          <details class="qa">
-            <summary>Kamera ne görüyor, nereye gidiyor?</summary>
-            <p>Her ölçümde birkaç kare okunur ve yalnız ortalama parlaklık ile ton çıkarılır. Görüntü diske yazılmaz, ağa gönderilmez. Kare kaydı yoktur.</p>
-          </details>
-          <details class="qa">
-            <summary>Pili ne kadar tüketiyor?</summary>
-            <p>Tur dakikada bir koşar ama kamera en fazla 5 dakikada bir açılır. Pil düştükçe aralık uzar: %30 altında 5 dakika, %20 altında 10, %10 altında 20, altında 30 dakika.</p>
-          </details>
-          <details class="qa">
-            <summary>HDR açıkken parlaklık neden çalışmıyor?</summary>
-            <p>Bazı monitörler HDR açıkken DDC/CI parlaklığını reddeder. Uygulama bunu hata metninde söyler; HDR&#39;ı kapatmak genelde çözer.</p>
-          </details>
-          <details class="qa">
-            <summary>Harici monitörüm listede ama ayar dönmüyor?</summary>
-            <p>DDC/CI monitörün OSD menüsünden kapalı olabilir ya da kabloda taşınmıyor olabilir. Ücretsiz sürümde yazma kapalıdır; okuma ve listeleme açıktır.</p>
-          </details>
-          <details class="qa">
-            <summary>Oyun oynarken ekranı değiştirir mi?</summary>
-            <p>Hayır. Oyun, video ve PDF öndeyken tur dondurulur. Tam ekran bir uygulama listede değilse de dondurulur.</p>
-          </details>
-          <details class="qa">
-            <summary>Nasıl kaldırırım, geri alır mı?</summary>
-            <p>Windows ayarlarından kaldırılır. Kaldırmadan önce renk dengesi geri yüklenir; sıcak ton kapalıyken de kalibrasyon geri gelir.</p>
-          </details>
-          <details class="qa">
-            <summary>Uygulama İngilizce mi?</summary>
-            <p>Şu an yalnız Türkçe. Bu site iki dilli; uygulama arayüzü Türkçe.</p>
-          </details>
+  <section class="wrap faq" id="faq" aria-labelledby="h-faq">
+    <h2 id="h-faq">Sorular</h2>
+    <details class="qa">
+        <summary>Kamera ne görüyor, nereye gidiyor?</summary>
+        <p>Her ölçümde birkaç kare okunur ve yalnız ortalama parlaklık ile ton çıkarılır. Görüntü diske yazılmaz, ağa gönderilmez. Kare kaydı yoktur.</p>
+      </details>
+    <details class="qa">
+        <summary>Pili ne kadar tüketiyor?</summary>
+        <p>Tur dakikada bir koşar, kamera en fazla beş dakikada bir açılır. Pil düştükçe aralık uzar: %30 altında 5 dakika, %20 altında 10, %10 altında 20, altında 30.</p>
+      </details>
+    <details class="qa">
+        <summary>HDR açıkken parlaklık neden çalışmıyor?</summary>
+        <p>Bazı monitörler HDR açıkken DDC/CI parlaklığını reddeder. Uygulama bunu hata metninde söyler; HDR&#39;ı kapatmak genelde çözer.</p>
+      </details>
+    <details class="qa">
+        <summary>Harici monitörüm listede ama ayar dönmüyor.</summary>
+        <p>DDC/CI monitörün kendi menüsünden kapalı olabilir ya da kabloda taşınmıyor olabilir. Ücretsiz sürümde yazma kapalıdır; okuma ve listeleme açıktır.</p>
+      </details>
+    <details class="qa">
+        <summary>Oyun oynarken ekranı değiştirir mi?</summary>
+        <p>Hayır. Oyun, video ve PDF öndeyken tur dondurulur. Tam ekran bir uygulama listede değilse de dondurulur.</p>
+      </details>
+    <details class="qa">
+        <summary>Nasıl kaldırırım?</summary>
+        <p>Windows ayarlarından kaldırılır. Kaldırmadan önce renk dengesi geri yüklenir.</p>
+      </details>
+    <details class="qa">
+        <summary>Uygulama İngilizce mi?</summary>
+        <p>Şu an yalnız Türkçe. Bu site iki dilli; uygulama arayüzü Türkçe.</p>
+      </details>
   </section>
 
-  <section class="closing" id="download" data-phase="night" aria-labelledby="h-close">
-    <h2 id="h-close">Kur, unut.</h2>
+  <section class="wrap closing" id="download" aria-labelledby="h-closing">
+    <h2 id="h-closing">Kur, unut.</h2>
     <p class="lead">İlk tur açılışta koşar. Sonrasında dakikada bir ölçer, karar verir, uygular.</p>
-    <div class="cta-row">
-      <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">İndir · 3.6.2</a>
-      <a class="btn btn-ghost" href="https://github.com/TitanLion72/smart-screen/releases">Tüm sürümler</a>
+    <div class="hero-actions">
+      <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Windows için indir · 3.6.2</a>
+      <a class="btn btn-quiet btn-lg" href="https://github.com/TitanLion72/smart-screen/releases">Tüm sürümler</a>
     </div>
   </section>
 </main>
 
 <footer class="foot">
-  <p class="tagline">Ortam ışığına göre ekran parlaklığı ve sıcak ton.</p>
-  <p class="license">GPL-3.0-or-later · © 2026 TitanLion72</p>
-  <nav class="foot-links" aria-label="Alt bağlantılar">
-    <a href="https://github.com/TitanLion72/smart-screen">GitHub</a> · <a href="https://github.com/TitanLion72/smart-screen/releases">Sürümler</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/CHANGELOG.md">Değişiklik günlüğü</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/LICENSE">Lisans</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/CODE-SIGNING.md">Kod imzalama</a>
-  </nav>
+  <div class="wrap foot-in">
+    <span>Ortam ışığına göre ekran parlaklığı ve sıcak ton.</span>
+    <span>GPL-3.0-or-later · © 2026 TitanLion72</span>
+    <nav class="foot-links" aria-label="Alt bağlantılar">
+        <a href="https://github.com/TitanLion72/smart-screen">GitHub</a>
+        <a href="https://github.com/TitanLion72/smart-screen/releases">Sürümler</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/CHANGELOG.md">Değişiklik günlüğü</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/LICENSE">Lisans</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/CODE-SIGNING.md">Kod imzalama</a>
+    </nav>
+  </div>
 </footer>
 
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"smart-screen","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows 10, Windows 11","softwareVersion":"3.6.2","license":"https://www.gnu.org/licenses/gpl-3.0.html","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://titanlion72.github.io/smart-screen/"}</script>

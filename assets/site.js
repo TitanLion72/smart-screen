@@ -1,232 +1,229 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 TitanLion72
 /* ═══════════════════════════════════════════════════════════════════
-   smart-screen — tanıtım sitesi tarayıcı kodu (site/assets/site.js)
+   smart-screen — site v2 tarayıcı kodu (site/v2/assets/site.js)
 
-   Yaptığı üç şey:
-     1) Kaydırırken sayfanın faz rengini komşu bölümlere göre karıştır.
-     2) Hero'daki eğriyi çiz ve ziyaretçinin saatinı işaretle.
-     3) "Şu an" okumasını gerçek formülle yaz (curve.js = curve.mjs).
+   Dört hareket, hepsi ürünün davranışını gösterir (süs değil):
+     (a) açılış: ekran %100'den o anki parlaklığa iner
+     (b) kaydırma: oda kararır (sabah → gece)
+     (c) gün eğrisi çizilir, "şu an" noktası senin saatinle ilerler
+     (d) geçmiş değerler bir kez sayar (62%, 4300 K)
+
+   `prefers-reduced-motion: reduce` ise DÖRDÜ DE kapalı; içerik son hâlde
+   görünür (animasyonun başlangıç karesinde donmak yok).
 
    Yapmadığı: ağ isteği, çerez, ölçüm, dış script. Hiçbiri yok.
-
-   `prefers-reduced-motion: reduce` ise renk geçişi ve çizim YAPILMAZ:
-   fazlar keskin kalır (CSS `data-phase` yeterli), eğri statik çizilir.
    ═══════════════════════════════════════════════════════════════════ */
 
-import { curvePoints, nowReading, minuteOfDay } from "./curve.js";
-import { parseHex, toHex, phaseWeights, nearestPhase, mixWeighted } from "./phase-math.js";
+import { nowReading, minuteOfDay, appliedWarmth } from "./curve.js";
 
-const CAP = 70;
-const VARS = ["--bg", "--text", "--muted", "--accent", "--on-accent"];
 const REDUCE = window.matchMedia("(prefers-reduced-motion: reduce)");
+const CAP = 70;
 
-/** Faz kimliği → renkler (faz CSS'i `:root[data-phase]` ile aynı kaynaktan). */
-function phaseColors() {
-  const sheet = Array.from(document.querySelectorAll("style")).find((s) =>
-    (s.textContent || "").includes(":root[data-phase"),
-  );
-  const css = sheet ? sheet.textContent || "" : "";
-  const out = {};
-  const blockRe = /:root\[data-phase="([a-z]+)"\]\{([^}]*)\}/g;
-  let m;
-  while ((m = blockRe.exec(css))) {
-    const [, id, body] = m;
-    const colors = {};
-    for (const pair of body.split(";")) {
-      const [k, v] = pair.split(":");
-      if (!k || !v) continue;
-      if (VARS.includes(k.trim())) colors[k.trim()] = v.trim();
-    }
-    out[id] = colors;
+const root = document.documentElement;
+const $ = (id) => document.getElementById(id);
+
+// ── (a) açılış: ekran uyanır ────────────────────────────────────────
+/**
+ * Karanlık odada ekran yanar: parlaklık 0.15'ten tam değere çıkar.
+ *
+ * İlk sürüm tersini yapıyordu (1 → 0.38) ve ekran görüntüsü kalıcı olarak
+ * gri kalıyordu: ürünün görüntüsünü "parlaklık kanıtı" uğruna boğuyordu.
+ * Doğrusu: sahne karanlık başlar, ekran aydınlanır ve ORADA kalır.
+ */
+function openShutter() {
+  const screen = $("hero-screen");
+  if (!screen) return;
+  const target = 1;
+  const from = 0.15;
+  if (REDUCE.matches) {
+    screen.style.setProperty("--screen-bright", String(target));
+    return;
   }
-  return out;
+  screen.style.setProperty("--screen-bright", String(from));
+  const start = performance.now();
+  const dur = 900;
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    screen.style.setProperty("--screen-bright", String(from + (target - from) * e));
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
-const COLORS = phaseColors();
-const PHASE_IDS = Object.keys(COLORS);
-
-function setPhaseRoot(id) {
-  if (!id) return;
-  if (document.documentElement.dataset.phase !== id) {
-    document.documentElement.dataset.phase = id;
-  }
-}
-
-// ---------- 1) kaydırma ile faz geçişi ----------
-
-let sections = [];
+// ── (b) kaydırma: oda kararır ───────────────────────────────────────
 let rafPending = false;
+let maxScroll = 1;
 
-function measureSections() {
-  sections = Array.from(document.querySelectorAll("main [data-phase]")).map((el) => ({
-    top: el.getBoundingClientRect().top + window.scrollY,
-    phase: el.dataset.phase,
-  }));
+function measure() {
+  maxScroll = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
 }
 
-function applyScrollPhase() {
+function applyRoom() {
   rafPending = false;
-  if (sections.length === 0) return;
-
-  // Sayfa dibinde son bölümü ortalamak için yeterince kaydırılamaz; bu yüzden
-  // kapanış bölümü sürekli bir önceki fazla karışıp griye dönüyordu. Dip
-  // noktasında son fazı sabitle: footer her zaman gece renginde okunur.
-  const maxScroll = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
-  if (maxScroll > 0 && window.scrollY >= maxScroll - 2) {
-    const last = sections[sections.length - 1];
-    const vars = last && COLORS[last.phase];
-    if (vars) {
-      for (const v of VARS) {
-        if (vars[v]) document.documentElement.style.setProperty(v, vars[v]);
-      }
-      setPhaseRoot(last.phase);
-      return;
-    }
+  if (REDUCE.matches) {
+    root.style.setProperty("--room", "1");
+    return;
   }
-
-  const tops = sections.map((s) => s.top);
-  const w = phaseWeights(window.scrollY, tops, window.innerHeight);
-
-  // Ağırlıklar bölüm bazında; aynı faz birden çok bölümde olabilir (ör. gece).
-  const byPhase = new Map();
-  for (let i = 0; i < sections.length; i++) {
-    const p = sections[i].phase;
-    byPhase.set(p, (byPhase.get(p) ?? 0) + (w[i] ?? 0));
-  }
-
-  // Renkleri karıştır (yoksa faz CSS'ine dokunma).
-  const entries = [];
-  for (const [phase, weight] of byPhase) {
-    const vars = COLORS[phase];
-    if (!vars || !vars["--bg"] || weight <= 0) continue;
-    entries.push([{ bg: parseHex(vars["--bg"]) }, weight]);
-  }
-  if (entries.length > 0) {
-    const mixed = mixWeighted(entries.map(([o, k]) => [o.bg, k]));
-    document.documentElement.style.setProperty("--bg", toHex(mixed));
-  }
-
-  // Metin/vurgu için tek faz seçmek yeterli: karışık metin rengi kontrastı bozar.
-  const dominant = nearestPhase(w);
-  const domPhase = dominant >= 0 ? sections[dominant]?.phase : null;
-  if (domPhase && COLORS[domPhase]) {
-    for (const v of VARS) {
-      if (v === "--bg") continue;
-      const value = COLORS[domPhase][v];
-      if (value) document.documentElement.style.setProperty(v, value);
-    }
-    setPhaseRoot(domPhase);
-  }
+  const k = Math.max(0, Math.min(1, window.scrollY / maxScroll));
+  // Oda dibe doğru kararır; üstte sabah ışığı kalır.
+  root.style.setProperty("--room", k.toFixed(3));
+  const bar = $("topbar");
+  if (bar) bar.classList.toggle("stuck", window.scrollY > 8);
 }
 
 function onScroll() {
-  if (REDUCE.matches) return;
   if (rafPending) return;
   rafPending = true;
-  requestAnimationFrame(applyScrollPhase);
+  requestAnimationFrame(applyRoom);
 }
 
-// ---------- 2) hero eğrisi ----------
-
-const W = 960;
-const H = 220;
-const PAD_BOTTOM = 10;
-const Y_MAX = H - PAD_BOTTOM;
-
+// ── (c) eğri: çizilir + "şu an" noktası ─────────────────────────────
 function drawCurve() {
-  const path = document.getElementById("curve-path");
-  if (!path) return;
-  const pts = curvePoints(15).map((p) => ({
-    minute: p.minute,
-    // Uygulanan şiddet: hero'da kullanıcının gördüğü değer bu (tavan %70).
-    value: Math.round((p.warmth * CAP) / 100),
-  }));
-  const all = [{ minute: 0, value: Math.round((88 * CAP) / 100) }, ...pts];
-  const x = (m) => (m / 1440) * W;
-  const y = (v) => Y_MAX - (v / 100) * (Y_MAX - 10);
-  let d = `M ${x(all[0].minute).toFixed(1)} ${y(all[0].value).toFixed(1)}`;
-  for (let i = 1; i < all.length; i++) {
-    const p = all[i];
-    const prev = all[i - 1];
-    const cx = (x(prev.minute) + x(p.minute)) / 2;
-    d += ` C ${cx.toFixed(1)} ${y(prev.value).toFixed(1)}, ${cx.toFixed(1)} ${y(p.value).toFixed(1)}, ${x(p.minute).toFixed(1)} ${y(p.value).toFixed(1)}`;
-  }
-  path.setAttribute("d", d);
+  const path = document.querySelector(".stops-path");
+  const dot = $("stops-dot");
+  if (!path || !dot) return;
 
-  // Çizim animasyonu: yalnız hareket izinliyse ve tek sefer.
-  if (!REDUCE.matches && path.animate) {
-    const len = path.getTotalLength ? path.getTotalLength() : 0;
-    if (len > 0) {
-      path.style.strokeDasharray = String(len);
-      path.style.strokeDashoffset = String(len);
-      path.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], {
-        duration: 600,
-        easing: "ease-out",
-        fill: "forwards",
-      });
-    }
-  }
+  const now = new Date();
+  const minute = minuteOfDay(now.getHours(), now.getMinutes());
+  const value = appliedWarmth(minute, CAP);
+  dot.setAttribute("cx", String((minute / 1440) * 1200));
+  dot.setAttribute("cy", String(120 - (value / 100) * 112));
+  dot.setAttribute("opacity", "1");
+
+  if (REDUCE.matches || !path.getTotalLength) return;
+  const len = path.getTotalLength();
+  if (!len) return;
+  path.style.strokeDasharray = String(len);
+  path.style.strokeDashoffset = String(len);
+  path.animate([{ strokeDashoffset: len }, { strokeDashoffset: 0 }], {
+    duration: 900,
+    easing: "cubic-bezier(.22,.61,.36,1)",
+    fill: "forwards",
+  });
 }
 
-function drawNow() {
+// ── (d) sayı sayması ────────────────────────────────────────────────
+function countUp(el, to, suffix = "", dur = 700) {
+  if (REDUCE.matches) {
+    el.textContent = `${to.toLocaleString("tr-TR")}${suffix}`;
+    return;
+  }
+  const start = performance.now();
+  const step = (t) => {
+    const k = Math.min(1, (t - start) / dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    const v = Math.round(to * e);
+    el.textContent = `${v.toLocaleString("tr-TR")}${suffix}`;
+    if (k < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
+function animateNumbers() {
+  const items = Array.from(document.querySelectorAll("[data-count]"));
+  if (items.length === 0) return;
+
+  const finalText = (el) => {
+    // JS'siz hâl zaten doğru metni taşıyor; son hâl = onun kopyası.
+    if (!el.dataset.final) el.dataset.final = el.textContent.trim();
+    return el.dataset.final;
+  };
+
+  if (REDUCE.matches || !("IntersectionObserver" in window)) {
+    for (const el of items) el.textContent = finalText(el);
+    return;
+  }
+
+  const run = (el) => {
+    if (el.dataset.done === "1") return;
+    el.dataset.done = "1";
+    const to = Number(el.dataset.count);
+    const final = finalText(el);
+    const dec = Number(el.dataset.decimal || 0);
+    const suffix = el.dataset.suffix || "";
+    const space = el.dataset.space === "1" ? " " : "";
+    const start = performance.now();
+    const dur = 620;
+    const step = (t) => {
+      const k = Math.min(1, (t - start) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      const v = to * e;
+      el.textContent =
+        dec > 0
+          ? `${v.toFixed(dec).replace(".", ",")}${suffix}`
+          : `${Math.round(v).toLocaleString("tr-TR")}${space}${suffix}`.trim();
+      if (k < 1) requestAnimationFrame(step);
+      else el.textContent = final;
+    };
+    requestAnimationFrame(step);
+  };
+
+  const io = new IntersectionObserver(
+    (entries) => {
+      for (const ent of entries) {
+        if (ent.isIntersecting) {
+          run(ent.target);
+          io.unobserve(ent.target);
+        }
+      }
+    },
+    { threshold: 0.6 },
+  );
+  for (const el of items) io.observe(el);
+}
+
+// ── hero okuması: gerçek saat ───────────────────────────────────────
+function paintReadout() {
   const now = new Date();
   const minute = minuteOfDay(now.getHours(), now.getMinutes());
   const r = nowReading(minute, CAP);
+  const lang = root.lang === "en" ? "en-GB" : "tr-TR";
 
-  const timeEl = document.getElementById("now-time");
-  const warmEl = document.getElementById("now-warmth");
-  const kelEl = document.getElementById("now-kelvin");
-  const lang = document.documentElement.lang === "en" ? "en-GB" : "tr-TR";
-  if (timeEl) {
-    timeEl.textContent = now.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
-  }
-  if (warmEl) warmEl.textContent = `%${r.applied}`;
-  if (kelEl) kelEl.textContent = `${r.kelvin} K`;
+  const t = $("now-time");
+  const w = $("now-warmth");
+  const k = $("now-kelvin");
+  if (t) t.textContent = now.toLocaleTimeString(lang, { hour: "2-digit", minute: "2-digit" });
+  if (w) w.textContent = `%${r.applied}`;
+  if (k) k.textContent = `${r.kelvin} K`;
 
-  const line = document.getElementById("curve-now");
-  const dot = document.getElementById("curve-dot");
-  const x = (minute / 1440) * W;
-  const y = Y_MAX - (r.applied / 100) * (Y_MAX - 10);
-  if (line) {
-    line.setAttribute("x1", String(x));
-    line.setAttribute("x2", String(x));
-    line.setAttribute("opacity", "1");
+  // "şu an" durağı gerçek saate taşınır: sayfa hangi saatte açılırsa açılsın
+  // işaret doğru yerde durur.
+  const stops = document.querySelectorAll(".stop-list .stop");
+  const hours = [6, 12, 18, 23];
+  let idx = 3;
+  for (let i = 0; i < hours.length; i++) {
+    if (now.getHours() >= hours[i]) idx = i;
   }
-  if (dot) {
-    dot.setAttribute("cx", String(x));
-    dot.setAttribute("cy", String(y));
-    dot.setAttribute("opacity", "1");
-  }
+  stops.forEach((s, i) => s.classList.toggle("now", i === idx));
 }
 
-// ---------- başlat ----------
-
+// ── başlat ──────────────────────────────────────────────────────────
 function boot() {
+  measure();
+  openShutter();
+  paintReadout();
   drawCurve();
-  drawNow();
-  measureSections();
-  if (!REDUCE.matches) applyScrollPhase();
+  applyRoom();
+  animateNumbers();
+
   window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", () => {
-    measureSections();
+    measure();
     onScroll();
   });
 
-  // reduced-motion sonradan değişirse: renkleri sıfırla, keskin fazlara dön.
-  const onPref = () => {
-    if (REDUCE.matches) {
-      for (const v of VARS) document.documentElement.style.removeProperty(v);
-      delete document.documentElement.dataset.phase;
-    } else {
-      measureSections();
-      applyScrollPhase();
-    }
-  };
-  if (REDUCE.addEventListener) REDUCE.addEventListener("change", onPref);
+  // Hareket tercihi sonradan değişirse son hâle geç.
+  if (REDUCE.addEventListener) {
+    REDUCE.addEventListener("change", () => {
+      openShutter();
+      applyRoom();
+    });
+  }
 
-  // Saat güncellensin (sayfa açık kalırsa okuma bayatlamasın).
-  window.setInterval(drawNow, 60_000);
+  // Saat ilerlesin (sayfa açık kalırsa okuma bayatlamasın).
+  window.setInterval(paintReadout, 60_000);
 }
 
 if (document.readyState === "loading") {

@@ -3,319 +3,310 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>smart-screen — your screen follows the light in the room</title>
-<meta name="description" content="A Windows tray app: it measures ambient light and adjusts screen brightness and warmth. It leaves games, video and the lock screen alone. No account, no telemetry.">
+<title>smart-screen — when the room goes dark, the screen follows</title>
+<meta name="description" content="A Windows tray app. It measures ambient light with the camera and adjusts screen brightness and warmth. It leaves games, video and the lock screen alone.">
 <link rel="canonical" href="https://titanlion72.github.io/smart-screen/en/">
 <link rel="alternate" hreflang="tr" href="https://titanlion72.github.io/smart-screen/">
 <link rel="alternate" hreflang="en" href="https://titanlion72.github.io/smart-screen/en/">
 <link rel="alternate" hreflang="x-default" href="https://titanlion72.github.io/smart-screen/">
 <meta property="og:type" content="website">
-<meta property="og:title" content="smart-screen — your screen follows the light in the room">
-<meta property="og:description" content="A Windows tray app: it measures ambient light and adjusts screen brightness and warmth. It leaves games, video and the lock screen alone. No account, no telemetry.">
+<meta property="og:title" content="smart-screen — when the room goes dark, the screen follows">
+<meta property="og:description" content="A Windows tray app. It measures ambient light with the camera and adjusts screen brightness and warmth. It leaves games, video and the lock screen alone.">
 <meta property="og:image" content="https://titanlion72.github.io/smart-screen/og.png">
-<meta property="og:image:alt" content="smart-screen: 38% brightness and the warmth curve across the day">
+<meta property="og:image:alt" content="A single light in a dark room: the smart-screen status display">
 <meta property="og:url" content="https://titanlion72.github.io/smart-screen/en/">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="icon" href="../assets/icon.svg" type="image/svg+xml">
+<link rel="preload" href="../assets/fonts/bricolage.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="../assets/site.css">
-<style>:root{--bg:#0a0908;--text:#f5f1ea;--muted:#b8afa2;--accent:#d8b98a;--on-accent:#0a0908}:root[data-phase="dawn"]{--bg:#0e1014;--text:#ded9d0;--muted:#a8a49c;--accent:#b9c4cf;--on-accent:#0e1014}:root[data-phase="noon"]{--bg:#f6f1e6;--text:#211d18;--muted:#5c5449;--accent:#7a4a2f;--on-accent:#f6f1e6}:root[data-phase="dusk"]{--bg:#241c16;--text:#e7dccd;--muted:#a99c8a;--accent:#d8b98a;--on-accent:#241c16}:root[data-phase="night"]{--bg:#0a0908;--text:#f5f1ea;--muted:#b8afa2;--accent:#d8b98a;--on-accent:#0a0908}</style>
 </head>
 <body>
 
-<header class="topbar">
-  <div class="topbar-in">
-    <a class="brand" href="./"><span class="mark" aria-hidden="true"></span>smart-screen</a>
+<header class="topbar" id="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="./"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+<rect x="2.5" y="5.5" width="19" height="12.5" rx="2" stroke="currentColor" stroke-width="1.6"/>
+<path d="M1 21h22" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" opacity=".5"/>
+<path d="M7.5 11.75h9" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/></svg>smart-screen</a>
     <nav class="nav" aria-label="Main navigation">
-      <a href="#how">How it works</a>
-          <a href="#features">Features</a>
-          <a href="#faq">FAQ</a>
+      <a href="#stops">Across the day</a>
+        <a href="#features">What it does</a>
+        <a href="#faq">Questions</a>
     </nav>
     <div class="topbar-end">
-      <a class="lang" href="../" hreflang="tr" lang="tr">Turkish</a>
+      <a class="lang" href="../" hreflang="tr" lang="tr">Türkçe</a>
       <a class="btn" href="https://github.com/TitanLion72/smart-screen/releases/latest">Download <span class="ver">3.6.2</span></a>
     </div>
   </div>
 </header>
 
 <main>
-  <section class="hero" data-phase="night" aria-labelledby="h-hero">
-    <div class="hero-in">
-      <p class="eyebrow">Windows · tray app</p>
-      <h1 class="display" id="h-hero">Your screen measures the light in the room.</h1>
-      <p class="lead">The camera reads a few frames and extracts average brightness and tone. Brightness, warmth and the OpenCode theme follow that reading. Games, video, PDFs and the lock screen are left untouched.</p>
+  <section class="hero">
+    <div class="wrap hero-in">
+      <h1>When the room goes dark, the screen should too.</h1>
+      <p class="lead">The camera measures ambient light. Brightness and warmth follow that reading, so a white page at midnight does not stab your eyes.</p>
 
-      <div class="reading">
-        <div class="reading-item">
-          <span class="reading-k">Now</span>
-          <span class="reading-v" id="now-time">--:--</span>
-        </div>
-        <div class="reading-item">
-          <span class="reading-k">warmth</span>
-          <span class="reading-v" id="now-warmth">—</span>
-        </div>
-        <div class="reading-item">
-          <span class="reading-k">color temperature</span>
-          <span class="reading-v" id="now-kelvin">—</span>
-        </div>
+      <div class="hero-actions">
+        <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Download for Windows · 3.6.2</a>
+        <a class="btn btn-quiet btn-lg" href="https://github.com/TitanLion72/smart-screen">Source code</a>
       </div>
 
-      <div class="curve-wrap">
-        <svg id="day-curve" viewBox="0 0 960 220" preserveAspectRatio="none" role="img" aria-label="Computed with default settings: strength cap 70%, night peak 62%.">
-          <line class="axis" x1="0" y1="210" x2="960" y2="210"></line>
-          <line class="grid" x1="240" y1="10" x2="240" y2="210"></line>
-          <line class="grid" x1="480" y1="10" x2="480" y2="210"></line>
-          <line class="grid" x1="720" y1="10" x2="720" y2="210"></line>
-          <path id="curve-path" class="curve-path" d=""></path>
-          <line id="curve-now" class="curve-now" x1="0" y1="10" x2="0" y2="210" opacity="0"></line>
-          <circle id="curve-dot" class="curve-dot" r="4" cx="0" cy="0" opacity="0"></circle>
-        </svg>
-        <div class="curve-ticks" aria-hidden="true"><span>00</span><span>06</span><span>12</span><span>18</span><span>24</span></div>
-        <p class="hint">Computed with default settings: strength cap 70%, night peak 62%.</p>
-      </div>
-
-      <div class="cta-row">
-        <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Download · 3.6.2</a>
-        <a class="btn btn-ghost" href="https://github.com/TitanLion72/smart-screen">Source code</a>
-      </div>
-      <ul class="facts">
-        <li>Camera frames are never written to disk</li>
-        <li>No account</li>
-        <li>No telemetry</li>
-        <li>GPL-3.0</li>
+      <ul class="trust">
+          <li>Camera frames are never written to disk</li>
+          <li>No account</li>
+          <li>No telemetry</li>
+          <li>GPL-3.0</li>
       </ul>
+
+      <div class="stage">
+        <div class="screen" id="hero-screen" data-brightness="55">
+          <img src="../assets/shots/hero.webp" alt="Status screen: 38% brightness, mode badge and the warmth curve across the day" width="1634" height="520" fetchpriority="high" decoding="async">
+        </div>
+        <p class="screen-note">The status screen. The warmth curve runs across the day; brightness sits on the left.</p>
+      </div>
+
+      <dl class="readout" id="readout">
+        <div><dt>now</dt><dd id="now-time">21:04</dd></div>
+        <div><dt>warmth</dt><dd id="now-warmth">%55</dd></div>
+        <div><dt>color temperature</dt><dd id="now-kelvin">4600 K</dd></div>
+      </dl>
     </div>
   </section>
 
-  <div id="how" class="how">
-
-      <section class="chapter" id="morning" data-phase="dawn" aria-labelledby="h-morning">
-        <div class="chapter-num" aria-hidden="true">06:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Dawn</p>
-          <h2 id="h-morning">The screen wakes as the curtain opens.</h2>
-          <p class="lead">In low light the brightness stays low. As light rises it climbs at most 8 points per tick, so the screen never jumps.</p>
-          <ul class="points">
-            <li>The brightness target shifts with the light reading: 6 points down in the dark, 4 points up in bright light.</li>
-            <li>Warmth rises in the dark too; at dawn the curve sits at 39% strength.</li>
-            <li>A tick runs every minute, and the camera opens at most every 5 minutes.</li>
-          </ul>
-          <figure class="shot">
-            <img src="../assets/shots/morning.webp" alt="Status page: 38% brightness, mode badge and the warmth curve across the day" width="1650" height="456" loading="lazy" decoding="async">
-            <figcaption>The status page in the light ss-paper theme.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="noon" data-phase="noon" aria-labelledby="h-noon">
-        <div class="chapter-num" aria-hidden="true">12:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Noon</p>
-          <h2 id="h-noon">Daylight at its clearest.</h2>
-          <p class="lead">At noon the curve drops to zero: warmth is off and colors stay at 6500 K. Brightness approaches the daytime ceiling.</p>
-          <ul class="points">
-            <li>In automatic selection, a theme that measures FAIL is not applied; picking it by hand is allowed.</li>
-            <li>Contrast is computed with WCAG 2.1: above 7 is excellent, 4.5 is good, 3 is the limit.</li>
-            <li>The gate can be switched off in Settings; it is on by default.</li>
-          </ul>
-          <figure class="shot">
-            <img src="../assets/shots/noon.webp" alt="Contrast audit list: theme rows, ratios and AA/FAIL badges" width="2746" height="1728" loading="lazy" decoding="async">
-            <figcaption>Contrast audit: every theme is measured, FAIL themes are not auto-applied.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="evening" data-phase="dusk" aria-labelledby="h-evening">
-        <div class="chapter-num" aria-hidden="true">18:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Evening</p>
-          <h2 id="h-evening">The tone starts to warm.</h2>
-          <p class="lead">The evening curve climbs: 27% strength at 18:00 and 55% at 21:00. Colors shift warm without dimming the screen.</p>
-          <ul class="points">
-            <li>The strength cap is 70%; at night at most 62% is applied.</li>
-            <li>Kelvin falls from 6500 to 3000 in steps of 100.</li>
-            <li>Turning warmth off restores the learned color balance.</li>
-          </ul>
-          <figure class="shot">
-            <img src="../assets/shots/evening.webp" alt="Warmth card: strength slider, night ceiling line and Kelvin picker" width="1870" height="1206" loading="lazy" decoding="async">
-            <figcaption>Warmth: strength, ceiling and Kelvin on one card.</figcaption>
-          </figure>
-        </div>
-      </section>
-
-      <section class="chapter" id="night" data-phase="night" aria-labelledby="h-night">
-        <div class="chapter-num" aria-hidden="true">23:00</div>
-        <div class="chapter-body">
-          <p class="eyebrow">Night</p>
-          <h2 id="h-night">The night ceiling takes over.</h2>
-          <p class="lead">At 23:00 the curve reaches 88% and the cap applies 62%. The screen stays dark but readable.</p>
-          <ul class="points">
-            <li>After 10 idle minutes the target drops 15 points, after 30 it drops 25; the return is a ramp of about 3.5 seconds.</li>
-            <li>The 20-20-20 reminder fires once: it closes on &quot;Looked&quot; or &quot;Snooze&quot; and does not repeat on its own.</li>
-            <li>External monitor brightness is read and written per display over DDC/CI.</li>
-          </ul>
-          <figure class="shot">
-            <img src="../assets/shots/night.webp" alt="Monitor list: internal panel and two external displays, one with a DDC/CI error" width="1184" height="848" loading="lazy" decoding="async">
-            <figcaption>Monitor list: three displays, one refusing DDC/CI.</figcaption>
-          </figure>
-        </div>
-      </section>
-  </div>
-
-  <section class="bounds" data-phase="night" aria-labelledby="h-bounds">
-    <h2 id="h-bounds">What it leaves alone</h2>
-    <p class="lead">The rules always win; not even a bound profile can override them.</p>
-    <div class="bound-grid">
-      <div class="bound-col">
-        <h3>Touches</h3>
-        <ul class="bound-list touch">
-            <li>With no pause and the screen on, it adjusts brightness.</li>
-            <li>With warmth off, it does not touch color balance.</li>
-            <li>If one monitor refuses DDC/CI, that monitor is skipped and the others are driven.</li>
-        </ul>
-      </div>
-      <div class="bound-col">
-        <h3>Leaves alone</h3>
-        <ul class="bound-list untouch">
-            <li>A game in the foreground freezes the tick.</li>
-            <li>A video player in the foreground freezes the tick.</li>
-            <li>A fullscreen app on the keep-list continues; any other fullscreen app stops it.</li>
-            <li>A PDF reader in the foreground freezes the tick.</li>
-            <li>While the screen is locked, nothing is written.</li>
-        </ul>
-      </div>
+  <section class="wrap stops" id="stops" aria-labelledby="h-stops">
+    <div class="stops-head">
+      <h2 id="h-stops">What changes across the day</h2>
+      <p>The same day at four hours. Values are computed with default settings.</p>
     </div>
-  </section>
-
-  <section class="features" id="features" data-phase="dusk" aria-labelledby="h-features">
-    <h2 id="h-features">Seven things it does</h2>
-    <p class="lead">All in one tick, once a minute. No extra service, no extra process.</p>
-    <ul class="feature-list">
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">01</span>
-            <h3>Ambient light from the camera</h3>
-            <p>Each frame yields only average brightness and tone; nothing is written to disk. If the camera is busy it falls back to the clock.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">02</span>
-            <h3>Day curve and night ceiling</h3>
-            <p>Strength is computed from 11 anchor points; the peak is 88% at 23:00 and the cap applies 62%.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">03</span>
-            <h3>Warmth</h3>
-            <p>From 6500 K down to 3000 K in steps of 100 K. It shifts colors without dimming the screen.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">04</span>
-            <h3>Contrast gate</h3>
-            <p>Theme files are measured with WCAG 2.1; a theme that measures FAIL is not applied automatically.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">05</span>
-            <h3>Profiles</h3>
-            <p>Three in the free build, six with Pro. A profile can be bound to an executable name; when that app comes forward, settings follow the profile.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">06</span>
-            <h3>External monitors</h3>
-            <p>The internal panel is read over WMI, external displays over DDC/CI. Writing is unlocked by a Pro license.</p>
-          </li>
-          <li class="feature">
-            <span class="feature-num" aria-hidden="true">07</span>
-            <h3>20-20-20 and idle return</h3>
-            <p>A reminder every 20 minutes that does not repeat until acknowledged. Idle dims the screen; the return takes about 3.5 seconds.</p>
-          </li>
-    </ul>
-  </section>
-
-  <section class="facts-block" data-phase="dusk" aria-labelledby="h-facts">
-    <h2 id="h-facts">Install facts</h2>
-    <dl class="fact-table">
-            <div class="fact-row"><dt>Installer</dt><dd>NSIS setup, x64, per-user scope. No admin prompt.</dd></div>
-            <div class="fact-row"><dt>Signature</dt><dd>No Authenticode signature. SmartScreen may warn about an unknown publisher; use &quot;More info → Run anyway&quot;.</dd></div>
-            <div class="fact-row"><dt>Integrity</dt><dd>Every release ships a .sha256 file: verify with Get-FileHash.</dd></div>
-            <div class="fact-row"><dt>Updates</dt><dd>In-app; the package is signed with minisign and verified on download.</dd></div>
-            <div class="fact-row"><dt>Privacy</dt><dd>Camera frames are not written and not uploaded. No telemetry and no account.</dd></div>
-            <div class="fact-row"><dt>License</dt><dd>The free build is fully working. Pro unlocks with an offline Ed25519 key.</dd></div>
+    <div class="stops-curve" aria-hidden="true">
+      <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
+        <path class="stops-path" d="M 0.0 50.6 C 6.3 50.6, 6.3 50.6, 12.5 50.6 C 18.8 50.6, 18.8 50.6, 25.0 50.6 C 31.3 50.6, 31.3 50.6, 37.5 50.6 C 43.8 50.6, 43.8 50.6, 50.0 50.6 C 56.3 50.6, 56.3 50.6, 62.5 50.6 C 68.8 50.6, 68.8 50.6, 75.0 50.6 C 81.3 50.6, 81.3 50.6, 87.5 50.6 C 93.8 50.6, 93.8 50.6, 100.0 50.6 C 106.3 50.6, 106.3 50.6, 112.5 50.6 C 118.8 50.6, 118.8 50.6, 125.0 50.6 C 131.3 50.6, 131.3 50.6, 137.5 50.6 C 143.8 50.6, 143.8 50.6, 150.0 50.6 C 156.3 50.6, 156.3 50.6, 162.5 50.6 C 168.8 50.6, 168.8 50.6, 175.0 50.6 C 181.3 50.6, 181.3 50.6, 187.5 50.6 C 193.8 50.6, 193.8 50.6, 200.0 50.6 C 206.3 50.6, 206.3 50.6, 212.5 50.6 C 218.8 50.6, 218.8 50.6, 225.0 50.6 C 231.3 50.6, 231.3 50.6, 237.5 50.6 C 243.8 50.6, 243.8 50.6, 250.0 50.6 C 256.3 50.6, 256.3 55.0, 262.5 55.0 C 268.8 55.0, 268.8 64.0, 275.0 64.0 C 281.3 64.0, 281.3 71.8, 287.5 71.8 C 293.8 71.8, 293.8 76.3, 300.0 76.3 C 306.3 76.3, 306.3 80.8, 312.5 80.8 C 318.8 80.8, 318.8 89.8, 325.0 89.8 C 331.3 89.8, 331.3 98.7, 337.5 98.7 C 343.8 98.7, 343.8 103.2, 350.0 103.2 C 356.3 103.2, 356.3 105.4, 362.5 105.4 C 368.8 105.4, 368.8 111.0, 375.0 111.0 C 381.3 111.0, 381.3 117.8, 387.5 117.8 C 393.8 117.8, 393.8 120.0, 400.0 120.0 C 406.3 120.0, 406.3 120.0, 412.5 120.0 C 418.8 120.0, 418.8 120.0, 425.0 120.0 C 431.3 120.0, 431.3 120.0, 437.5 120.0 C 443.8 120.0, 443.8 120.0, 450.0 120.0 C 456.3 120.0, 456.3 120.0, 462.5 120.0 C 468.8 120.0, 468.8 120.0, 475.0 120.0 C 481.3 120.0, 481.3 120.0, 487.5 120.0 C 493.8 120.0, 493.8 120.0, 500.0 120.0 C 506.3 120.0, 506.3 120.0, 512.5 120.0 C 518.8 120.0, 518.8 120.0, 525.0 120.0 C 531.3 120.0, 531.3 120.0, 537.5 120.0 C 543.8 120.0, 543.8 120.0, 550.0 120.0 C 556.3 120.0, 556.3 120.0, 562.5 120.0 C 568.8 120.0, 568.8 120.0, 575.0 120.0 C 581.3 120.0, 581.3 120.0, 587.5 120.0 C 593.8 120.0, 593.8 120.0, 600.0 120.0 C 606.3 120.0, 606.3 120.0, 612.5 120.0 C 618.8 120.0, 618.8 120.0, 625.0 120.0 C 631.3 120.0, 631.3 120.0, 637.5 120.0 C 643.8 120.0, 643.8 120.0, 650.0 120.0 C 656.3 120.0, 656.3 120.0, 662.5 120.0 C 668.8 120.0, 668.8 120.0, 675.0 120.0 C 681.3 120.0, 681.3 120.0, 687.5 120.0 C 693.8 120.0, 693.8 120.0, 700.0 120.0 C 706.3 120.0, 706.3 120.0, 712.5 120.0 C 718.8 120.0, 718.8 120.0, 725.0 120.0 C 731.3 120.0, 731.3 120.0, 737.5 120.0 C 743.8 120.0, 743.8 120.0, 750.0 120.0 C 756.3 120.0, 756.3 118.9, 762.5 118.9 C 768.8 118.9, 768.8 117.8, 775.0 117.8 C 781.3 117.8, 781.3 114.4, 787.5 114.4 C 793.8 114.4, 793.8 111.0, 800.0 111.0 C 806.3 111.0, 806.3 107.7, 812.5 107.7 C 818.8 107.7, 818.8 105.4, 825.0 105.4 C 831.3 105.4, 831.3 103.2, 837.5 103.2 C 843.8 103.2, 843.8 103.2, 850.0 103.2 C 856.3 103.2, 856.3 102.1, 862.5 102.1 C 868.8 102.1, 868.8 98.7, 875.0 98.7 C 881.3 98.7, 881.3 94.2, 887.5 94.2 C 893.8 94.2, 893.8 89.8, 900.0 89.8 C 906.3 89.8, 906.3 84.2, 912.5 84.2 C 918.8 84.2, 918.8 80.8, 925.0 80.8 C 931.3 80.8, 931.3 77.4, 937.5 77.4 C 943.8 77.4, 943.8 76.3, 950.0 76.3 C 956.3 76.3, 956.3 75.2, 962.5 75.2 C 968.8 75.2, 968.8 73.0, 975.0 73.0 C 981.3 73.0, 981.3 70.7, 987.5 70.7 C 993.8 70.7, 993.8 67.4, 1000.0 67.4 C 1006.3 67.4, 1006.3 64.0, 1012.5 64.0 C 1018.8 64.0, 1018.8 61.8, 1025.0 61.8 C 1031.3 61.8, 1031.3 59.5, 1037.5 59.5 C 1043.8 59.5, 1043.8 58.4, 1050.0 58.4 C 1056.3 58.4, 1056.3 58.4, 1062.5 58.4 C 1068.8 58.4, 1068.8 57.3, 1075.0 57.3 C 1081.3 57.3, 1081.3 56.2, 1087.5 56.2 C 1093.8 56.2, 1093.8 55.0, 1100.0 55.0 C 1106.3 55.0, 1106.3 53.9, 1112.5 53.9 C 1118.8 53.9, 1118.8 51.7, 1125.0 51.7 C 1131.3 51.7, 1131.3 51.7, 1137.5 51.7 C 1143.8 51.7, 1143.8 50.6, 1150.0 50.6 C 1156.3 50.6, 1156.3 50.6, 1162.5 50.6 C 1168.8 50.6, 1168.8 50.6, 1175.0 50.6 C 1181.3 50.6, 1181.3 50.6, 1187.5 50.6 C 1193.8 50.6, 1193.8 50.6, 1200.0 50.6" fill="none"></path>
+        <circle class="stops-dot" id="stops-dot" r="4.5" cx="0" cy="0" opacity="0"></circle>
+      </svg>
+    </div>    <ol class="stop-list">
+        <li class="stop">
+          <time datetime="2026-01-01T06:00:00">06:00</time>
+          <h3>As the curtain opens</h3>
+          <p>Low light keeps brightness low. Warmth strength reaches 39%; the screen starts soft.</p>
+        </li>
+        <li class="stop">
+          <time datetime="2026-01-01T12:00:00">12:00</time>
+          <h3>Daylight</h3>
+          <p>The curve drops to zero and warmth switches off. Colors stay at 6500 K while brightness nears its daytime ceiling.</p>
+        </li>
+        <li class="stop">
+          <time datetime="2026-01-01T18:00:00">18:00</time>
+          <h3>The tone warms</h3>
+          <p>Strength climbs to 27%. Colors shift warm without dimming the screen.</p>
+        </li>
+        <li class="stop now">
+          <time datetime="2026-01-01T23:00:00">23:00</time>
+          <h3>The night ceiling</h3>
+          <p>The curve reaches 88% and the cap applies 62%. The screen stays dark but readable.</p>
+        </li>
+    </ol>
+    <dl class="stats">
+      <div><dt>night ceiling</dt><dd data-count="62" data-suffix="%">%62</dd></div>
+      <div><dt>night color</dt><dd data-count="4300" data-space="1">4300 K</dd></div>
+      <div><dt>idle return</dt><dd data-count="3.5" data-decimal="1" data-suffix=" sn">3,5 sn</dd></div>
     </dl>
   </section>
 
-  <section class="plans" id="plans" data-phase="dawn" aria-labelledby="h-plans">
+  <section class="wrap gallery" id="gallery" aria-labelledby="h-gallery">
+    <div class="gallery-head">
+      <h2 id="h-gallery">The screens themselves</h2>
+      <p class="lead">These are not marketing renders. They are the app&#39;s own screens.</p>
+    </div>
+    <div class="shot-grid">
+      <figure class="shot wide">
+        <img src="../assets/shots/overview.webp" alt="The whole status page: brightness card, day curve and monitor list" width="2750" height="1592" loading="lazy" decoding="async">
+        <figcaption>The status page: current brightness, mode and the monitors below.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/monitors.webp" alt="Monitor list: internal panel and two external displays, one with a DDC/CI error" width="1168" height="658" loading="lazy" decoding="async">
+        <figcaption>Monitors: the internal panel and two external displays.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/warmth.webp" alt="Warmth card: strength slider, night ceiling line and Kelvin picker" width="1854" height="1100" loading="lazy" decoding="async">
+        <figcaption>Warmth: strength, night ceiling and the Kelvin picker.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/contrast.webp" alt="Contrast audit list: theme rows, ratios and AA/FAIL badges" width="2880" height="1720" loading="lazy" decoding="async">
+        <figcaption>Contrast audit: every theme is measured, unreadable ones are flagged.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/profiles.webp" alt="Profile cards: each profile shows mode, source and brightness offset" width="1224" height="688" loading="lazy" decoding="async">
+        <figcaption>Profiles: they can bind to apps. Three in the free build.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/themes.webp" alt="Theme picker: palette chips with color strips" width="2566" height="1444" loading="lazy" decoding="async">
+        <figcaption>Themes: twelve palettes, each shown with a background, text and accent strip.</figcaption>
+      </figure>
+      <figure class="shot">
+        <img src="../assets/shots/history.webp" alt="History screen: measurement records on a timeline" width="848" height="520" loading="lazy" decoding="async">
+        <figcaption>History: what each tick did, hour by hour.</figcaption>
+      </figure>
+      <figure class="shot wide">
+        <img src="../assets/shots/diagnostics.webp" alt="Diagnostics card: check rows with status badges" width="2730" height="1280" loading="lazy" decoding="async">
+        <figcaption>Diagnostics: camera, HDR, DDC/CI and permissions on one list.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="wrap bounds" id="bounds" aria-labelledby="h-bounds">
+    <h2 id="h-bounds">What it leaves alone</h2>
+    <p class="lead">The rules always win; not even a bound profile can override them.</p>
+    <div class="bound-cols">
+      <div>
+        <h3>Touches</h3>
+        <ul class="touch">
+          <li>With no pause and the screen on, it adjusts brightness.</li>
+          <li>With warmth off, it does not touch color balance.</li>
+          <li>If one monitor refuses DDC/CI, it skips that one and drives the others.</li>
+        </ul>
+      </div>
+      <div>
+        <h3>Leaves alone</h3>
+        <ul class="untouch">
+          <li>A game in the foreground freezes the tick.</li>
+          <li>A video player in the foreground freezes the tick.</li>
+          <li>Any other fullscreen app stops it.</li>
+          <li>A PDF reader in the foreground freezes the tick.</li>
+          <li>While the screen is locked, nothing is written.</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <section class="wrap features" id="features" aria-labelledby="h-features">
+    <h2 id="h-features">Seven things it does</h2>
+    <p class="lead">All in one tick, once a minute. No extra service, no extra process.</p>
+    <ul class="feature-list">
+      <li class="feature">
+        <h3>Reads the light with the camera</h3>
+        <p>Each frame yields only average brightness and tone. If the camera is busy it falls back to the clock.</p>
+      </li>
+      <li class="feature">
+        <h3>Day curve and night ceiling</h3>
+        <p>Strength is computed from 11 anchor points. The peak is 88% at 23:00; the cap applies 62%.</p>
+      </li>
+      <li class="feature">
+        <h3>Warmth</h3>
+        <p>From 6500 K down to 3000 K in steps of 100 K. It shifts colors without dimming the screen.</p>
+      </li>
+      <li class="feature">
+        <h3>Contrast gate</h3>
+        <p>Theme files are measured with WCAG 2.1; a theme that measures unreadable is never applied automatically.</p>
+      </li>
+      <li class="feature">
+        <h3>Profiles</h3>
+        <p>Three in the free build, six with Pro. A profile can bind to an executable name.</p>
+      </li>
+      <li class="feature">
+        <h3>External monitors</h3>
+        <p>The internal panel is read over WMI, external displays over DDC/CI. Writing unlocks with a Pro license.</p>
+      </li>
+      <li class="feature">
+        <h3>20-20-20 and idle return</h3>
+        <p>One reminder, never repeated until you acknowledge it. Idle dims the screen; the return takes about 3.5 seconds.</p>
+      </li>
+    </ul>
+  </section>
+
+  <section class="wrap facts" id="facts" aria-labelledby="h-facts">
+    <h2 id="h-facts">What happens on install</h2>
+    <dl class="fact-rows">
+      <div class="fact-row"><dt>Installer</dt><dd>NSIS setup, x64, per-user scope. No admin prompt.</dd></div>
+      <div class="fact-row"><dt>Signature</dt><dd>No Authenticode signature. SmartScreen may warn about an unknown publisher; use &quot;More info → Run anyway&quot;.</dd></div>
+      <div class="fact-row"><dt>Integrity</dt><dd>Every release ships a .sha256 file; verify with Get-FileHash.</dd></div>
+      <div class="fact-row"><dt>Updates</dt><dd>In-app. The package is signed with minisign and verified on download.</dd></div>
+      <div class="fact-row"><dt>Privacy</dt><dd>Camera frames are not written and not uploaded. No telemetry, no account.</dd></div>
+      <div class="fact-row"><dt>Uninstall</dt><dd>Color balance is restored first; turning warmth off also brings the calibration back.</dd></div>
+    </dl>
+  </section>
+
+  <section class="wrap plans" id="plans" aria-labelledby="h-plans">
     <h2 id="h-plans">Free and Pro</h2>
-    <p class="lead">The free build is a complete app, not a trial. Pro raises the profile count and opens external displays.</p>
-    <div class="plan-grid">
+    <p class="lead">The free build is a working app, not a trial. Pro raises the profile count and opens external displays.</p>
+    <div class="plan-cols">
       <div class="plan">
         <h3>Free</h3>
         <ul>
-              <li>Brightness from light and time</li>
-              <li>Automatic warmth and night ceiling</li>
-              <li>OpenCode theme and Windows system theme</li>
-              <li>Three profiles</li>
-              <li>Contrast gate</li>
-              <li>20-20-20 reminder</li>
+          <li>Brightness from light and time</li>
+          <li>Automatic warmth and night ceiling</li>
+          <li>OpenCode theme and Windows system theme</li>
+          <li>Three profiles</li>
+          <li>Contrast gate</li>
+          <li>20-20-20 reminder</li>
         </ul>
       </div>
-      <div class="plan plan-pro">
+      <div class="plan pro">
         <h3>Pro</h3>
         <ul>
-              <li>Six profiles</li>
-              <li>External monitor brightness over DDC/CI</li>
-              <li>Warmth on external monitors</li>
-              <li>Apps bound to profiles and per-app themes</li>
+          <li>Six profiles</li>
+          <li>External monitor brightness over DDC/CI</li>
+          <li>Warmth on external monitors</li>
+          <li>Apps bound to profiles and per-app themes</li>
         </ul>
       </div>
     </div>
     <p class="plan-note">Pro pricing is not set yet. The &quot;Get Pro&quot; button currently opens the project page.</p>
   </section>
 
-  <section class="faq" id="faq" data-phase="noon" aria-labelledby="h-faq">
-    <h2 id="h-faq">Frequently asked</h2>
-          <details class="qa">
-            <summary>What does the camera see, and where does it go?</summary>
-            <p>Each measurement reads a few frames and extracts only average brightness and tone. Nothing is written to disk or sent over the network. No frames are stored.</p>
-          </details>
-          <details class="qa">
-            <summary>How much battery does it use?</summary>
-            <p>A tick runs every minute, but the camera opens at most every 5 minutes. The interval grows as the battery drops: below 30% it is 5 minutes, below 20% ten, below 10% twenty, and below that thirty.</p>
-          </details>
-          <details class="qa">
-            <summary>Why does brightness not work with HDR on?</summary>
-            <p>Some monitors refuse DDC/CI brightness while HDR is on. The app says so in the error message; turning HDR off usually fixes it.</p>
-          </details>
-          <details class="qa">
-            <summary>My external monitor is listed but does not change?</summary>
-            <p>DDC/CI may be disabled in the monitor OSD, or the cable may not carry it. In the free build writing is locked; reading and listing still work.</p>
-          </details>
-          <details class="qa">
-            <summary>Does it change the screen while I play?</summary>
-            <p>No. Games, video and PDFs in the foreground freeze the tick. A fullscreen app that is not on the keep-list also stops it.</p>
-          </details>
-          <details class="qa">
-            <summary>How do I uninstall, and does it revert?</summary>
-            <p>Uninstall it from Windows settings. Color balance is restored first; turning warmth off also brings the calibration back.</p>
-          </details>
-          <details class="qa">
-            <summary>Is the app in English?</summary>
-            <p>The app interface is currently Turkish only. This site is bilingual.</p>
-          </details>
+  <section class="wrap faq" id="faq" aria-labelledby="h-faq">
+    <h2 id="h-faq">Questions</h2>
+    <details class="qa">
+        <summary>What does the camera see, and where does it go?</summary>
+        <p>Each measurement reads a few frames and extracts only average brightness and tone. Nothing is written to disk or sent over the network. No frames are stored.</p>
+      </details>
+    <details class="qa">
+        <summary>How much battery does it use?</summary>
+        <p>A tick runs every minute and the camera opens at most every five minutes. The interval grows as the battery drops: below 30% it is 5 minutes, below 20% ten, below 10% twenty, below that thirty.</p>
+      </details>
+    <details class="qa">
+        <summary>Why does brightness not work with HDR on?</summary>
+        <p>Some monitors refuse DDC/CI brightness while HDR is on. The app says so in the error message; turning HDR off usually fixes it.</p>
+      </details>
+    <details class="qa">
+        <summary>My external monitor is listed but does not change.</summary>
+        <p>DDC/CI may be off in the monitor&#39;s own menu, or the cable may not carry it. In the free build writing is locked; reading and listing still work.</p>
+      </details>
+    <details class="qa">
+        <summary>Does it change the screen while I play?</summary>
+        <p>No. Games, video and PDFs in the foreground freeze the tick. A fullscreen app that is not on the keep-list also stops it.</p>
+      </details>
+    <details class="qa">
+        <summary>How do I uninstall it?</summary>
+        <p>Uninstall it from Windows settings. Color balance is restored before removal.</p>
+      </details>
+    <details class="qa">
+        <summary>Is the app in English?</summary>
+        <p>The app interface is currently Turkish only. This site is bilingual.</p>
+      </details>
   </section>
 
-  <section class="closing" id="download" data-phase="night" aria-labelledby="h-close">
-    <h2 id="h-close">Install it, forget it.</h2>
+  <section class="wrap closing" id="download" aria-labelledby="h-closing">
+    <h2 id="h-closing">Install it, forget it.</h2>
     <p class="lead">The first tick runs at launch. After that it measures, decides and applies once a minute.</p>
-    <div class="cta-row">
-      <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Download · 3.6.2</a>
-      <a class="btn btn-ghost" href="https://github.com/TitanLion72/smart-screen/releases">All releases</a>
+    <div class="hero-actions">
+      <a class="btn btn-lg" href="https://github.com/TitanLion72/smart-screen/releases/latest">Download for Windows · 3.6.2</a>
+      <a class="btn btn-quiet btn-lg" href="https://github.com/TitanLion72/smart-screen/releases">All releases</a>
     </div>
   </section>
 </main>
 
 <footer class="foot">
-  <p class="tagline">Screen brightness and warmth that follow the light in the room.</p>
-  <p class="license">GPL-3.0-or-later · © 2026 TitanLion72</p>
-  <nav class="foot-links" aria-label="Footer links">
-    <a href="https://github.com/TitanLion72/smart-screen">GitHub</a> · <a href="https://github.com/TitanLion72/smart-screen/releases">Releases</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/CHANGELOG.md">Changelog</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/LICENSE">License</a> · <a href="https://github.com/TitanLion72/smart-screen/blob/main/CODE-SIGNING.md">Code signing</a>
-  </nav>
+  <div class="wrap foot-in">
+    <span>Screen brightness and warmth that follow the light in the room.</span>
+    <span>GPL-3.0-or-later · © 2026 TitanLion72</span>
+    <nav class="foot-links" aria-label="Footer links">
+        <a href="https://github.com/TitanLion72/smart-screen">GitHub</a>
+        <a href="https://github.com/TitanLion72/smart-screen/releases">Releases</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/LICENSE">License</a>
+        <a href="https://github.com/TitanLion72/smart-screen/blob/main/CODE-SIGNING.md">Code signing</a>
+    </nav>
+  </div>
 </footer>
 
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"smart-screen","applicationCategory":"UtilitiesApplication","operatingSystem":"Windows 10, Windows 11","softwareVersion":"3.6.2","license":"https://www.gnu.org/licenses/gpl-3.0.html","offers":{"@type":"Offer","price":"0","priceCurrency":"USD"},"url":"https://titanlion72.github.io/smart-screen/en/"}</script>
