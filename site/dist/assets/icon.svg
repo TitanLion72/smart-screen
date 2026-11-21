@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="smart-screen">
-  <rect width="32" height="32" rx="6" fill="#0a0908"/>
-  <rect x="6" y="9" width="20" height="13" rx="2" fill="none" stroke="#d8b98a" stroke-width="1.6"/>
-  <path d="M4 25h24" stroke="#d8b98a" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
-  <path d="M11 15.5h10" stroke="#d8b98a" stroke-width="2.4" stroke-linecap="round"/>
-</svg>

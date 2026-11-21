@@ -1,0 +1,47 @@
+[
+ {
+  "file": "overview.webp",
+  "w": 2750,
+  "h": 1592
+ },
+ {
+  "file": "hero.webp",
+  "w": 1634,
+  "h": 520
+ },
+ {
+  "file": "monitors.webp",
+  "w": 1168,
+  "h": 658
+ },
+ {
+  "file": "warmth.webp",
+  "w": 1854,
+  "h": 1100
+ },
+ {
+  "file": "contrast.webp",
+  "w": 2880,
+  "h": 1720
+ },
+ {
+  "file": "profiles.webp",
+  "w": 1224,
+  "h": 688
+ },
+ {
+  "file": "themes.webp",
+  "w": 2566,
+  "h": 1444
+ },
+ {
+  "file": "history.webp",
+  "w": 848,
+  "h": 520
+ },
+ {
+  "file": "diagnostics.webp",
+  "w": 2730,
+  "h": 1280
+ }
+]

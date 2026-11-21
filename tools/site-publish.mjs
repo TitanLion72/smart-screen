@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const dist = join(root, "site", "dist");
+const dist = join(root, "site/v2", "dist");
 const worktree = join(root, ".site-publish");
 const BRANCH = "gh-pages";
 const dryRun = process.argv.includes("--dry-run");
