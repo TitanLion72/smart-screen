@@ -337,33 +337,43 @@ Sürümler CI doğrulamasından sonra manuel push + release komutlarıyla açıl
 ## Tanıtım sitesi
 
 Yayın: <https://titanlion72.github.io/smart-screen/> (kaynak dal `gh-pages`).
-Site **`main` içinde `site/` altında** geliştirilir; `gh-pages` yalnız üretilmiş
+Site **`main` içinde `site/v2/` altında** geliştirilir; `gh-pages` yalnız üretilmiş
 çıktıyı taşır. Böylece `HANDOFF`/`PLAN-*`/`REKABET-*` gibi dahili belgeler
 yayına girmez.
 
-Site, ürünün kendi dilini kullanır (sıcak obsidyen zemin, tek pirinç vurgu, saç
-teli kurallar, tabular rakamlar) ve **kaydırdıkça dört ışık fazında** ton
-değiştirir: şafak (soğuk koyu) → öğlen (sıcak kâğıt, gerçekten açık) →
-akşam (pirinç) → gece (obsidyen). Renkler uydurulmaz: `site/phases.mjs`
-uygulamanın paletinden türetilir ve dört fazın hepsi WCAG AA'dır.
+Tasarım yönü: **"karanlık oda, tek ışık"**. Sayfa neredeyse siyah (`#05070a`);
+parlayan tek şey ürünün kendi ekranı. Vurgu (`#ffbe86`) yalnız etkileşim ve
+"şu an" için. Hiyerarşi renkten değil **ağırlık + genişlik + boyuttan** gelir
+(tek değişken font, self-hosted Bricolage, 79 KB).
+
+**Bilinçli olarak yok** — bunlar v1'in yapay zekâ izleriydi ve `site2-check`
+geri sızmalarını yasaklar: ALL-CAPS harf aralıklı eyebrow etiketleri, monospace
+veri etiketleri, saç teli kural + gazete kolonu estetiği, krem + terracotta
+palet, her bölümde fade-up girişi.
 
 ```
-site/
-  content.mjs     TR + EN metin (TEK KAYNAK — iki dil buradan üretilir)
+site/v2/
+  content.mjs     TR + EN metin (TEK KAYNAK)
   curve.mjs       sıcak ton eğrisi; decide.rs ile birebir (birim testli)
-  phases.mjs      dört faz paleti + WCAG kontrast
-  phase-math.mjs  kaydırma → faz ağırlığı → renk karışımı
   template.mjs    HTML iskeleti (semantik, hreflang, JSON-LD)
-  assets/         site.css, site.js, icon.svg, shots/*.webp
+  assets/         site.css, site.js, icon.svg, fonts/, shots/*.webp
   dist/           ÜRETİLEN çıktı (commit edilir; diff'te görünür)
 ```
+
+**Dört hareket** — hepsi ürünün davranışını gösterir, süs değil:
+1. Açılış: karanlık odada ekran uyanır (0.15 → 1).
+2. Kaydırma: oda kararır (`--room`), sabah → gece.
+3. Gün eğrisi çizilir; "şu an" noktası **gerçek saate** konur.
+4. Gece değerleri bir kez sayar (%62 · 4300 K · 3,5 sn).
+
+`prefers-reduced-motion` açıkken dördü de kapanır, içerik **son hâlinde** görünür.
 
 Akış:
 
 ```powershell
-npm.cmd run site:build     # site/dist'i üret (--check bayatlığı yakalar)
-npm.cmd run site:check     # parity, kontrast, bağlantı, bütçe (tarayıcısız)
-npm.cmd run site:shots     # gerçek uygulama kareleri + og.png (önce npm run build)
+npm.cmd run site:build     # site/v2/dist üret (--check bayatlığı yakalar)
+npm.cmd run site:check     # parity, AAA kontrast, bağlantı, bütçe, estetik yasağı
+npm.cmd run site:shots     # 9 gerçek uygulama karesi + og.png (önce npm run build)
 npm.cmd run site:publish   # gh-pages'e tek commit (--dry-run ile prova)
 ```
 
@@ -371,13 +381,14 @@ npm.cmd run site:publish   # gh-pages'e tek commit (--dry-run ile prova)
 `prefers-reduced-motion` ve dil geçişini denetler; `--base <url>` ile canlı
 üzerinde de koşar.
 
-Ekran görüntüleri **elleriyle çizilmiş taklit değil**, gerçek uygulamadan
-alınır: `tools/site-shots.mjs` deterministik bir stub ile uygulamayı açar,
-hedef kartı ölçer, 2× ölçekte WebP üretir. Seçici koddan kalkarsa araç
-gürültülü biçimde durur — sessizce boş görsel yayınlamaz.
+Ekran görüntüleri **gerçek uygulamadan** alınır (`tools/site2-shots.mjs`):
+deterministik stub, hedef kartı ölçer, 2× ölçekte WebP üretir. Üç kapı var:
+seçici var mı, öğe görünür alanda mı, öğenin **metni** var mı. Seçici koddan
+kalkarsa araç gürültülü biçimde durur — sessizce boş görsel yayınlamaz.
 
-> **Kural:** site metinlerini `site/content.mjs` dışında düzenleme; `dist/`
+> **Kural:** site metinlerini `site/v2/content.mjs` dışında düzenleme; `dist/`
 > elle düzenlenirse `site:check` bayat çıktı olarak yakalar.
+
 ## Kod imzalama (Authenticode)
 
 Kurulum dosyaları **bugün imzasız** — SmartScreen "bilinmeyen yayıncı" uyarır.

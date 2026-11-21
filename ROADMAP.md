@@ -480,11 +480,13 @@ her adımda `lastWritten` güncellemesi). Harici monitörlere ek yazma yok.
 
 ## Sıradaki işler (kararlaştırılmış sıra)
 
-1. `[x]` **Site yenileme** — `site/` altında sıfırdan yazıldı; iki dilli
-   (TR/EN, tek kaynak `site/content.mjs`), kaydırdıkça dört ışık fazında renk
-   değiştiren tasarım, gerçek uygulama kareleri. Kapılar: 54 site testi,
-   parity/kontrast/bütçe/bağlantı denetimi, Playwright dumanı (360/768/1440,
-   JS kapalı, reduced-motion, dil geçişi). Yayın `gh-pages`'e tek commit.
+1. `[x]` **Site yenileme** — iki tur sürdü. v1 (dört ışık fazı, `site/`) beğenilmedi
+   çünkü dört yapay zekâ izi taşıyordu (krem+terracotta, gazete kolonu, ALL-CAPS
+   eyebrow, mono etiket). v2 (`site/v2/`, "karanlık oda tek ışık") sıfırdan
+   yazıldı: dokuz gerçek kare, dört anlamlı hareket, self-hosted değişken font,
+   AAA kontrast, TR+EN tek kaynak. Kapılar: 25 site testi + parity/bütçe/AAA
+   + estetik yasağı + Playwright dumanı (yerelde ve **canlıda**). Yayın
+   `gh-pages`'e tek commit.
 2. `[~]` **winget PR** - PR **açık** (microsoft/winget-pkgs#484203, `Needs-CLA`).
    Üç dosya fork'ta `smart-screen-3.6.0` dalında. 3.6.1 manifestleri de hazır
    (`winget/manifests/.../3.6.1/`, `winget validate` PASS) — ilk paket birleşince

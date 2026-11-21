@@ -1,4 +1,4 @@
-# HANDOFF - smart-screen (güncel: v3.6.2, 2026-11-21)
+# HANDOFF - smart-screen (güncel: v3.6.3, 2026-11-22)
 
 ## ⚠️ KURAL (2026-10-26, acı deneyimle): ARAYÜZ GÖRMEDEN YAYIN YOK
 
@@ -341,7 +341,50 @@ altında `.exe`/`.msi` var mı; yoksa bundle'ı ayrı koş.
 yok), özel alan adı, analitik/çerez (gizlilik iddiası sayfanın kendi
 davranışıyla tutarlı olmalı).
 
-## Güncel durum: v3.6.2
+## v3.6.3 turu - site v2 "karanlık oda" (2026-11-22)
+
+**Kullanıcı ilk siteyi beğenmedi. Sebep zevk değil, kalıptı.** `frontend-design`
+skill'i kuruldu (anthropics/skills, 1.1M kurulum, üç denetim de Pass; alternatif
+`design-taste-frontend` elendi çünkü Trust Hub **Fail** + çalıştırılabilir
+script'ler). Skill'in kalibrasyon listesi v1'de **dört** eşleşme verdi:
+krem+terracotta palet, saç teli kural + gazete kolonu, ALL-CAPS eyebrow,
+monospace veri etiketi. Yani sayfa modelin her brief'e verdiği varsayılana
+düşmüştü — karar verilmemiş estetik.
+
+**Süreç: sözle değil mockup'la karar.** Üç yön gerçek HTML olarak yazıldı
+(`1-kelvin`, `2-karanlik`, `3-oda`), ekran görüntüsü alındı, kullanıcı seçti:
+"yön 2 olsun ama daha dolu dolu". Dolu = **gerçek içerik** (9 kare), süs değil.
+
+**Ders 1 — "dolu dolu" isteğine stok fotoğrafla cevap vermek kendi iddiamızı
+çürütür.** Site "kamera görüntüsü diske yazılmaz, telemetri yok" diyor; kaynağı
+belirsiz fotoğraf koymak bu cümleyi yalanlar. Doluluk 4 → 9 gerçek kare, dört
+anlamlı hareket ve tek self-hosted fontla sağlandı.
+
+**Ders 2 — font bütçesi tahminle değil ölçümle konur.** "~40 KB" dedim, gerçek
+79.4 KB çıktı (wdth+wght eksenleri + tam Türkçe). Subset+instancer ile 400 KB
+TTF'ten indirildi ve sınır ölçüme göre düzeltildi.
+
+**Ders 3 — kare üretiminde "yazıldı" demek yetmez.** v1'de bir kare bembe-
+yaz boş yayınlanmıştı. v2'de **üç kapı**: seçici var mı, öğe görünür alanda mı
+(clip koordinatı görünüm alanına göre!), öğenin **metni** var mı.
+
+**Ders 4 — ters animasyon ürünü boğar.** İlk açılış animasyonu ekranı
+1 → 0.38'e karartıyordu ("parlaklık kanıtı"); sonuç hero'da gri çamur. Doğrusu:
+sahne karanlık başlar, ekran **uyanır** ve orada kalır.
+
+**Ders 5 — en-boy oranını zorlamak içeriği keser.** Galeri karolarını 16:9'a
+çekmek hero ekranının üstünü kırptı. Kural: `keepRatio` olan kare dokunulmaz;
+geniş içerik (≥2:1) tam genişlik — karar elle işaretten değil **gerçek piksel
+oranından** gelir.
+
+**Kapılar:** 25 site testi · `site2-check` (parity, **AAA** kontrast, bütçe,
+estetik yasağı: eyebrow/mono/ALL-CAPS geri sızarsa FAIL) · `--smoke` yerelde ve
+**canlıda** PASS · uygulama testleri bozulmadı.
+
+**Yayın:** `gh-pages` tek commit (21 dosya), v1 dosyaları silindi; TR+EN 200,
+font ve kareler 200.
+
+## Güncel durum: v3.6.3
 
 `ROADMAP.md`'teki dokuz adımın hepsi kapalı, son yayın **v3.1.0**. Aşağısı tur
 tur tarihsel kayıttır (en yeniden en eskiye). **0.6.0 ve öncesine ait "Kalan" /

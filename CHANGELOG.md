@@ -15,6 +15,27 @@ sürümleme [Semantic Versioning](https://semver.org/lang/tr/) izler.
 
 _(henüz yayınlanmadı)_
 
+## [3.6.3] - 2026-11-22
+
+"Tanıtım sitesi yenilendi"
+
+### Changed
+- **Tanıtım sitesi sıfırdan yeniden yazıldı.** Önceki tasarım dört yapay zekâ
+  izi taşıyordu (krem + terracotta palet, gazete kolonu estetiği, ALL-CAPS
+  eyebrow etiketleri, monospace veri etiketleri) ve ürünün kendi dilinden
+  gelmiyordu. Yeni yön: **karanlık oda, tek ışık** — sayfa neredeyse siyah,
+  parlayan tek şey uygulamanın kendi ekranı.
+- Site artık **dokuz gerçek uygulama ekranı** gösteriyor (dört değil) ve dört
+  anlamlı hareket var: karanlık odada ekranın uyanması, kaydırdıkça odanın
+  kararması, gün eğrisinin çizilmesi, gece değerlerinin sayması.
+- Tipografi tek self-hosted değişken fonta taşındı (Bricolage, 79 KB);
+  hiyerarşi renkten değil ağırlık/genişlik/boyuttan geliyor.
+
+### Fixed
+- **Hero'daki açılış animasyonu ekranı karartıyordu.** "Parlaklık kanıtı" için
+  1 → 0.38 yapılmıştı ve ekran görüntüsü kalıcı olarak gri kalıyordu. Artık
+  sahne karanlık başlar, ekran uyanır ve tam parlaklıkta kalır.
+
 ## [3.6.2] - 2026-11-21
 
 "Kontrast listesi taşması + tanıtım sitesi"
