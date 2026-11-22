@@ -216,9 +216,9 @@ export function renderPage(lang, { version, shotSizes = {}, stopsHtml } = {}) {
   </section>
 
   <section class="wrap stops" id="stops" aria-labelledby="h-stops">
-    <div class="stops-head">
+    <div class="section-head">
       <h2 id="h-stops">${esc(c.stops.title)}</h2>
-      <p>${esc(c.stops.lead)}</p>
+      <p class="lead">${esc(c.stops.lead)}</p>
     </div>
     <div class="stops-curve" aria-hidden="true">
       <svg viewBox="0 0 1200 120" preserveAspectRatio="none">
@@ -236,7 +236,7 @@ export function renderPage(lang, { version, shotSizes = {}, stopsHtml } = {}) {
   </section>
 
   <section class="wrap gallery" id="gallery" aria-labelledby="h-gallery">
-    <div class="gallery-head">
+    <div class="section-head">
       <h2 id="h-gallery">${esc(c.gallery.title)}</h2>
       <p class="lead">${esc(c.gallery.lead)}</p>
     </div>
@@ -246,8 +246,10 @@ export function renderPage(lang, { version, shotSizes = {}, stopsHtml } = {}) {
   </section>
 
   <section class="wrap bounds" id="bounds" aria-labelledby="h-bounds">
-    <h2 id="h-bounds">${esc(c.bounds.title)}</h2>
-    <p class="lead">${esc(c.bounds.lead)}</p>
+    <div class="section-head">
+      <h2 id="h-bounds">${esc(c.bounds.title)}</h2>
+      <p class="lead">${esc(c.bounds.lead)}</p>
+    </div>
     <div class="bound-cols">
       <div>
         <h3>${esc(c.bounds.touchTitle)}</h3>
@@ -265,23 +267,29 @@ export function renderPage(lang, { version, shotSizes = {}, stopsHtml } = {}) {
   </section>
 
   <section class="wrap features" id="features" aria-labelledby="h-features">
-    <h2 id="h-features">${esc(c.features.title)}</h2>
-    <p class="lead">${esc(c.features.lead)}</p>
+    <div class="section-head">
+      <h2 id="h-features">${esc(c.features.title)}</h2>
+      <p class="lead">${esc(c.features.lead)}</p>
+    </div>
     <ul class="feature-list">
       ${features}
     </ul>
   </section>
 
   <section class="wrap facts" id="facts" aria-labelledby="h-facts">
-    <h2 id="h-facts">${esc(c.facts.title)}</h2>
+    <div class="section-head">
+      <h2 id="h-facts">${esc(c.facts.title)}</h2>
+    </div>
     <dl class="fact-rows">
       ${factRows}
     </dl>
   </section>
 
   <section class="wrap plans" id="plans" aria-labelledby="h-plans">
-    <h2 id="h-plans">${esc(c.plans.title)}</h2>
-    <p class="lead">${esc(c.plans.lead)}</p>
+    <div class="section-head">
+      <h2 id="h-plans">${esc(c.plans.title)}</h2>
+      <p class="lead">${esc(c.plans.lead)}</p>
+    </div>
     <div class="plan-cols">
       <div class="plan">
         <h3>${esc(c.plans.freeTitle)}</h3>
@@ -300,7 +308,9 @@ export function renderPage(lang, { version, shotSizes = {}, stopsHtml } = {}) {
   </section>
 
   <section class="wrap faq" id="faq" aria-labelledby="h-faq">
-    <h2 id="h-faq">${esc(c.faq.title)}</h2>
+    <div class="section-head">
+      <h2 id="h-faq">${esc(c.faq.title)}</h2>
+    </div>
     ${faq}
   </section>
 
