@@ -53,6 +53,9 @@
 
 html {
   scroll-behavior: smooth;
+  /* Yapışkan üst çubuk bölüm başlıklarının üstüne biniyordu (#anker ile
+     gelindiğinde başlık çubuğun altında kalıyordu). Kaydırma payı bırak. */
+  scroll-padding-top: 6.5rem;
   -webkit-text-size-adjust: 100%;
 }
 
@@ -96,26 +99,32 @@ h3 {
 }
 
 h1 {
-  font-size: clamp(2.15rem, 5vw, 3.85rem);
+  font-size: clamp(2.3rem, 5.4vw, 4.15rem);
   font-weight: 250;
   font-stretch: 96%;
-  letter-spacing: -0.038em;
-  max-width: 20ch;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  max-width: 19ch;
 }
 
+/* Bölüm başlığı: hero'dan net biçimde küçük, gövdeden net biçimde büyük.
+   Eski hâlde başlık 2.35rem, gövde 1.16rem idi ve aradaki fark zayıftı;
+   hiyerarşi "her şey aynı" hissi veriyordu. */
 h2 {
-  font-size: clamp(1.55rem, 3vw, 2.35rem);
-  font-stretch: 92%;
-  letter-spacing: -0.03em;
-  max-width: 26ch;
+  font-size: clamp(1.75rem, 3.6vw, 2.9rem);
+  font-weight: 300;
+  font-stretch: 90%;
+  letter-spacing: -0.035em;
+  line-height: 1.06;
+  max-width: 22ch;
 }
 
 h3 {
-  font-size: 1.06rem;
-  font-weight: 520;
-  font-stretch: 97%;
-  letter-spacing: -0.012em;
-  line-height: 1.3;
+  font-size: 1.09rem;
+  font-weight: 560;
+  font-stretch: 96%;
+  letter-spacing: -0.014em;
+  line-height: 1.28;
 }
 
 p {
@@ -123,18 +132,47 @@ p {
 }
 
 .lead {
-  font-size: clamp(1rem, 1.35vw, 1.16rem);
+  font-size: clamp(1.02rem, 1.4vw, 1.2rem);
   font-weight: 360;
-  line-height: 1.62;
+  line-height: 1.6;
   color: var(--dim);
-  max-width: var(--measure);
+  max-width: 54ch;
   overflow-wrap: anywhere;
+}
+
+/* Bölüm başlığı bloğu: başlık ve açıklama ALT ALTA, yan yana değil.
+   Eski `stops-head` iki kolondu ve açıklama başlığın sağına kaçıyordu;
+   göz iki ayrı başlangıç arasında bölünüyordu. */
+.section-head {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: clamp(1.8rem, 4vw, 2.8rem);
+}
+
+.section-head p {
+  margin: 0;
+  max-width: 52ch;
 }
 
 .small {
   font-size: 14px;
   font-weight: 420;
   color: var(--dim);
+}
+
+/* Yapışkan çubuk bölüm başlıklarının üstüne biniyordu: `html` üzerindeki
+   `scroll-padding-top` yalnız belge kaydırmasında etkilidir, `position: sticky`
+   bir çubukla gelen örtmeyi çözmez. Her bölüme kendi payını ver. */
+.stops,
+.gallery,
+.bounds,
+.features,
+.facts,
+.plans,
+.faq,
+.closing {
+  scroll-margin-top: 5.5rem;
 }
 
 /* ── iskelet ─────────────────────────────────────────────────────── */
@@ -374,9 +412,9 @@ p {
 /* ── dört durak: gün boyunca ─────────────────────────────────────── */
 
 .stops {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .stops-head {
@@ -503,58 +541,68 @@ p {
   color: var(--text);
 }
 
-/* ── galeri: 8 kare, iki sütun ───────────────────────────────────── */
+/* ── galeri: 9 kare, düzenli ızgara ──────────────────────────────── */
 
 .gallery {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
-}
-
-.gallery-head {
-  margin-bottom: 1.8rem;
+  margin-top: clamp(4.5rem, 11vh, 8rem);
 }
 
 .shot-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: clamp(1rem, 2.2vw, 1.8rem);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: clamp(0.9rem, 1.8vw, 1.5rem);
   margin: 0;
   padding: 0;
   list-style: none;
 }
 
+/* Her karo aynı en-boy oranında çerçeveli: 8 farklı oranı yan yana koymak
+   "ekran görüntüsü dökümü" gibi duruyordu. `object-fit: cover` ile içerik
+   kırpılır ama üst-sol köşe korunur (kart başlığı ve değer orada). */
 .shot {
   margin: 0;
   padding: 0;
-  /* Kareler farklı en-boy oranlarında; `align-self: start` olmadan grid
-     satırı en yüksek kareye göre gerilir ve küçük karelerin altında boşluk
-     kalır. */
+  grid-column: span 3;
   align-self: start;
-}
-
-.shot img {
-  width: 100%;
-  border-radius: 4px;
-  background: var(--wall);
-  box-shadow: 0 0 0 1px var(--line);
-}
-
-.shot figcaption {
-  margin-top: 0.6rem;
-  font-size: 13.5px;
-  font-weight: 420;
-  color: var(--dim);
 }
 
 .shot.wide {
   grid-column: 1 / -1;
 }
 
+/* Karolar: yükseklik ZORLANMAZ. `aspect-ratio` + `object-fit: cover`
+   denendi; 2750×1592'lik kare 16:10'a sığdırılınca alt yarısı boş kaldı ve
+   kartların içi ölü göründü. Bunun yerine doğal oran korunur; eşitlik
+   gerekiyorsa `align-items: start` grid'de satır gerilmesini engeller. */
+.shot img {
+  width: 100%;
+  height: auto;
+  border-radius: 5px;
+  background: var(--wall);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 18px 40px -24px rgba(0, 0, 0, 0.9);
+}
+
+/* Kırpma yoksa solmaya gerek de yok: görsel neyse o. */
+.shot::after {
+  content: none;
+}
+
+.shot figcaption {
+  margin-top: 0.6rem;
+  font-size: 13.5px;
+  font-weight: 430;
+  line-height: 1.45;
+  color: var(--dim);
+}
+
 /* ── sınırlar: iki sütun ─────────────────────────────────────────── */
 
 .bounds {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .bound-cols {
@@ -610,9 +658,9 @@ p {
 /* ── özellikler ──────────────────────────────────────────────────── */
 
 .features {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .feature-list {
@@ -645,9 +693,9 @@ p {
 /* ── gerçekler ───────────────────────────────────────────────────── */
 
 .facts {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .fact-rows {
@@ -680,9 +728,9 @@ p {
 /* ── ücretsiz / Pro ──────────────────────────────────────────────── */
 
 .plans {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .plan-cols {
@@ -731,9 +779,9 @@ p {
 /* ── SSS ─────────────────────────────────────────────────────────── */
 
 .faq {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding-top: clamp(2.2rem, 5vh, 3.4rem);
+  padding-top: clamp(2.6rem, 6vh, 4rem);
 }
 
 .qa {
@@ -785,9 +833,9 @@ p {
 /* ── kapanış ─────────────────────────────────────────────────────── */
 
 .closing {
-  margin-top: clamp(3.4rem, 8vh, 5.6rem);
+  margin-top: clamp(4.5rem, 11vh, 8rem);
   border-top: 1px solid var(--line);
-  padding: clamp(3rem, 7vh, 5rem) 0 clamp(3.4rem, 8vh, 5.4rem);
+  padding: clamp(3.2rem, 8vh, 5.4rem) 0 clamp(3.6rem, 9vh, 6rem);
 }
 
 .closing h2 {
